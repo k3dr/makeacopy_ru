@@ -1,0 +1,16 @@
+MakeACopy is an open-source document scanner app for Android that allows you to digitize paper documents with OCR functionality. The app is designed to be privacy-friendly, working completely offline without any cloud connection or tracking.
+
+Features:
+• Camera Scanning: Capture documents using the device camera
+• Edge Detection: Automatic document edge detection using OpenCV
+• Perspective Correction: Adjust and crop documents with manual or automatic perspective correction
+• Image Enhancement: Apply filters (grayscale, contrast, sharpening)
+• OCR: Offline text recognition with Tesseract
+• PDF Export: Save as searchable PDF with recognized text
+• Share & Save: Export locally or share with other apps
+• Dark Mode: Material 3 theme with day/night support
+• Privacy-Focused: 100% offline functionality, no internet connection required
+
+MakeACopy is F-Droid compliant and builds OpenCV from source during the build process, ensuring that no pre-built binaries are included in the repository. All components are open source and respect your privacy.
+
+License: Apache License 2.0

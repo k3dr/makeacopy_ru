@@ -1,0 +1,78 @@
+Categories:
+  - Graphics
+  - Multimedia
+  - Scanning
+
+License: Apache-2.0
+
+AuthorName: Christian Kierdorf
+
+WebSite: https://github.com/egdels/makeacopy
+
+SourceCode: https://github.com/egdels/makeacopy
+
+IssueTracker: https://github.com/egdels/makeacopy/issues
+
+Changelog: https://github.com/egdels/makeacopy/releases
+
+AutoName: MakeACopy
+
+Summary: Privacy-focused document scanner with OCR and PDF export
+
+Description: |
+  MakeACopy is an open-source document scanner app for Android that allows you to digitize paper documents with OCR functionality. The app is designed to be privacy-friendly, working completely offline without any cloud connection or tracking.
+
+  Features:
+  * Camera Scanning: Capture documents using the device camera
+  * Edge Detection: Automatic document edge detection using OpenCV
+  * Perspective Correction: Adjust and crop documents with manual or automatic perspective correction
+  * Image Enhancement: Apply filters (grayscale, contrast, sharpening)
+  * OCR: Offline text recognition with Tesseract
+  * PDF Export: Save as searchable PDF with recognized text
+  * Share & Save: Export locally or share with other apps
+  * Dark Mode: Material 3 theme with day/night support
+  * Privacy-Focused: 100% offline functionality, no internet connection required
+
+  MakeACopy is F-Droid compliant and builds OpenCV from source during the build process, ensuring that no pre-built binaries are included in the repository. All components are open source and respect your privacy.
+
+RepoType: git
+
+Repo: https://github.com/egdels/makeacopy
+
+Builds:
+  - versionName: '1.0.0'
+    versionCode: 10000
+    commit: v1.0.0
+    subdir: app
+    ndk: 29.0.13599879
+    gradle:
+      - fossFdroid
+    prebuild: |
+      # Build OpenCV native libraries from source
+      # The OpenCV module in the repository has been pre-cleaned of all binaries
+      # and contains only the necessary Java files for the app to function
+      
+      # Run the scripts to build OpenCV native libraries from source
+      ../scripts/fetch_opencv.sh
+      ../scripts/build_opencv_android.sh
+      ../scripts/prepare_opencv.sh
+
+MaintainerNotes: |
+  The OpenCV module in this repository has been pre-cleaned of all binaries to ensure F-Droid compatibility.
+  The repository contains only the necessary Java files from the OpenCV Android SDK, with all binary files removed.
+  
+  The native libraries are built from source during the build process using the following scripts:
+  1. fetch_opencv.sh - Downloads OpenCV source code from https://github.com/opencv/opencv.git
+  2. build_opencv_android.sh - Builds OpenCV native libraries for all architectures (arm64-v8a, armeabi-v7a, x86, x86_64)
+  3. prepare_opencv.sh - Integrates the built native libraries into the app
+  
+  This approach ensures F-Droid compatibility by:
+  1. Using the pre-cleaned OpenCV module for Java classes (no pre-compiled binaries in the repository)
+  2. Building all native libraries from source during the build process
+  
+  The app does not include any pre-built binaries or non-free dependencies.
+
+AutoUpdateMode: Version
+UpdateCheckMode: Tags
+CurrentVersion: '1.0.0'
+CurrentVersionCode: 10000

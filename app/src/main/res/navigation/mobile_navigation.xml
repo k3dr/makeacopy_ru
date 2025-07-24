@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<navigation xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/mobile_navigation"
+    app:startDestination="@+id/navigation_camera">
+
+    <fragment
+        android:id="@+id/navigation_camera"
+        android:name="de.schliweb.makeacopy.ui.camera.CameraFragment"
+        android:label="@string/title_camera"
+        tools:layout="@layout/fragment_camera" />
+
+    <fragment
+        android:id="@+id/navigation_crop"
+        android:name="de.schliweb.makeacopy.ui.crop.CropFragment"
+        android:label="@string/title_crop"
+        tools:layout="@layout/fragment_crop" />
+
+    <fragment
+        android:id="@+id/navigation_ocr"
+        android:name="de.schliweb.makeacopy.ui.ocr.OCRFragment"
+        android:label="@string/title_ocr"
+        tools:layout="@layout/fragment_ocr" />
+
+    <fragment
+        android:id="@+id/navigation_export"
+        android:name="de.schliweb.makeacopy.ui.export.ExportFragment"
+        android:label="@string/title_export"
+        tools:layout="@layout/fragment_export" />
+</navigation>

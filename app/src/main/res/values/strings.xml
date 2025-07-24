@@ -1,0 +1,49 @@
+<resources>
+    <string name="app_name">MakeACopy</string>
+    
+    <!-- New menu items for document scanner -->
+    <string name="title_camera">Camera</string>
+    <string name="title_crop">Crop</string>
+    <string name="title_ocr">OCR</string>
+    <string name="title_export">Export</string>
+    
+    <!-- Button labels -->
+    <string name="btn_scan">Scan Document</string>
+    <string name="btn_crop">Crop</string>
+    <string name="btn_process">Process</string>
+    <string name="btn_export">Export</string>
+    <string name="btn_share">Share</string>
+    
+    <!-- Messages -->
+    <string name="msg_camera_permission_required">Camera permission is required to scan documents</string>
+    <string name="confirm">Confirm</string>
+    <string name="review_your_scan_tap_confirm_to_proceed_or_retake_to_try_again">Review your scan. Tap Confirm to proceed or Retake to try again.</string>
+    <string name="camera_ready_tap_the_button_to_scan_a_document">Camera ready. Tap the button to scan a document.</string>
+    <string name="captured_image">Captured image</string>
+    <string name="retake">Retake</string>
+    <string name="image_to_crop">Image to crop</string>
+    <string name="cropped_image">Cropped image</string>
+    <string name="recrop">Recrop</string>
+    <string name="document_preview">Document preview</string>
+    <string name="include_ocr_text">Include OCR text</string>
+    <string name="language">Language:</string>
+    <string name="ocr_results_will_appear_here">OCR results will appear here</string>
+    <string name="no_image_loaded_capture_an_image_first">No image loaded. Capture an image first.</string>
+    <string name="adjust_the_trapezoid_corners_to_select_the_area_to_crop_then_tap_the_crop_button">Adjust the trapezoid corners to select the area to crop, then tap the Crop button.</string>
+    <string name="review_your_cropped_image_tap_confirm_to_proceed_or_recrop_to_try_again">Review your cropped image. Tap Confirm to proceed or Recrop to try again.</string>
+    <string name="no_document_ready_process_ocr_first">No document ready. Process OCR first.</string>
+    <string name="document_ready_for_export">Document ready for export</string>
+    <string name="processing_image">Processing image...</string>
+    <string name="no_image_processed_crop_an_image_first">No image processed. Crop an image first.</string>
+    <string name="ocr_processing_complete_tap_the_button_to_proceed_to_export">OCR processing complete. Tap the button to proceed to export.</string>
+
+    <!-- Export options -->
+    <string name="convert_to_grayscale">Convert to grayscale</string>
+    
+    <!-- Flashlight options -->
+    <string name="toggle_flashlight">Toggle flashlight</string>
+    <string name="flashlight_on">Flashlight on</string>
+    <string name="flashlight_off">Flashlight off</string>
+    <string name="flashlight_not_available">Flashlight not available on this device</string>
+    <string name="low_light_detected">Low light detected. Turn on flashlight?</string>
+</resources>

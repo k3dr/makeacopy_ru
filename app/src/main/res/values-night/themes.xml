@@ -1,0 +1,39 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- Base application theme. -->
+    <style name="Theme.MakeACopy" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <!-- Primary brand color. -->
+        <item name="colorPrimary">@color/purple_500</item>
+        <item name="colorPrimaryVariant">@color/purple_700</item>
+        <item name="colorOnPrimary">@color/white</item>
+        <!-- Secondary brand color. -->
+        <item name="colorSecondary">@color/teal_200</item>
+        <item name="colorSecondaryVariant">@color/teal_200</item>
+        <item name="colorOnSecondary">@color/white</item>
+        <item name="colorOnSurface">@color/white</item>
+        <!-- Status bar color. -->
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <!-- Customize your theme here. -->
+        <!-- Custom shadow colors for better visibility in dark mode -->
+        <item name="android:outlineSpotShadowColor">#4A7AAC</item> <!-- Lighter blue for spot shadows -->
+        <item name="android:outlineAmbientShadowColor">#2A5A8E</item> <!-- Medium blue for ambient shadows -->
+        <item name="android:elevation">10dp</item> <!-- Slightly increased elevation for more pronounced shadows -->
+        
+        <!-- Set button text color to white in dark mode -->
+        <item name="android:textColorPrimary">@color/white</item>
+        
+        <!-- Override buttonBarButtonStyle to use white text color -->
+        <item name="android:buttonBarButtonStyle">@style/WhiteTextButtonBarButtonStyle</item>
+    </style>
+    
+    <!-- 
+    Custom style for buttonBarButtonStyle with white text in dark mode.
+    This style ensures that all buttons using buttonBarButtonStyle have white text,
+    addressing the issue "Die Schriftfarbe der Buttons im Darkmode ist noch nicht weiß"
+    -->
+    <style name="WhiteTextButtonBarButtonStyle" parent="@android:style/Widget.Material.ButtonBar.AlertDialog">
+        <item name="android:textColor">@color/white</item>
+        <item name="android:textAllCaps">false</item>
+    </style>
+</resources>

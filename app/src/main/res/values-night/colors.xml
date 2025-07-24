@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Dark mode specific colors -->
+    <color name="button_container_background">#0D2E4F</color> <!-- Darker shade of blue for better visibility in dark mode -->
+    <color name="document_preview_background">#1E1E1E</color>
+    <color name="ocr_text_color">#FFFFFFFF</color>
+</resources>

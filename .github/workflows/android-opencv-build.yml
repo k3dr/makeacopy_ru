@@ -30,13 +30,19 @@ jobs:
         
       # Build OpenCV native libraries from source
       - name: Fetch OpenCV sources
-        run: ./scripts/fetch_opencv.sh
+        run: |
+          chmod +x scripts/fetch_opencv.sh
+          ./scripts/fetch_opencv.sh
 
       - name: Build OpenCV native libraries
-        run: ./scripts/build_opencv_android.sh
+        run: |
+          chmod +x scripts/build_opencv_android.sh
+          ./scripts/build_opencv_android.sh
 
       - name: Prepare OpenCV for app
-        run: ./scripts/prepare_opencv.sh
+        run: |
+          chmod +x scripts/prepare_opencv.sh
+          ./scripts/prepare_opencv.sh
 
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
@@ -50,19 +56,75 @@ jobs:
             echo "Keystore decoded successfully"
           else
             echo "No keystore provided, will build unsigned APK"
+            exit 1
           fi
 
-      - name: Build APK
+      # Build standard flavor
+      - name: Build standard debug APK
+        run: ./gradlew assembleStandardDebug
+        
+      - name: Build standard release APK
         env:
           SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
           SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
           SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
-        run: ./gradlew assembleRelease
+        run: ./gradlew assembleStandardRelease
+        
+      - name: Build standard AAB
+        env:
+          SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
+          SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
+          SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
+        run: ./gradlew bundleStandardRelease
+        
+      # Build FOSS flavor
+      - name: Build FOSS debug APK
+        run: ./gradlew assembleFossDebug
+        
+      - name: Build FOSS release APK
+        env:
+          SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
+          SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
+          SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
+        run: ./gradlew assembleFossRelease
+        
+      - name: Build FOSS AAB
+        env:
+          SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
+          SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
+          SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
+        run: ./gradlew bundleFossRelease
+        
+      # Verify signing
+      - name: Verify APK Signing
+        run: |
+          echo "Verifying standard release APK signing..."
+          $ANDROID_HOME/build-tools/34.0.0/apksigner verify --verbose app/build/outputs/apk/standard/release/app-standard-release.apk
+          
+          echo "Verifying FOSS release APK signing..."
+          $ANDROID_HOME/build-tools/34.0.0/apksigner verify --verbose app/build/outputs/apk/foss/release/app-foss-release.apk
 
-      - name: Upload APK
+      # Upload artifacts
+      - name: Upload debug APKs
         uses: actions/upload-artifact@v3
         with:
-          name: app-release
+          name: debug-apks
           path: |
-            app/build/outputs/apk/release/app-release.apk
-            app/build/outputs/apk/release/app-release-unsigned.apk
+            app/build/outputs/apk/standard/debug/app-standard-debug.apk
+            app/build/outputs/apk/foss/debug/app-foss-debug.apk
+          
+      - name: Upload release APKs
+        uses: actions/upload-artifact@v3
+        with:
+          name: release-apks
+          path: |
+            app/build/outputs/apk/standard/release/app-standard-release.apk
+            app/build/outputs/apk/foss/release/app-foss-release.apk
+          
+      - name: Upload AABs
+        uses: actions/upload-artifact@v3
+        with:
+          name: release-bundles
+          path: |
+            app/build/outputs/bundle/standardRelease/app-standard-release.aab
+            app/build/outputs/bundle/fossRelease/app-foss-release.aab

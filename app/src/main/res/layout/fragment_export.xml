@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout
+        xmlns:android="http://schemas.android.com/apk/res/android"
+        xmlns:app="http://schemas.android.com/apk/res-auto"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="?android:colorBackground">
+
+    <!-- Status / Titel -->
+    <TextView
+            android:id="@+id/text_export"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_marginTop="8dp"
+            android:layout_marginEnd="8dp"
+            android:text="@string/document_ready_for_export"
+            android:textAlignment="center"
+            android:textSize="20sp"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent" />
+
+    <!-- Dokument-Vorschau -->
+    <ImageView
+            android:id="@+id/document_preview"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:layout_marginTop="16dp"
+            android:layout_marginBottom="8dp"
+            android:scaleType="fitCenter"
+            android:contentDescription="@string/document_preview"
+            app:layout_constraintTop_toBottomOf="@id/text_export"
+            app:layout_constraintBottom_toTopOf="@id/export_options_group"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent" />
+
+    <!-- Optionen & Button -->
+    <LinearLayout
+            android:id="@+id/export_options_group"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="@color/button_container_background"
+            android:padding="16dp"
+            android:elevation="8dp"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent">
+
+        <!-- Optionen: OCR-Text einbetten -->
+        <CheckBox
+                android:id="@+id/checkbox_include_ocr"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/include_ocr_text"/>
+
+        <!-- Option: Graustufen -->
+        <CheckBox
+                android:id="@+id/checkbox_grayscale"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/convert_to_grayscale" />
+
+        <!-- Button Container for Export and Share -->
+        <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:orientation="horizontal">
+                
+            <!-- Export-Button -->
+            <Button
+                    android:id="@+id/button_export"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginEnd="4dp"
+                    android:text="@string/btn_export"
+                    android:enabled="false" />
+                    
+            <!-- Share-Button -->
+            <Button
+                    android:id="@+id/button_share"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginStart="4dp"
+                    android:text="@string/btn_share"
+                    android:enabled="false" />
+        </LinearLayout>
+
+        <!-- (Optional) Platz für Fortschritt, wenn du magst -->
+        <!--
+        <ProgressBar
+            android:id="@+id/export_progress"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:visibility="gone"
+            android:layout_gravity="center_horizontal"
+            style="@style/Widget.AppCompat.ProgressBar.Horizontal"/>
+        -->
+
+    </LinearLayout>
+
+    <!-- Dummy-Elemente für zukünftige Mehrseitigkeit (unsichtbar)
+    <TextView
+            android:id="@+id/page_indicator"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:visibility="gone"
+            app:layout_constraintTop_toBottomOf="@id/document_preview"
+            app:layout_constraintStart_toStartOf="parent" />
+
+    <LinearLayout
+            android:id="@+id/page_navigation"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:visibility="gone"
+            app:layout_constraintTop_toBottomOf="@id/document_preview"
+            app:layout_constraintEnd_toEndOf="parent" />-->
+
+</androidx.constraintlayout.widget.ConstraintLayout>

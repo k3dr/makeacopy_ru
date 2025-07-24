@@ -1,14 +1,13 @@
 #!/bin/bash
 set -o pipefail
 
-# ==== ABSOLUTE PFAD-SETUP ====
+# ==== ABSOLUTER PFAD ====
 SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 OPENCV_DIR="$SCRIPT_DIR/external/opencv"
 BUILD_DIR="$SCRIPT_DIR/external/opencv-build"
 
-# ==== NPROC PORTABEL MACHEN ====
-if ! command -v nproc &> /dev/null
-then
+# ==== NPROC PORTABEL ====
+if ! command -v nproc &> /dev/null; then
   nproc() { sysctl -n hw.ncpu; }
 fi
 
@@ -24,7 +23,7 @@ trap 'log_error "Build failed at line $LINENO"' ERR
 if [ -z "$ANDROID_NDK_HOME" ]; then
   if [ -n "$ANDROID_SDK_ROOT" ]; then
     if [ -d "$ANDROID_SDK_ROOT/ndk" ]; then
-      LATEST_NDK=$(find "$ANDROID_SDK_ROOT/ndk" -maxdepth 1 -type d | sort -r | head -n 1)
+      LATEST_NDK=$(find "$ANDROID_SDK_ROOT/ndk" -maxdepth 1 -type d -name "[0-9]*" | sort -Vr | head -n 1)
       if [ -n "$LATEST_NDK" ]; then
         export ANDROID_NDK_HOME="$LATEST_NDK"
         echo "Found NDK at $ANDROID_NDK_HOME"
@@ -37,7 +36,7 @@ if [ -z "$ANDROID_NDK_HOME" ]; then
   fi
   if [ -z "$ANDROID_NDK_HOME" ]; then
     if [ -d "$HOME/Library/Android/sdk/ndk" ]; then
-      LATEST_NDK=$(find "$HOME/Library/Android/sdk/ndk" -maxdepth 1 -type d | sort -r | head -n 1)
+      LATEST_NDK=$(find "$HOME/Library/Android/sdk/ndk" -maxdepth 1 -type d -name "[0-9]*" | sort -Vr | head -n 1)
       if [ -n "$LATEST_NDK" ]; then
         export ANDROID_NDK_HOME="$LATEST_NDK"
         echo "Found NDK at $ANDROID_NDK_HOME"
@@ -86,7 +85,7 @@ fi
 CMAKE_PATH=""
 if [ -n "$ANDROID_SDK_ROOT" ]; then
   if [ -d "$ANDROID_SDK_ROOT/cmake" ]; then
-    LATEST_CMAKE_DIR=$(find "$ANDROID_SDK_ROOT/cmake" -maxdepth 1 -type d | sort -r | head -n 2 | tail -n 1)
+    LATEST_CMAKE_DIR=$(find "$ANDROID_SDK_ROOT/cmake" -maxdepth 1 -type d -name "[0-9]*" | sort -Vr | head -n 1)
     if [ -n "$LATEST_CMAKE_DIR" ] && [ -d "$LATEST_CMAKE_DIR/bin" ]; then
       if [ -f "$LATEST_CMAKE_DIR/bin/cmake" ] && [ -x "$LATEST_CMAKE_DIR/bin/cmake" ]; then
         CMAKE_PATH="$LATEST_CMAKE_DIR/bin/cmake"
@@ -176,7 +175,8 @@ build_for_arch() {
 
   mkdir -p "$BUILD_DIR/lib/$arch"
   echo "Copying $arch libraries to main build directory..."
-  cp -f lib/*.so "$BUILD_DIR/lib/$arch/" || true
+  # Besser: alle .so im Baum suchen und kopieren (falls Pfad sich ändert)
+  find . -name "*.so" -exec cp -f {} "$BUILD_DIR/lib/$arch/" \;
 
   cd "$SCRIPT_DIR"
   echo "OpenCV for $arch built successfully."
@@ -184,12 +184,19 @@ build_for_arch() {
 }
 
 echo "Building OpenCV for all architectures..."
-for ARCH in "arm64-v8a" "armeabi-v7a" "x86" "x86_64"; do
-  build_for_arch "$ARCH"
+BUILD_FAILED=0
+for ARCH in "arm64-v8a" "armeabi-v7a" "x86" "x86_64"; do # riscv64 optional
+  build_for_arch "$ARCH" || BUILD_FAILED=1
 done
 
-echo "OpenCV for Android built successfully."
-echo "$(date): Build completed successfully." >> "$BUILD_LOG"
-echo "Build log is available at: $BUILD_LOG"
+if [ $BUILD_FAILED -eq 0 ]; then
+  echo "OpenCV for Android built successfully."
+  echo "$(date): Build completed successfully." >> "$BUILD_LOG"
+else
+  echo "WARNING: Some architectures failed to build. Check logs."
+  echo "$(date): Build completed with errors." >> "$BUILD_LOG"
+  exit 2
+fi
 
+echo "Build log is available at: $BUILD_LOG"
 exit 0

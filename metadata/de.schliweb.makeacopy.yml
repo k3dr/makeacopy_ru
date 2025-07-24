@@ -44,7 +44,7 @@ Builds:
     versionCode: 10000
     commit: v1.0.0
     subdir: app
-    ndk: 29.0.13599879
+    ndk: 28.2.13676358
     gradle:
       - fossFdroid
     prebuild: |

@@ -14,6 +14,7 @@
             android:layout_marginStart="8dp"
             android:layout_marginTop="8dp"
             android:layout_marginEnd="8dp"
+            android:textColor="?attr/colorOnSurface"
             android:text="@string/ocr_processing_complete_tap_the_button_to_proceed_to_export"
             android:textAlignment="center"
             android:textSize="20sp"

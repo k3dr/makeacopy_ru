@@ -40,9 +40,9 @@ RepoType: git
 Repo: https://github.com/egdels/makeacopy
 
 Builds:
-  - versionName: '1.0.0'
-    versionCode: 10000
-    commit: v1.0.0
+  - versionName: '1.0.1'
+    versionCode: 10001
+    commit: v1.0.1
     subdir: app
     ndk: 29.0.13599879
     gradle:
@@ -74,5 +74,5 @@ MaintainerNotes: |
 
 AutoUpdateMode: Version
 UpdateCheckMode: Tags
-CurrentVersion: '1.0.0'
-CurrentVersionCode: 10000
+CurrentVersion: '1.0.1'
+CurrentVersionCode: 10001

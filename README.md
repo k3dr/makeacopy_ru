@@ -46,7 +46,7 @@ This workflow automatically builds APK and AAB files when a new tag is created:
 1. Create a new tag starting with 'v' (e.g., `v1.0.0`)
 2. Push the tag to GitHub
 3. The workflow will automatically:
-   - Set up JDK 21 and Android NDK 25.2.9519653
+   - Set up JDK 21 and Android NDK 29.0.13599879
    - Fetch OpenCV source code from GitHub
    - Build OpenCV native libraries for all architectures
    - Integrate the built native libraries into the app
@@ -59,7 +59,7 @@ This ensures that release builds are 100% F-Droid compatible, with all native li
 
 This workflow builds the app on every push to main and pull request:
 
-1. Sets up JDK 21 and Android NDK 25.2.9519653
+1. Sets up JDK 21 and Android NDK 29.0.13599879
 2. Fetches OpenCV source code from GitHub
 3. Builds OpenCV native libraries for all architectures
 4. Integrates the built native libraries into the app
@@ -110,13 +110,13 @@ This ensures that the OpenCV integration is tested with each code change, buildi
    - If automatic detection fails, you can set the environment variable manually:
      ```bash
      # For Linux/macOS
-     export ANDROID_NDK_HOME=/path/to/android-sdk/ndk/25.2.9519653
+     export ANDROID_NDK_HOME=/path/to/android-sdk/ndk/29.0.13599879
      
      # For Windows (Command Prompt)
-     set ANDROID_NDK_HOME=C:\path\to\android-sdk\ndk\25.2.9519653
+     set ANDROID_NDK_HOME=C:\path\to\android-sdk\ndk\29.0.13599879
      
      # For Windows (PowerShell)
-     $env:ANDROID_NDK_HOME="C:\path\to\android-sdk\ndk\25.2.9519653"
+     $env:ANDROID_NDK_HOME="C:\path\to\android-sdk\ndk\29.0.13599879"
      ```
 
 #### Maintaining the OpenCV Integration

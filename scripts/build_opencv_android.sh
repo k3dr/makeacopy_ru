@@ -15,7 +15,7 @@ fi
 log_error() {
   echo "ERROR: $1"
   echo "Please check the full build log for more details."
-  echo "If you're using a different NDK version and experiencing issues, try using NDK version 25.2.9519653 instead."
+  echo "If you're using a different NDK version and experiencing issues, try using NDK version 29.0.13599879 instead."
 }
 trap 'log_error "Build failed at line $LINENO"' ERR
 
@@ -53,7 +53,7 @@ fi
 
 echo "Using Android NDK at: $ANDROID_NDK_HOME"
 NDK_VERSION=$(basename "$ANDROID_NDK_HOME")
-RECOMMENDED_VERSION="25.2.9519653"
+RECOMMENDED_VERSION="29.0.13599879"
 echo "Detected NDK version: $NDK_VERSION"
 if [[ "$NDK_VERSION" != "$RECOMMENDED_VERSION" ]]; then
   echo "WARNING: You are using NDK version $NDK_VERSION which is different from the recommended version $RECOMMENDED_VERSION."

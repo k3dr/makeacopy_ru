@@ -95,8 +95,9 @@ jobs:
       # Verify signing
       - name: Verify APK signature
         run: |
-          # Using aapt to verify the APK is signed
-          aapt dump badging app/build/outputs/apk/release/MakeACopy-v${{ steps.extract_version.outputs.VERSION }}-release.apk | head -1
+          APK=app/build/outputs/apk/release/MakeACopy-v${{ steps.extract_version.outputs.VERSION }}-release.apk
+          APKSIGNER=$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -Vr | head -n1)
+          "$APKSIGNER" verify --verbose "$APK"
           echo "APK verification completed"
 
       - name: Generate checksums

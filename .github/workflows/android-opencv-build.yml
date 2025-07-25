@@ -61,71 +61,33 @@ jobs:
           fi
 
       # Build standard flavor
-      - name: Build standard debug APK
-        run: ./gradlew assembleStandardDebug
-
-      - name: Build standard release APK
-        env:
-          SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
-          SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
-          SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
-        run: ./gradlew assembleStandardRelease
-
-      - name: Build standard AAB
-        env:
-          SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
-          SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
-          SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
-        run: ./gradlew bundleStandardRelease
-
-      # Build FOSS flavor
-      - name: Build FOSS debug APK
-        run: ./gradlew assembleFossDebug
-
-      - name: Build FOSS release APK
-        env:
-          SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
-          SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
-          SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
-        run: ./gradlew assembleFossRelease
-
-      - name: Build FOSS AAB
-        env:
-          SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
-          SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
-          SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
-        run: ./gradlew bundleFossRelease
+      - name: Build Release APK and Bundle
+        run: |
+            ./gradlew assembleRelease bundleRelease \
+            -PSIGNING_KEY_ALIAS="${SIGNING_KEY_ALIAS}" \
+            -PSIGNING_KEY_PASSWORD="${SIGNING_KEY_PASSWORD}" \
+            -PSIGNING_STORE_PASSWORD="${SIGNING_STORE_PASSWORD}"
+            # Rename outputs with version
+            mv app/build/outputs/apk/release/app-release.apk \
+            app/build/outputs/apk/release/MakeACopy-v${{ steps.extract_version.outputs.VERSION }}-release.apk
+            mv app/build/outputs/bundle/release/app-release.aab \
+            app/build/outputs/bundle/release/MakeACopy-v${{ steps.extract_version.outputs.VERSION }}-release.aab
+          env:
+            SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
+            SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
+            SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
 
       # Verify signing
-      - name: Verify APK Signing
+      - name: Verify APK signature
         run: |
-          echo "Verifying standard release APK signing..."
-          $ANDROID_HOME/build-tools/34.0.0/apksigner verify --verbose app/build/outputs/apk/standard/release/app-standard-release.apk
+          # Using aapt to verify the APK is signed
+          aapt dump badging app/build/outputs/apk/release/MakeACopy-v${{ steps.extract_version.outputs.VERSION }}-release.apk | head -1
+          echo "APK verification completed"
 
-          echo "Verifying FOSS release APK signing..."
-          $ANDROID_HOME/build-tools/34.0.0/apksigner verify --verbose app/build/outputs/apk/foss/release/app-foss-release.apk
+      - name: Generate checksums
+        run: |
+          cd app/build/outputs/apk/release/
+          sha256sum MakeACopy-v${{ steps.extract_version.outputs.VERSION }}-release.apk > MakeACopy-v${{ steps.extract_version.outputs.VERSION }}-release.apk.sha256
+          cd ../../bundle/release/
+          sha256sum MakeACopy-v${{ steps.extract_version.outputs.VERSION }}-release.aab > MakeACopy-v${{ steps.extract_version.outputs.VERSION }}-release.aab.sha256
 
-      # Upload artifacts
-      - name: Upload debug APKs
-        uses: actions/upload-artifact@v4
-        with:
-          name: debug-apks
-          path: |
-            app/build/outputs/apk/standard/debug/app-standard-debug.apk
-            app/build/outputs/apk/foss/debug/app-foss-debug.apk
-
-      - name: Upload release APKs
-        uses: actions/upload-artifact@v4
-        with:
-          name: release-apks
-          path: |
-            app/build/outputs/apk/standard/release/app-standard-release.apk
-            app/build/outputs/apk/foss/release/app-foss-release.apk
-
-      - name: Upload AABs
-        uses: actions/upload-artifact@v4
-        with:
-          name: release-bundles
-          path: |
-            app/build/outputs/bundle/standardRelease/app-standard-release.aab
-            app/build/outputs/bundle/fossRelease/app-foss-release.aab

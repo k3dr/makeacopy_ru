@@ -123,6 +123,8 @@ jobs:
             app/build/outputs/bundle/release/MakeACopy-v${{ steps.extract_version.outputs.VERSION }}-release.aab
             app/build/outputs/apk/release/MakeACopy-v${{ steps.extract_version.outputs.VERSION }}-release.apk.sha256
             app/build/outputs/bundle/release/MakeACopy-v${{ steps.extract_version.outputs.VERSION }}-release.aab.sha256
+        env:
+            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}     
 
       - name: Upload APK/AAB artifacts
         uses: actions/upload-artifact@v4

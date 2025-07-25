@@ -26,7 +26,7 @@ Description: |
   * Dark Mode: Material 3 theme with day/night support
   * Privacy-Focused: 100% offline functionality, no internet connection required
 
-  MakeACopy is F-Droid compliant and builds OpenCV from source during the build process, ensuring that no pre-built binaries are included in the repository. All components are open source and respect your privacy.
+  MakeACopy is F-Droid compliant and builds OpenCV from source during CI builds. No pre-built binaries are included in the repository.
 
 RepoType: git
 Repo: https://github.com/egdels/makeacopy.git
@@ -38,18 +38,19 @@ Builds:
     commit: v1.0.2
     subdir: app
     ndk: 29.0.13599879
+
     gradle:
       - yes
+    sudo:
+      - apt-get update
+      - apt-get install -y cmake make
+
     prebuild: |
-      # Build OpenCV native libraries from source
-      # The OpenCV module in the repository has been pre-cleaned of all binaries
-      # and contains only the necessary Java files for the app to function
-      
-      # Run the scripts to build OpenCV native libraries from source
+      # Build OpenCV from source
       chmod +x ../scripts/*.sh
       ../scripts/fetch_opencv.sh
       ../scripts/build_opencv_android.sh
-      ../scripts/prepare_opencv.sh
+      ../scripts/prepare_opencv.sh  
 
 MaintainerNotes: |
   The OpenCV module in this repository has been pre-cleaned of all binaries to ensure F-Droid compatibility.
@@ -66,7 +67,8 @@ MaintainerNotes: |
   
   The app does not include any pre-built binaries or non-free dependencies.
 
-AllowedAPKSigningKeys: ae322d3fb71afe21df4727e37a5c6803511d5a2fe1fc3135430cee0699fa1b34
+AllowedAPKSigningKeys:
+  - ae322d3fb71afe21df4727e37a5c6803511d5a2fe1fc3135430cee0699fa1b34
 
 AutoUpdateMode: Version
 UpdateCheckMode: Tags

@@ -33,9 +33,9 @@ Repo: https://github.com/egdels/makeacopy.git
 Binaries: https://github.com/egdels/makeacopy/releases/download/v%v/MakeACopy-v%v-release.apk
 
 Builds:
-  - versionName: '1.0.1'
-    versionCode: 10001
-    commit: v1.0.1
+  - versionName: 1.0.2
+    versionCode: 10002
+    commit: v1.0.2
     subdir: app
     ndk: 29.0.13599879
     gradle:
@@ -70,5 +70,5 @@ AllowedAPKSigningKeys: ae322d3fb71afe21df4727e37a5c6803511d5a2fe1fc3135430cee069
 
 AutoUpdateMode: Version
 UpdateCheckMode: Tags
-CurrentVersion: '1.0.1'
-CurrentVersionCode: 10001
+CurrentVersion: 1.0.2
+CurrentVersionCode: 10002

@@ -107,3 +107,13 @@ jobs:
           cd ../../bundle/release/
           sha256sum MakeACopy-v${{ steps.extract_version.outputs.VERSION }}-release.aab > MakeACopy-v${{ steps.extract_version.outputs.VERSION }}-release.aab.sha256
 
+      - name: Upload APK/AAB artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: MakeACopy-${{ steps.extract_version.outputs.VERSION }}
+          path: |
+            app/build/outputs/apk/release/*.apk
+            app/build/outputs/bundle/release/*.aab
+            app/build/outputs/**/*.sha256
+
+            

@@ -60,23 +60,29 @@ jobs:
             exit 1
           fi
 
-      # Build standard flavor
+      - name: Update version in build.gradle for GitHub release
+          run: |
+            # Update both versionCode and versionName for GitHub builds
+            sed -i "s/versionCode [0-9]*/versionCode ${{ steps.extract_version.outputs.VERSION_CODE }}/" app/build.gradle
+            sed -i "s/versionName \"[^\"]*\"/versionName \"${{ steps.extract_version.outputs.VERSION }}\"/" app/build.gradle
+        
+
       - name: Build Release APK and Bundle
         run: |
-            ./gradlew assembleRelease bundleRelease \
-            -PSIGNING_KEY_ALIAS="${SIGNING_KEY_ALIAS}" \
-            -PSIGNING_KEY_PASSWORD="${SIGNING_KEY_PASSWORD}" \
-            -PSIGNING_STORE_PASSWORD="${SIGNING_STORE_PASSWORD}"
-            # Rename outputs with version
-            mv app/build/outputs/apk/release/app-release.apk \
-            app/build/outputs/apk/release/MakeACopy-v${{ steps.extract_version.outputs.VERSION }}-release.apk
-            mv app/build/outputs/bundle/release/app-release.aab \
-            app/build/outputs/bundle/release/MakeACopy-v${{ steps.extract_version.outputs.VERSION }}-release.aab
-          env:
-            SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
-            SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
-            SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
-
+          ./gradlew assembleRelease bundleRelease \
+          -PSIGNING_KEY_ALIAS="${SIGNING_KEY_ALIAS}" \
+          -PSIGNING_KEY_PASSWORD="${SIGNING_KEY_PASSWORD}" \
+          -PSIGNING_STORE_PASSWORD="${SIGNING_STORE_PASSWORD}"
+          # Rename outputs with version
+          mv app/build/outputs/apk/release/app-release.apk \
+          app/build/outputs/apk/release/SambaLite-v${{ steps.extract_version.outputs.VERSION }}-release.apk
+          mv app/build/outputs/bundle/release/app-release.aab \
+          app/build/outputs/bundle/release/SambaLite-v${{ steps.extract_version.outputs.VERSION }}-release.aab
+        env:
+          SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
+          SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
+          SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
+      
       # Verify signing
       - name: Verify APK signature
         run: |

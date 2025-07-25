@@ -1,19 +1,12 @@
 Categories:
   - Graphics
   - Multimedia
-  - Scanning
 
 License: Apache-2.0
-
-AuthorName: Christian Kierdorf
-
+AuthorName: egdels
 WebSite: https://github.com/egdels/makeacopy
-
 SourceCode: https://github.com/egdels/makeacopy
-
 IssueTracker: https://github.com/egdels/makeacopy/issues
-
-Changelog: https://github.com/egdels/makeacopy/releases
 
 AutoName: MakeACopy
 
@@ -36,8 +29,8 @@ Description: |
   MakeACopy is F-Droid compliant and builds OpenCV from source during the build process, ensuring that no pre-built binaries are included in the repository. All components are open source and respect your privacy.
 
 RepoType: git
-
-Repo: https://github.com/egdels/makeacopy
+Repo: https://github.com/egdels/makeacopy.git
+Binaries: https://github.com/egdels/makeacopy/releases/download/v%v/MakeACopy-v%v-release.apk
 
 Builds:
   - versionName: '1.0.1'
@@ -46,13 +39,14 @@ Builds:
     subdir: app
     ndk: 29.0.13599879
     gradle:
-      - fossFdroid
+      - yes
     prebuild: |
       # Build OpenCV native libraries from source
       # The OpenCV module in the repository has been pre-cleaned of all binaries
       # and contains only the necessary Java files for the app to function
       
       # Run the scripts to build OpenCV native libraries from source
+      chmod +x ../scripts/*.sh
       ../scripts/fetch_opencv.sh
       ../scripts/build_opencv_android.sh
       ../scripts/prepare_opencv.sh
@@ -71,6 +65,8 @@ MaintainerNotes: |
   2. Building all native libraries from source during the build process
   
   The app does not include any pre-built binaries or non-free dependencies.
+
+AllowedAPKSigningKeys: ae322d3fb71afe21df4727e37a5c6803511d5a2fe1fc3135430cee0699fa1b34
 
 AutoUpdateMode: Version
 UpdateCheckMode: Tags

@@ -60,35 +60,8 @@ android {
                 signingConfig signingConfigs.release
             }
         }
-        debug {
-            // Keep debug builds unobfuscated for easier debugging
-            minifyEnabled false
-            shrinkResources false
-        }
-        // F-Droid specific build type
-        fdroid {
-            // Based on release build type
-            initWith release
-            
-            // F-Droid handles signing
-            signingConfig null
-            
-            // Ensure reproducible builds
-            matchingFallbacks = ['release']
-        }
     }
-    
-    // F-Droid specific product flavor
-    flavorDimensions "distribution"
-    productFlavors {
-        standard {
-            dimension "distribution"
-        }
-        foss {
-            dimension "distribution"
-            // This flavor is optimized for F-Droid and other FOSS app stores
-        }
-    }
+
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
@@ -152,10 +125,6 @@ dependencies {
     implementation libs.camerax.camera2
     implementation libs.camerax.lifecycle
     implementation libs.camerax.view
-    
-    // OpenCV dependency - built from source
-    //implementation files('libs/opencv-android.jar')
-    // implementation 'org.openpnp:opencv:4.8.0-0'
 
     implementation project(':opencv')
     // Tesseract OCR dependency

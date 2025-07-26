@@ -20,6 +20,8 @@ copy_libs() {
   local possible_dirs=(
     "$BUILD_BASE/opencv-build_$arch/lib/$arch"
     "$BUILD_BASE/opencv-build/lib/$arch"
+    "$BUILD_BASE/opencv-build_$arch/jni/$arch"
+    "$BUILD_BASE/opencv-build/jni/$arch"
   )
   local target_dir="$JNILIBS_DIR/$arch"
   mkdir -p "$target_dir"

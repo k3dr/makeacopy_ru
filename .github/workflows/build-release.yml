@@ -15,6 +15,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: true
+          fetch-depth: 0
 
       - name: Set up JDK
         uses: actions/setup-java@v4
@@ -32,11 +35,6 @@ jobs:
         run: ls -l $ANDROID_HOME/ndk
 
       # Build OpenCV native libraries from source
-      - name: Fetch OpenCV sources
-        run: |
-          chmod +x scripts/fetch_opencv.sh
-          ./scripts/fetch_opencv.sh
-
       - name: Build OpenCV native libraries
         run: |
           chmod +x scripts/build_opencv_android.sh

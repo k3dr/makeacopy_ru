@@ -35,6 +35,11 @@ android {
         dex.useLegacyPackaging = false
     }
 
+    //
+    //packagingOptions {
+    //    exclude '**/*.a'
+    //}
+
     signingConfigs {
         release {
             def myStorePassword = project.findProperty("SIGNING_STORE_PASSWORD") ?: System.getenv("SIGNING_STORE_PASSWORD")
@@ -74,6 +79,7 @@ android {
     sourceSets {
         main {
             assets.srcDirs = ['src/main/assets']
+            jniLibs.srcDirs = ['src/main/jniLibs']
         }
     }
 }

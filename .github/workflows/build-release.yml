@@ -25,9 +25,9 @@ jobs:
           distribution: 'temurin'
           java-version: '21'
 
-      - name: Install Android SDK NDK 29.0.13599879
+      - name: Install Android SDK NDK 27.0.12077973
         run: |
-          yes | ${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager --sdk_root=${ANDROID_HOME} "ndk;29.0.13599879"
+          yes | ${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager --sdk_root=${ANDROID_HOME} "ndk;27.0.12077973"
         env:
           ANDROID_SDK_ROOT: ${{ env.ANDROID_HOME }}
 

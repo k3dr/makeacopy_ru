@@ -6,7 +6,7 @@ echo "🔧 Preparing OpenCV native libraries for the app..."
 SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 BUILD_BASE="$SCRIPT_DIR/external"
 JNILIBS_DIR="$SCRIPT_DIR/app/src/main/jniLibs"
-ARCHS=(arm64-v8a armeabi-v7a x86 x86_64)
+ARCHS=(arm64-v8a armeabi-v7a)
 
 # Clean existing jniLibs directory
 echo "🧹 Cleaning jniLibs directory..."

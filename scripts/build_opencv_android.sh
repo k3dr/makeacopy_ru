@@ -15,7 +15,7 @@ fi
 log_error() {
   echo "ERROR: $1"
   echo "Please check the full build log for more details."
-  echo "If you're using a different NDK version and experiencing issues, try using NDK version 29.0.13599879 instead."
+  echo "If you're using a different NDK version and experiencing issues, try using NDK version 27.0.12077973 instead."
 }
 trap 'log_error "Build failed at line $LINENO"' ERR
 
@@ -53,7 +53,7 @@ fi
 
 echo "Using Android NDK at: $ANDROID_NDK_HOME"
 NDK_VERSION=$(basename "$ANDROID_NDK_HOME")
-RECOMMENDED_VERSION="29.0.13599879"
+RECOMMENDED_VERSION="27.0.12077973"
 echo "Detected NDK version: $NDK_VERSION"
 if [[ "$NDK_VERSION" != "$RECOMMENDED_VERSION" ]]; then
   echo "WARNING: You are using NDK version $NDK_VERSION which is different from the recommended version $RECOMMENDED_VERSION."
@@ -134,6 +134,20 @@ build_for_arch() {
     -DBUILD_PERF_TESTS=OFF \
     -DBUILD_EXAMPLES=OFF \
     -DBUILD_opencv_java=ON \
+    -DBUILD_opencv_core=ON \
+    -DBUILD_opencv_imgproc=ON \
+    -DBUILD_opencv_imgcodecs=OFF \
+    -DBUILD_opencv_video=OFF \
+    -DBUILD_opencv_videoio=OFF \
+    -DBUILD_opencv_calib3d=OFF \
+    -DBUILD_opencv_features2d=OFF \
+    -DBUILD_opencv_objdetect=OFF \
+    -DBUILD_opencv_dnn=OFF \
+    -DBUILD_opencv_gapi=OFF \
+    -DBUILD_opencv_ml=OFF \
+    -DBUILD_opencv_highgui=OFF \
+    -DBUILD_opencv_photo=OFF \
+    -DBUILD_opencv_stitching=OFF \
     -DBUILD_JAVA=ON \
     -DBUILD_DOCS=OFF \
     -DWITH_OPENCL=OFF \
@@ -184,7 +198,7 @@ build_for_arch() {
 
 echo "Building OpenCV for all architectures..."
 BUILD_FAILED=0
-for ARCH in "arm64-v8a" "armeabi-v7a" "x86" "x86_64"; do # riscv64 optional
+for ARCH in "arm64-v8a" "armeabi-v7a"; do # riscv64 optional
   build_for_arch "$ARCH" || BUILD_FAILED=1
 done
 

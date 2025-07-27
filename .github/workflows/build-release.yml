@@ -2,17 +2,17 @@ name: Build Release
 
 on:
   push:
-    branches:
-      - main
-    tags:
-      - 'v*'
+    branches: [main]
+    tags: ['v*']
   pull_request:
-    branches:
-      - main
-   
+    branches: [main]
+
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      ANDROID_NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/27.3.13750724
+
     steps:
       - uses: actions/checkout@v4
         with:
@@ -31,10 +31,13 @@ jobs:
         env:
           ANDROID_SDK_ROOT: ${{ env.ANDROID_HOME }}
 
-      - name: Check NDK path
+      # Optional: Check NDK path
+      - name: Check installed NDK
         run: ls -l $ANDROID_HOME/ndk
 
-      # Build OpenCV native libraries from source
+      - name: Export ANDROID_NDK_HOME for scripts
+        run: echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.3.13750724" >> $GITHUB_ENV
+
       - name: Build OpenCV native libraries
         run: |
           chmod +x scripts/build_opencv_android.sh
@@ -77,28 +80,26 @@ jobs:
 
       - name: Build Release APK and Bundle
         run: |
-            ./gradlew assembleRelease bundleRelease \
+          ./gradlew assembleRelease bundleRelease \
             -PSIGNING_KEY_ALIAS="${SIGNING_KEY_ALIAS}" \
             -PSIGNING_KEY_PASSWORD="${SIGNING_KEY_PASSWORD}" \
             -PSIGNING_STORE_PASSWORD="${SIGNING_STORE_PASSWORD}"
-            # Rename outputs with version
-            mv app/build/outputs/apk/release/app-release.apk \
-            app/build/outputs/apk/release/MakeACopy-v${{ steps.extract_version.outputs.VERSION }}-release.apk
-            mv app/build/outputs/bundle/release/app-release.aab \
-            app/build/outputs/bundle/release/MakeACopy-v${{ steps.extract_version.outputs.VERSION }}-release.aab
-            
-        env:
-            SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
-            SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
-            SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
 
-      # Verify signing
+          mv app/build/outputs/apk/release/app-release.apk \
+             app/build/outputs/apk/release/MakeACopy-v${{ steps.extract_version.outputs.VERSION }}-release.apk
+
+          mv app/build/outputs/bundle/release/app-release.aab \
+             app/build/outputs/bundle/release/MakeACopy-v${{ steps.extract_version.outputs.VERSION }}-release.aab
+        env:
+          SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
+          SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
+          SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
+
       - name: Verify APK signature
         run: |
           APK=app/build/outputs/apk/release/MakeACopy-v${{ steps.extract_version.outputs.VERSION }}-release.apk
           APKSIGNER=$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -Vr | head -n1)
           "$APKSIGNER" verify --verbose "$APK"
-          echo "APK verification completed"
 
       - name: Generate checksums
         run: |
@@ -122,7 +123,7 @@ jobs:
             app/build/outputs/apk/release/MakeACopy-v${{ steps.extract_version.outputs.VERSION }}-release.apk.sha256
             app/build/outputs/bundle/release/MakeACopy-v${{ steps.extract_version.outputs.VERSION }}-release.aab.sha256
         env:
-            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}     
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload APK/AAB artifacts
         uses: actions/upload-artifact@v4
@@ -132,5 +133,3 @@ jobs:
             app/build/outputs/apk/release/*.apk
             app/build/outputs/bundle/release/*.aab
             app/build/outputs/**/*.sha256
-
-            

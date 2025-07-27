@@ -52,7 +52,7 @@ This workflow automatically builds APK and AAB files when a new tag is created:
 1. Create a new tag starting with 'v' (e.g., `v1.0.0`)
 2. Push the tag to GitHub
 3. The workflow will automatically:
-   - Set up JDK 21 and Android NDK 27.0.12077973
+   - Set up JDK 21 and Android NDK 27.3.13750724
    - Initialize OpenCV source (via Git submodule)
    - Build OpenCV native libraries for all architectures
    - Integrate the built native libraries into the app
@@ -65,7 +65,7 @@ This ensures that release builds are 100% F-Droid compatible, with all native li
 
 This workflow builds the app on every push to main and pull request:
 
-1. Sets up JDK 21 and Android NDK 27.0.12077973
+1. Sets up JDK 21 and Android NDK 27.3.13750724
 2. Uses OpenCV submodule source
 3. Builds OpenCV native libraries for all architectures
 4. Integrates the built native libraries into the app
@@ -113,7 +113,7 @@ This ensures that the OpenCV integration is tested with each code change, buildi
    - The build script will attempt to locate the NDK automatically
    - If automatic detection fails, you can set it manually:
      ```bash
-     export ANDROID_NDK_HOME=/path/to/android-sdk/ndk/27.0.12077973
+     export ANDROID_NDK_HOME=/path/to/android-sdk/ndk/27.3.13750724
      ```
 
 #### Maintaining the OpenCV Integration

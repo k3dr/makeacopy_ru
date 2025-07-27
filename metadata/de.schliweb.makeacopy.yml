@@ -29,7 +29,7 @@ Builds:
       - chmod +x *.sh
       - ./build_opencv_android.sh
       - ./prepare_opencv.sh
-    ndk: 27.0.12077973
+    ndk: 27.3.13750724
 
 AllowedAPKSigningKeys: ae322d3fb71afe21df4727e37a5c6803511d5a2fe1fc3135430cee0699fa1b34
 

@@ -132,7 +132,6 @@ dependencies {
     implementation libs.camerax.lifecycle
     implementation libs.camerax.view
 
-    implementation project(':opencv')
     // Tesseract OCR dependency
     implementation libs.tesseract
     

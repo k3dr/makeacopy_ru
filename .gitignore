@@ -17,21 +17,5 @@ local.properties
 # OpenCV build files
 /external/opencv-build*/
 /app/src/main/jniLibs/
-/app/src/main/java/org/opencv/
-/app/libs/opencv-android.jar
-/opencv/native/libs/**/*.so
-/opencv/src/main/jniLibs/**/*.so
-/opencv/native/3rdparty/libs/**/*.a
-/opencv/native/staticlibs/**/*.a
-/opencv/build/**/*.so
-/opencv/build/**/*.a
-/opencv/build/**/*.dll
-/opencv/build/**/*.dylib
-/opencv/build/**/*.lib
-/opencv/.cxx/**/*.so
-/opencv/.cxx/**/*.a
-/opencv/.cxx/**/*.dll
-/opencv/.cxx/**/*.dylib
-/opencv/.cxx/**/*.lib
 /build-android/
 /opencv/build/

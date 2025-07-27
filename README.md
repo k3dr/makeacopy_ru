@@ -32,8 +32,8 @@ Or download the latest APK from the [Releases Section](https://github.com/egdels
 
 MakeACopy is F-Droid compliant and will be available on F-Droid soon. The app uses a two-part approach for OpenCV integration:
 
-1. **Java Classes**: The OpenCV Java wrapper is integrated via a Git submodule at `external/opencv`, containing only Java code and cleaned of all binaries.
-2. **Native Libraries**: All native libraries are built from source during the build process using the official OpenCV source code from https://github.com/opencv/opencv.git.
+1. **Java Classes**: The required OpenCV Java wrapper classes are directly included in the app's source tree (copied from OpenCV but now part of this project). They are no longer used from the submodule.
+2. **Native Libraries**: All native libraries are built from source during the build process using the official OpenCV source code provided via Git submodule at `external/opencv`.
 
 This approach ensures F-Droid compatibility by not including any pre-compiled binaries in the repository and building all native components from source.
 
@@ -59,7 +59,7 @@ This workflow automatically builds APK and AAB files when a new tag is created:
    - Build Debug APK, Release APK (unsigned), and Android App Bundle (AAB)
 4. Artifacts will be attached to the GitHub Release
 
-This ensures that release builds are 100% F-Droid compatible, with all native libraries built from source while using the pre-cleaned OpenCV submodule for Java classes.
+This ensures that release builds are 100% F-Droid compatible, with all native libraries built from source and the required OpenCV Java classes bundled statically.
 
 ##### OpenCV Integration Builds
 
@@ -97,8 +97,8 @@ This ensures that the OpenCV integration is tested with each code change, buildi
 4. Install the generated APK on your device.
 
 > **F-Droid Compatibility Note**: This project is 100% F-Droid compatible. It uses a two-part approach for OpenCV integration:
-> 1. Java classes provided via Git submodule, cleaned of binaries
-> 2. Native libraries built from source during the build process
+> 1. Java classes are copied directly into the source tree (not from submodule)
+> 2. Native libraries are built from source using the OpenCV submodule
 >
 > This ensures no pre-compiled binaries are included in the repository or final APK.
 
@@ -118,22 +118,20 @@ This ensures that the OpenCV integration is tested with each code change, buildi
 
 #### Maintaining the OpenCV Integration
 
-The OpenCV integration uses a Git submodule and native build process.
+The OpenCV integration uses a Git submodule for native code and directly included Java classes.
 
-##### Updating the Java Classes (OpenCV Submodule)
+##### Updating the Java Classes (manually copied)
 
 1. Update the OpenCV submodule:
    ```bash
    git submodule update --remote --checkout external/opencv
    ```
-2. Clean out native binaries (if any):
+2. Copy over the needed Java wrapper classes manually into your project directory
+3. Remove any unused or unnecessary files (especially any prebuilt binaries)
+4. Commit the updated code:
    ```bash
-   ./scripts/clean_opencv_binaries.sh
-   ```
-3. Commit the updated and cleaned OpenCV submodule:
-   ```bash
-   git add external/opencv
-   git commit -m "Update OpenCV submodule to version X.Y.Z (cleaned)"
+   git add path/to/java/classes
+   git commit -m "Update OpenCV Java classes to version X.Y.Z"
    ```
 
 ##### Updating the Native Libraries Build Process

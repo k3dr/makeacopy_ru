@@ -10,8 +10,6 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    env:
-      ANDROID_NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/27.3.13750724
 
     steps:
       - uses: actions/checkout@v4
@@ -25,18 +23,20 @@ jobs:
           distribution: 'temurin'
           java-version: '21'
 
+      # Installiere NDK
       - name: Install Android SDK NDK 27.3.13750724
         run: |
           yes | ${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager --sdk_root=${ANDROID_HOME} "ndk;27.3.13750724"
         env:
           ANDROID_SDK_ROOT: ${{ env.ANDROID_HOME }}
 
-      # Optional: Check NDK path
-      - name: Check installed NDK
-        run: ls -l $ANDROID_HOME/ndk
-
+      # Setze ANDROID_NDK_HOME dauerhaft für alle folgenden Schritte
       - name: Export ANDROID_NDK_HOME for scripts
         run: echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.3.13750724" >> $GITHUB_ENV
+
+      # Optional: Check installed NDK
+      - name: Check installed NDK
+        run: ls -l $ANDROID_NDK_HOME
 
       - name: Build OpenCV native libraries
         run: |

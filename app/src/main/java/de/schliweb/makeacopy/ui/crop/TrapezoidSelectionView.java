@@ -198,7 +198,7 @@ public class TrapezoidSelectionView extends View {
             Log.d(TAG, "Attempting to detect document edges from bitmap: " + imageBitmap.getWidth() + "x" + imageBitmap.getHeight());
 
             // First try using OpenCV if it's available
-            if (OpenCVUtils.isOpenCVInitialized()) {
+            if (OpenCVUtils.isInitialized()) {
                 Log.d(TAG, "OpenCV is initialized, attempting to use it for edge detection");
 
                 boolean openCVSuccess = false;
@@ -215,7 +215,7 @@ public class TrapezoidSelectionView extends View {
                     Point[] detectedCorners = null;
 
                     try {
-                        detectedCorners = OpenCVUtils.detectDocumentCorners(srcMat);
+                        detectedCorners = OpenCVUtils.detectDocumentCorners(getContext(), imageBitmap);
                     } catch (Throwable e) {
                         // Use Throwable instead of Exception to catch more error types
                         Log.e(TAG, "Error in detectDocumentCorners", e);
@@ -1282,9 +1282,9 @@ public class TrapezoidSelectionView extends View {
         Log.d(TAG, "Image bitmap set: " + (bitmap != null ? bitmap.getWidth() + "x" + bitmap.getHeight() : "null"));
 
         // Initialize OpenCV if needed
-        if (bitmap != null && !OpenCVUtils.isOpenCVInitialized()) {
+        if (bitmap != null && !OpenCVUtils.isInitialized()) {
             Log.d(TAG, "Initializing OpenCV for edge detection");
-            OpenCVUtils.initOpenCV(getContext());
+            OpenCVUtils.init(getContext());
         }
 
         // If the view is already initialized, we don't need to do anything else

@@ -140,7 +140,7 @@ public class CropFragment extends Fragment {
     private void performCrop() {
         Bitmap originalBitmap = cropViewModel.getImageBitmap().getValue();
         if (originalBitmap == null) return;
-        if (!OpenCVUtils.isOpenCVInitialized()) OpenCVUtils.initOpenCV(requireContext());
+        if (!OpenCVUtils.isInitialized()) OpenCVUtils.init(requireContext());
 
         org.opencv.core.Point[] corners = null;
         if (binding.trapezoidSelection != null) {

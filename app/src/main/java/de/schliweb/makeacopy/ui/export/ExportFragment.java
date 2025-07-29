@@ -69,13 +69,27 @@ public class ExportFragment extends Fragment {
         binding = FragmentExportBinding.inflate(inflater, container, false);
         View root = binding.getRoot();
 
+        // SharedPreferences für Export-Optionen
+        Context context = requireContext();
+        String prefsName = "export_options";
+        android.content.SharedPreferences prefs = context.getSharedPreferences(prefsName, Context.MODE_PRIVATE);
+
+        // Auswahl aus SharedPreferences laden
+        boolean includeOcr = prefs.getBoolean("include_ocr", false);
+        boolean convertToGrayscale = prefs.getBoolean("convert_to_grayscale", false);
+        binding.checkboxIncludeOcr.setChecked(includeOcr);
+        binding.checkboxGrayscale.setChecked(convertToGrayscale);
+        // Werte auch ins ViewModel übernehmen, damit sie wirksam sind
+        exportViewModel = new ViewModelProvider(this).get(ExportViewModel.class);
+        exportViewModel.setIncludeOcr(includeOcr);
+        exportViewModel.setConvertToGrayscale(convertToGrayscale);
+
         // System-Inset-Margin für Button-Container dynamisch setzen
         ViewCompat.setOnApplyWindowInsetsListener(binding.exportOptionsGroup, (v, insets) -> {
             de.schliweb.makeacopy.utils.UIUtils.adjustMarginForSystemInsets(binding.exportOptionsGroup, 8); // 8dp extra Abstand
             return insets;
         });
 
-        exportViewModel = new ViewModelProvider(this).get(ExportViewModel.class);
         cropViewModel = new ViewModelProvider(requireActivity()).get(CropViewModel.class);
         ocrViewModel = new ViewModelProvider(requireActivity()).get(OCRViewModel.class);
         cameraViewModel = new ViewModelProvider(requireActivity()).get(CameraViewModel.class);
@@ -139,8 +153,14 @@ public class ExportFragment extends Fragment {
         // binding.pageIndicator.setVisibility(View.GONE);
         // binding.pageNavigation.setVisibility(View.GONE);
 
-        binding.checkboxIncludeOcr.setOnCheckedChangeListener((button, checked) -> exportViewModel.setIncludeOcr(checked));
-        binding.checkboxGrayscale.setOnCheckedChangeListener((button, checked) -> exportViewModel.setConvertToGrayscale(checked));
+        binding.checkboxIncludeOcr.setOnCheckedChangeListener((button, checked) -> {
+            exportViewModel.setIncludeOcr(checked);
+            prefs.edit().putBoolean("include_ocr", checked).apply();
+        });
+        binding.checkboxGrayscale.setOnCheckedChangeListener((button, checked) -> {
+            exportViewModel.setConvertToGrayscale(checked);
+            prefs.edit().putBoolean("convert_to_grayscale", checked).apply();
+        });
         exportViewModel.setExportFormat("PDF");
 
         binding.buttonExport.setOnClickListener(v -> selectFileLocation());
@@ -248,7 +268,7 @@ public class ExportFragment extends Fragment {
                         Log.d(TAG, "performExport: Share button enabled");
 
                         // Show success message
-                        UIUtils.showToast(appContext, "Document exported to " + exportUri, Toast.LENGTH_LONG);
+                        UIUtils.showToast(appContext, "Document " + lastExportedPdfName + " exported", Toast.LENGTH_LONG);
 
                         // If checkbox is checked, launch TXT file creation
                         if (shouldExportTxt) {

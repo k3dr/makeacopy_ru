@@ -108,15 +108,29 @@ jobs:
           cd ../../bundle/release/
           sha256sum MakeACopy-v${{ steps.extract_version.outputs.VERSION }}-release.aab > MakeACopy-v${{ steps.extract_version.outputs.VERSION }}-release.aab.sha256
 
+      - name: Load Release Notes
+        id: release_notes
+        run: |
+          VERSION_CODE=${{ steps.extract_version.outputs.VERSION_CODE }}
+          CHANGELOG_FILE="fastlane/metadata/android/de-US/changelogs/${VERSION_CODE}.txt"
+          echo "Using changelog: $CHANGELOG_FILE"
+          if [ -f "$CHANGELOG_FILE" ]; then
+            NOTES=$(cat "$CHANGELOG_FILE")
+          else
+            echo "::error file=$CHANGELOG_FILE::Release Notes file not found!"
+            exit 1
+          fi
+          echo "notes<<EOF" >> $GITHUB_OUTPUT
+          echo "$NOTES" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v1
         with:
           name: "MakeACopy v${{ steps.extract_version.outputs.VERSION }}"
           tag_name: ${{ github.ref_name }}
-          body: |
-            📦 MakeACopy v${{ steps.extract_version.outputs.VERSION }}
-            - Dokumentenscanner mit OCR, PDF-Export & Datenschutz
+          body: ${{ steps.release_notes.outputs.notes }}
           files: |
             app/build/outputs/apk/release/MakeACopy-v${{ steps.extract_version.outputs.VERSION }}-release.apk
             app/build/outputs/bundle/release/MakeACopy-v${{ steps.extract_version.outputs.VERSION }}-release.aab

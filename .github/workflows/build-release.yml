@@ -112,7 +112,7 @@ jobs:
         id: release_notes
         run: |
           VERSION_CODE=${{ steps.extract_version.outputs.VERSION_CODE }}
-          CHANGELOG_FILE="fastlane/metadata/android/de-US/changelogs/${VERSION_CODE}.txt"
+          CHANGELOG_FILE="fastlane/metadata/android/en-US/changelogs/${VERSION_CODE}.txt"
           echo "Using changelog: $CHANGELOG_FILE"
           if [ -f "$CHANGELOG_FILE" ]; then
             NOTES=$(cat "$CHANGELOG_FILE")

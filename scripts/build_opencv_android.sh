@@ -1,15 +1,13 @@
 #!/bin/bash
 set -o pipefail
 
+# ==== Reproducible build timestamp ====
+export SOURCE_DATE_EPOCH=1700000000
+
 # ==== ABSOLUTER PFAD ====
 SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 OPENCV_DIR="$SCRIPT_DIR/external/opencv"
 BUILD_DIR="$SCRIPT_DIR/external/opencv-build"
-
-# ==== NPROC PORTABEL ====
-if ! command -v nproc &> /dev/null; then
-  nproc() { sysctl -n hw.ncpu; }
-fi
 
 # ==== FEHLERLOGIK ====
 log_error() {
@@ -116,6 +114,7 @@ echo "NDK version: $NDK_VERSION" >> "$BUILD_LOG"
 build_for_arch() {
   local arch=$1
   local arch_build_dir="${BUILD_DIR}_${arch}"
+  rm -rf "$arch_build_dir"
   mkdir -p "$arch_build_dir"
   cd "$arch_build_dir"
 
@@ -124,10 +123,12 @@ build_for_arch() {
 
   echo "Configuring CMake for $arch..."
   "$CMAKE_PATH" \
-    -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake \
+    -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake" \
     -DANDROID_ABI="$arch" \
-    -DBUILD_ANDROID_PROJECTS=ON \
     -DANDROID_NATIVE_API_LEVEL=21 \
+    -DCMAKE_C_FLAGS="-g0 -fdebug-prefix-map=$SCRIPT_DIR=." \
+    -DCMAKE_CXX_FLAGS="-g0 -fdebug-prefix-map=$SCRIPT_DIR=." \
+    -DBUILD_ANDROID_PROJECTS=ON \
     -DBUILD_SHARED_LIBS=ON \
     -DBUILD_STATIC_LIBS=OFF \
     -DBUILD_TESTS=OFF \
@@ -157,6 +158,7 @@ build_for_arch() {
     -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
     "$OPENCV_DIR" 2>&1 | tee -a "$arch_log"
 
+
   if [ ${PIPESTATUS[0]} -ne 0 ]; then
     log_error "CMake configuration for $arch failed. See $arch_log for details."
     tail -n 20 "$arch_log"
@@ -164,26 +166,16 @@ build_for_arch() {
     return 1
   fi
 
-  echo "Building OpenCV for $arch with $(nproc) threads..."
-  echo "$(date): Starting multi-threaded build for $arch with $(nproc) threads" >> "$arch_log"
-  if ! make -j$(nproc) 2>&1 | tee -a "$arch_log"; then
-    echo "Multi-threaded build for $arch failed. See $arch_log for details."
+  echo "Building OpenCV for $arch (single-threaded for reproducibility)..."
+  echo "$(date): Starting single-threaded build for $arch" >> "$arch_log"
+  if ! make -j1 2>&1 | tee -a "$arch_log"; then
+    echo "Single-threaded build for $arch failed. See $arch_log for details."
     tail -n 20 "$arch_log"
-    echo "Trying with a single thread..."
-    echo "$(date): Multi-threaded build failed. Trying single-threaded build for $arch." >> "$arch_log"
-    make clean 2>&1 | tee -a "$arch_log"
-    if ! make -j1 2>&1 | tee -a "$arch_log"; then
-      log_error "Both multi-threaded and single-threaded builds for $arch failed."
-      tail -n 20 "$arch_log"
-      cd "$SCRIPT_DIR"
-      return 1
-    else
-      echo "Single-threaded build for $arch completed successfully."
-      echo "$(date): Single-threaded build for $arch completed successfully." >> "$arch_log"
-    fi
+    cd "$SCRIPT_DIR"
+    return 1
   else
-    echo "Multi-threaded build for $arch completed successfully."
-    echo "$(date): Multi-threaded build for $arch completed successfully." >> "$arch_log"
+    echo "Single-threaded build for $arch completed successfully."
+    echo "$(date): Single-threaded build for $arch completed successfully." >> "$arch_log"
   fi
 
   mkdir -p "$BUILD_DIR/lib/$arch"

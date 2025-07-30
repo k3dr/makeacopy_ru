@@ -1,0 +1,9 @@
+Native OpenCV build improvements
+
+* Uses a fixed build timestamp (SOURCE_DATE_EPOCH) to improve build comparison
+* Switches to single-threaded compilation to reduce non-determinism
+* Avoids path dependencies using compiler flags like -fdebug-prefix-map
+* Enforces clean builds per architecture (removes old CMake cache)
+* Excludes unused OpenCV modules for smaller native libraries
+
+💡 Goal: More consistent native builds – a step towards reproducibility

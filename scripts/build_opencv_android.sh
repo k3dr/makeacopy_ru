@@ -128,6 +128,8 @@ build_for_arch() {
     -DANDROID_NATIVE_API_LEVEL=21 \
     -DCMAKE_C_FLAGS="-g0 -fdebug-prefix-map=$SCRIPT_DIR=." \
     -DCMAKE_CXX_FLAGS="-g0 -fdebug-prefix-map=$SCRIPT_DIR=." \
+    -DCMAKE_EXE_LINKER_FLAGS="-Wl,--build-id=none" \
+    -DCMAKE_SHARED_LINKER_FLAGS="-Wl,--build-id=none" \
     -DBUILD_ANDROID_PROJECTS=ON \
     -DBUILD_SHARED_LIBS=ON \
     -DBUILD_STATIC_LIBS=OFF \

@@ -70,8 +70,9 @@ public class OpenCVUtils {
         int sdk = Build.VERSION.SDK_INT;
 
         boolean isHighEnd = sdk >= 29 && !manufacturer.contains("mediatek") && !manufacturer.contains("spreadtrum") && !device.contains("generic") && !model.contains("emulator") && !device.contains("x86") && !device.contains("x86_64") && (manufacturer.contains("google") || manufacturer.contains("samsung") || manufacturer.contains("xiaomi"));
+        boolean isEmulator = device.contains("emu") || model.contains("sdk") || model.contains("emulator") || model.contains("virtual") || manufacturer.contains("genymotion") || model.contains("generator");
 
-        USE_SAFE_MODE = !isHighEnd;
+        USE_SAFE_MODE = !isHighEnd || isEmulator;
         USE_ADAPTIVE_THRESHOLD = isHighEnd;
 
         Log.i(TAG, "Safe mode = " + USE_SAFE_MODE + ", AdaptiveThreshold = " + USE_ADAPTIVE_THRESHOLD);

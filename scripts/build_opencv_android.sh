@@ -1,23 +1,32 @@
 #!/bin/bash
-set -o pipefail
+set -o pipefail  # Fail if any command in a pipeline fails
 
 # ==== Reproducible build timestamp ====
+# This ensures deterministic timestamps in builds (for reproducibility)
 export SOURCE_DATE_EPOCH=1700000000
 
-# ==== ABSOLUTER PFAD ====
+# ==== Absolute paths ====
 SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 OPENCV_DIR="$SCRIPT_DIR/external/opencv"
 BUILD_DIR="$SCRIPT_DIR/external/opencv-build"
 
-# ==== FEHLERLOGIK ====
+# ==== Clean OpenCV sources ====
+# Removes all untracked files and directories (ensures clean state)
+cd "$OPENCV_DIR"
+git clean -xfd
+
+# ==== Error handler ====
+# Function to report errors with helpful context
 log_error() {
   echo "ERROR: $1"
   echo "Please check the full build log for more details."
   echo "If you're using a different NDK version and experiencing issues, try using NDK version 27.3.13750724 instead."
 }
+# Triggers error function if any command fails
 trap 'log_error "Build failed at line $LINENO"' ERR
 
-# ==== ANDROID NDK SUCHEN ====
+# ==== Find ANDROID_NDK_HOME if not already set ====
+# Try several common locations in SDK directories
 if [ -z "$ANDROID_NDK_HOME" ]; then
   if [ -n "$ANDROID_SDK_ROOT" ]; then
     if [ -d "$ANDROID_SDK_ROOT/ndk" ]; then
@@ -49,6 +58,7 @@ if [ -z "$ANDROID_NDK_HOME" ]; then
   fi
 fi
 
+# ==== Print NDK version ====
 echo "Using Android NDK at: $ANDROID_NDK_HOME"
 NDK_VERSION=$(basename "$ANDROID_NDK_HOME")
 RECOMMENDED_VERSION="27.3.13750724"
@@ -57,17 +67,18 @@ if [[ "$NDK_VERSION" != "$RECOMMENDED_VERSION" ]]; then
   echo "WARNING: You are using NDK version $NDK_VERSION which is different from the recommended version $RECOMMENDED_VERSION."
 fi
 
-# ==== OpenCV Quellen prüfen ====
+# ==== Validate OpenCV source directory ====
 echo "OpenCV source directory: $OPENCV_DIR"
 if [ ! -d "$OPENCV_DIR" ]; then
   echo "Error: OpenCV source not found at $OPENCV_DIR"
   exit 1
 fi
 
-# ==== BUILD DIR anlegen ====
+# ==== Prepare build directory ====
+rm -rf "$BUILD_DIR"
 mkdir -p "$BUILD_DIR/lib"
 
-# ==== ANDROID_SDK_ROOT prüfen ====
+# ==== Find Android SDK if not already set ====
 if [ -z "$ANDROID_SDK_ROOT" ]; then
   echo "Warning: ANDROID_SDK_ROOT is not set. Trying to find it automatically..."
   if [ -d "$HOME/Library/Android/sdk" ]; then
@@ -79,13 +90,13 @@ if [ -z "$ANDROID_SDK_ROOT" ]; then
   fi
 fi
 
-# ==== CMake suchen ====
+# ==== Find CMake binary ====
 CMAKE_PATH=""
 if [ -n "$ANDROID_SDK_ROOT" ]; then
   if [ -d "$ANDROID_SDK_ROOT/cmake" ]; then
     LATEST_CMAKE_DIR=$(find "$ANDROID_SDK_ROOT/cmake" -maxdepth 1 -type d -name "[0-9]*" | sort -Vr | head -n 1)
     if [ -n "$LATEST_CMAKE_DIR" ] && [ -d "$LATEST_CMAKE_DIR/bin" ]; then
-      if [ -f "$LATEST_CMAKE_DIR/bin/cmake" ] && [ -x "$LATEST_CMAKE_DIR/bin/cmake" ]; then
+      if [ -x "$LATEST_CMAKE_DIR/bin/cmake" ]; then
         CMAKE_PATH="$LATEST_CMAKE_DIR/bin/cmake"
         echo "Found CMake in Android SDK at $CMAKE_PATH"
       fi
@@ -104,13 +115,13 @@ if [ -z "$CMAKE_PATH" ]; then
 fi
 echo "Using CMake at: $CMAKE_PATH"
 
-# ==== LOG-FILE ====
+# ==== Set log file for the build ====
 BUILD_LOG="$BUILD_DIR/opencv_build.log"
 echo "Build log will be saved to: $BUILD_LOG"
 echo "$(date): Starting OpenCV build" > "$BUILD_LOG"
 echo "NDK version: $NDK_VERSION" >> "$BUILD_LOG"
 
-# ==== BUILD-FUNKTION FÜR ARCHITEKTUR ====
+# ==== Function to build OpenCV for a given architecture ====
 build_for_arch() {
   local arch=$1
   local arch_build_dir="${BUILD_DIR}_${arch}"
@@ -121,13 +132,14 @@ build_for_arch() {
   local arch_log="$arch_build_dir/opencv_build_$arch.log"
   echo "$(date): Starting OpenCV build for $arch" > "$arch_log"
 
+  # Configure CMake with appropriate options for Android
   echo "Configuring CMake for $arch..."
   "$CMAKE_PATH" \
     -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake" \
     -DANDROID_ABI="$arch" \
     -DANDROID_NATIVE_API_LEVEL=21 \
-    -DCMAKE_C_FLAGS="-g0 -fdebug-prefix-map=$SCRIPT_DIR=." \
-    -DCMAKE_CXX_FLAGS="-g0 -fdebug-prefix-map=$SCRIPT_DIR=." \
+    -DCMAKE_C_FLAGS="-g0 -fdebug-prefix-map=$SCRIPT_DIR=. -ffile-prefix-map=$SCRIPT_DIR=. " \
+    -DCMAKE_CXX_FLAGS="-g0 -fdebug-prefix-map=$SCRIPT_DIR=. -ffile-prefix-map=$SCRIPT_DIR=. " \
     -DCMAKE_EXE_LINKER_FLAGS="-Wl,--build-id=none" \
     -DCMAKE_SHARED_LINKER_FLAGS="-Wl,--build-id=none" \
     -DBUILD_ANDROID_PROJECTS=ON \
@@ -136,12 +148,15 @@ build_for_arch() {
     -DBUILD_TESTS=OFF \
     -DBUILD_PERF_TESTS=OFF \
     -DBUILD_EXAMPLES=OFF \
+    -DBUILD_DOCS=OFF \
+    -DBUILD_ANDROID_EXAMPLES=OFF \
+    -DBUILD_JAVA=ON \
     -DBUILD_opencv_java=ON \
-    -DBUILD_opencv_core=ON \
     -DBUILD_opencv_imgproc=ON \
-    -DBUILD_opencv_imgcodecs=OFF \
-    -DBUILD_opencv_video=OFF \
-    -DBUILD_opencv_videoio=OFF \
+    -DBUILD_opencv_flann=OFF \
+    -DBUILD_opencv_imgcodecs=ON \
+    -DBUILD_opencv_video=ON \
+    -DBUILD_opencv_videoio=ON \
     -DBUILD_opencv_calib3d=OFF \
     -DBUILD_opencv_features2d=OFF \
     -DBUILD_opencv_objdetect=OFF \
@@ -151,15 +166,12 @@ build_for_arch() {
     -DBUILD_opencv_highgui=OFF \
     -DBUILD_opencv_photo=OFF \
     -DBUILD_opencv_stitching=OFF \
-    -DBUILD_JAVA=ON \
-    -DBUILD_DOCS=OFF \
     -DWITH_OPENCL=OFF \
     -DWITH_IPP=OFF \
     -DCMAKE_CXX_STANDARD=11 \
     -DCMAKE_CXX_STANDARD_REQUIRED=ON \
     -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
     "$OPENCV_DIR" 2>&1 | tee -a "$arch_log"
-
 
   if [ ${PIPESTATUS[0]} -ne 0 ]; then
     log_error "CMake configuration for $arch failed. See $arch_log for details."
@@ -168,31 +180,48 @@ build_for_arch() {
     return 1
   fi
 
-  echo "Building OpenCV for $arch (single-threaded for reproducibility)..."
-  echo "$(date): Starting single-threaded build for $arch" >> "$arch_log"
+  # Append a fix to Gradle file to ensure Kotlin uses correct JVM target
+  echo "
+  tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+      kotlinOptions {
+          jvmTarget = '17'
+          println '✅ Set Kotlin JVM target to 17 for task'
+      }
+  }
+  " | tee -a "$arch_build_dir/opencv_android/opencv/build.gradle"
+
+  # Run the build (single-threaded for reproducibility)
+  echo "Building OpenCV for $arch (single-threaded)..."
   if ! make -j1 2>&1 | tee -a "$arch_log"; then
-    echo "Single-threaded build for $arch failed. See $arch_log for details."
+    echo "Build failed for $arch"
     tail -n 20 "$arch_log"
     cd "$SCRIPT_DIR"
     return 1
-  else
-    echo "Single-threaded build for $arch completed successfully."
-    echo "$(date): Single-threaded build for $arch completed successfully." >> "$arch_log"
   fi
 
   mkdir -p "$BUILD_DIR/lib/$arch"
-  echo "Copying $arch libraries to main build directory..."
-  # Besser: alle .so im Baum suchen und kopieren (falls Pfad sich ändert)
+  echo "Copying shared libraries for $arch..."
   find . -name "*.so" -exec cp -f {} "$BUILD_DIR/lib/$arch/" \;
 
+  # Strip debug symbols to reduce file size
+  HOST_TAG="$(uname | tr '[:upper:]' '[:lower:]')-x86_64"
+  STRIP="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/$HOST_TAG/bin/llvm-strip"
+  if [ -x "$STRIP" ]; then
+      find "$BUILD_DIR/lib/$arch" -name "*.so" -exec "$STRIP" --strip-debug --strip-unneeded {} \;
+      echo "Stripped debug symbols from $arch libraries."
+  else
+      echo "Warning: Strip tool not found at $STRIP. Skipping stripping."
+  fi
+
   cd "$SCRIPT_DIR"
-  echo "OpenCV for $arch built successfully."
+  echo "✅ OpenCV for $arch built successfully."
   return 0
 }
 
-echo "Building OpenCV for all architectures..."
+# ==== Build loop for all architectures ====
+echo "Building OpenCV for all target ABIs..."
 BUILD_FAILED=0
-for ARCH in "arm64-v8a" "armeabi-v7a"; do # riscv64 optional
+for ARCH in "arm64-v8a" "armeabi-v7a"; do
   build_for_arch "$ARCH" || BUILD_FAILED=1
 done
 
@@ -200,8 +229,8 @@ if [ $BUILD_FAILED -eq 0 ]; then
   echo "✅ OpenCV for Android built successfully."
   echo "$(date): Build completed successfully." >> "$BUILD_LOG"
 else
-  echo "⚠️ WARNING: Some architectures failed to build. Continuing anyway."
-  echo "$(date): Build completed with partial success." >> "$BUILD_LOG"
+  echo "❌ Error: Some builds failed."
+  exit 1
 fi
 
 echo "Build log is available at: $BUILD_LOG"

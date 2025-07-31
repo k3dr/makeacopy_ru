@@ -41,6 +41,7 @@ public class CropFragment extends Fragment {
      */
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
+        OpenCVUtils.init(requireContext());
         cropViewModel = new ViewModelProvider(requireActivity()).get(CropViewModel.class);
         cameraViewModel = new ViewModelProvider(requireActivity()).get(CameraViewModel.class);
         binding = FragmentCropBinding.inflate(inflater, container, false);

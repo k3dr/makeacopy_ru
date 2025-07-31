@@ -190,6 +190,10 @@ build_for_arch() {
   }
   " | tee -a "$arch_build_dir/opencv_android/opencv/build.gradle"
 
+  # Create a version string file for reproducibility
+  mkdir -p "$arch_build_dir/modules/core"
+  echo '"OpenCV 4.12.0 (reproducible build)\n"' > "$arch_build_dir/modules/core/version_string.inc"
+
   # Run the build (single-threaded for reproducibility)
   echo "Building OpenCV for $arch (single-threaded)..."
   if ! make -j1 2>&1 | tee -a "$arch_log"; then
@@ -221,7 +225,7 @@ build_for_arch() {
 # ==== Build loop for all architectures ====
 echo "Building OpenCV for all target ABIs..."
 BUILD_FAILED=0
-for ARCH in "arm64-v8a" "armeabi-v7a"; do
+for ARCH in "arm64-v8a" "armeabi-v7a" "x86" "x86_64"; do
   build_for_arch "$ARCH" || BUILD_FAILED=1
 done
 

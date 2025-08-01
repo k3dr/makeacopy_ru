@@ -16,42 +16,37 @@ cd "$OPENCV_DIR"
 git clean -xfd
 git checkout .
 
+# -----------------------------------------------------------------------------
+# 🩹 Patch OpenCV to suppress status() output and fix build info string
+# -----------------------------------------------------------------------------
+OPENCV_UTILS="$OPENCV_DIR/cmake/OpenCVUtils.cmake"
+BACKUP_UTILS="${OPENCV_UTILS}.bak"
 
-# ==== Patch OpenCV: Neutralize status() function in OpenCVUtils.cmake ====
-# This patch silences the complex status() function in OpenCVUtils.cmake
-# to avoid issues with reproducible builds where the function's output can vary.
-# This is necessary because the function's output can change based on the build environment,
-# which can lead to non-reproducible builds.
-# The patch replaces the function with a no-op version that does not produce any output.
-echo "🔧 Patching OpenCVUtils.cmake to neutralize status() function..."
+# macOS-kompatible sed
+sedi() {
+  if sed --version >/dev/null 2>&1; then
+    sed -i "$@"
+  else
+    sed -i '' "$@"
+  fi
+}
 
-PATCH_TARGET="$OPENCV_DIR/cmake/OpenCVUtils.cmake"
-BACKUP_FILE="${PATCH_TARGET}.bak"
+echo "🔧 Replacing ocv_output_status() in $OPENCV_UTILS..."
+cp "$OPENCV_UTILS" "$BACKUP_UTILS"
 
-echo "🔧 Patching $PATCH_TARGET to silence status()..."
+# Delete original function
+sedi '/^[[:space:]]*function(ocv_output_status/,/^[[:space:]]*endfunction/ d' "$OPENCV_UTILS"
 
-# Backup original file
-cp "$PATCH_TARGET" "$BACKUP_FILE"
+# Append replacement at the end of the file
+cat <<'EOF' >> "$OPENCV_UTILS"
 
-awk '
-  BEGIN { inside=0 }
-  # Start der function(status text)
-  /^[ \t]*function[ \t]*\(?status[ \t]+text\)?[ \t]*$/ {
-    print "function(status)"
-    print "  # status() output suppressed"
-    print "endfunction()"
-    inside=1
-    next
-  }
-  # Ende der Funktion
-  /^[ \t]*endfunction[ \t]*\(?\)?[ \t]*$/ {
-    if (inside) { inside=0; next }
-  }
-  # Nur ausgeben, wenn nicht in der Funktion
-  { if (!inside) print }
-' "$BACKUP_FILE" > "$PATCH_TARGET"
+# Patched: deterministic ocv_output_status()
+function(ocv_output_status msg)
+  set(OPENCV_BUILD_INFO_STR "\"OpenCV 4.12.0 (reproducible build)\\n\"" CACHE INTERNAL "")
+endfunction()
+EOF
 
-echo "✅ Funktion status(text) successfully patched to suppress output."
+echo "✅ ocv_output_status() replaced with reproducible version."
 
 # ==== Error handler ====
 # Function to report errors with helpful context
@@ -170,13 +165,6 @@ build_for_arch() {
   local arch_log="$arch_build_dir/opencv_build_$arch.log"
   echo "$(date): Starting OpenCV build for $arch" > "$arch_log"
 
-  # Create a temporary version string file
-  # This is used to ensure reproducibility in the build
-  echo "Creating version string for $arch..."
-  mkdir -p "$arch_build_dir/modules/core"
-  echo '"OpenCV 4.12.0 (reproducible build)\n"' > "$arch_build_dir/version_string.tmp"
-  cp "$arch_build_dir/version_string.tmp" "$arch_build_dir/modules/core/version_string.inc"
-
   # Configure CMake with appropriate options for Android
   echo "Configuring CMake for $arch..."
   "$CMAKE_PATH" \
@@ -243,7 +231,7 @@ build_for_arch() {
     cd "$SCRIPT_DIR"
     return 1
   fi
-
+  # Copy the built libraries to the build directory
   mkdir -p "$BUILD_DIR/lib/$arch"
   echo "Copying shared libraries for $arch..."
   find . -name "*.so" -exec cp -f {} "$BUILD_DIR/lib/$arch/" \;

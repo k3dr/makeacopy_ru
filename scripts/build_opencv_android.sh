@@ -14,6 +14,44 @@ BUILD_DIR="$SCRIPT_DIR/external/opencv-build"
 # Removes all untracked files and directories (ensures clean state)
 cd "$OPENCV_DIR"
 git clean -xfd
+git checkout .
+
+
+# ==== Patch OpenCV: Neutralize status() function in OpenCVUtils.cmake ====
+# This patch silences the complex status() function in OpenCVUtils.cmake
+# to avoid issues with reproducible builds where the function's output can vary.
+# This is necessary because the function's output can change based on the build environment,
+# which can lead to non-reproducible builds.
+# The patch replaces the function with a no-op version that does not produce any output.
+echo "🔧 Patching OpenCVUtils.cmake to neutralize status() function..."
+
+PATCH_TARGET="$OPENCV_DIR/cmake/OpenCVUtils.cmake"
+BACKUP_FILE="${PATCH_TARGET}.bak"
+
+echo "🔧 Patching $PATCH_TARGET to silence status()..."
+
+# Backup original file
+cp "$PATCH_TARGET" "$BACKUP_FILE"
+
+awk '
+  BEGIN { inside=0 }
+  # Start der function(status text)
+  /^[ \t]*function[ \t]*\(?status[ \t]+text\)?[ \t]*$/ {
+    print "function(status)"
+    print "  # status() output suppressed"
+    print "endfunction()"
+    inside=1
+    next
+  }
+  # Ende der Funktion
+  /^[ \t]*endfunction[ \t]*\(?\)?[ \t]*$/ {
+    if (inside) { inside=0; next }
+  }
+  # Nur ausgeben, wenn nicht in der Funktion
+  { if (!inside) print }
+' "$BACKUP_FILE" > "$PATCH_TARGET"
+
+echo "✅ Funktion status(text) successfully patched to suppress output."
 
 # ==== Error handler ====
 # Function to report errors with helpful context
@@ -132,6 +170,13 @@ build_for_arch() {
   local arch_log="$arch_build_dir/opencv_build_$arch.log"
   echo "$(date): Starting OpenCV build for $arch" > "$arch_log"
 
+  # Create a temporary version string file
+  # This is used to ensure reproducibility in the build
+  echo "Creating version string for $arch..."
+  mkdir -p "$arch_build_dir/modules/core"
+  echo '"OpenCV 4.12.0 (reproducible build)\n"' > "$arch_build_dir/version_string.tmp"
+  cp "$arch_build_dir/version_string.tmp" "$arch_build_dir/modules/core/version_string.inc"
+
   # Configure CMake with appropriate options for Android
   echo "Configuring CMake for $arch..."
   "$CMAKE_PATH" \
@@ -189,10 +234,6 @@ build_for_arch() {
       }
   }
   " | tee -a "$arch_build_dir/opencv_android/opencv/build.gradle"
-
-  # Create a version string file for reproducibility
-  mkdir -p "$arch_build_dir/modules/core"
-  echo '"OpenCV 4.12.0 (reproducible build)\n"' > "$arch_build_dir/modules/core/version_string.inc"
 
   # Run the build (single-threaded for reproducibility)
   echo "Building OpenCV for $arch (single-threaded)..."

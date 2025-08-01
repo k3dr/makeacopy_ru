@@ -203,6 +203,10 @@ build_for_arch() {
     -DWITH_IPP=OFF \
     -DCMAKE_CXX_STANDARD=11 \
     -DCMAKE_CXX_STANDARD_REQUIRED=ON \
+    -DCMAKE_C_ARCHIVE_CREATE="<CMAKE_AR> qc <TARGET> <LINK_FLAGS> <OBJECTS>" \
+    -DCMAKE_C_ARCHIVE_FINISH=":" \
+    -DCMAKE_CXX_ARCHIVE_CREATE="<CMAKE_AR> qc <TARGET> <LINK_FLAGS> <OBJECTS>" \
+    -DCMAKE_CXX_ARCHIVE_FINISH=":" \
     -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
     "$OPENCV_DIR" 2>&1 | tee -a "$arch_log"
 
@@ -240,10 +244,18 @@ build_for_arch() {
   HOST_TAG="$(uname | tr '[:upper:]' '[:lower:]')-x86_64"
   STRIP="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/$HOST_TAG/bin/llvm-strip"
   if [ -x "$STRIP" ]; then
-      find "$BUILD_DIR/lib/$arch" -name "*.so" -exec "$STRIP" --strip-debug --strip-unneeded {} \;
-      echo "Stripped debug symbols from $arch libraries."
+      echo "Stripping debug and metadata sections from $arch libraries..."
+      find "$BUILD_DIR/lib/$arch" -name "*.so" -exec "$STRIP" \
+          --strip-all \
+          --remove-section=.comment \
+          --remove-section=.note \
+          --remove-section=.note.gnu.build-id \
+          --remove-section=.note.gnu.property \
+          --remove-section=.note.ABI-tag \
+          {} \;
+      echo "✅ Stripped and cleaned $arch libraries for reproducibility."
   else
-      echo "Warning: Strip tool not found at $STRIP. Skipping stripping."
+      echo "⚠️ Warning: Strip tool not found at $STRIP. Skipping stripping for $arch."
   fi
 
   cd "$SCRIPT_DIR"

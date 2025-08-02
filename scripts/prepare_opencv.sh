@@ -4,7 +4,7 @@ set -euo pipefail
 echo "🔧 Preparing OpenCV native libraries for the app..."
 
 SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-BUILD_BASE="$SCRIPT_DIR/external"
+BUILD_BASE="/tmp/opencv-build"
 JNILIBS_DIR="$SCRIPT_DIR/app/src/main/jniLibs"
 ARCHS=(arm64-v8a armeabi-v7a x86 x86_64)
 
@@ -18,10 +18,7 @@ MISSING=0
 copy_libs() {
   local arch=$1
   local possible_dirs=(
-    "$BUILD_BASE/opencv-build_$arch/lib/$arch"
-    "$BUILD_BASE/opencv-build/lib/$arch"
-    "$BUILD_BASE/opencv-build_$arch/jni/$arch"
-    "$BUILD_BASE/opencv-build/jni/$arch"
+    "$BUILD_BASE/lib/$arch"
   )
   local target_dir="$JNILIBS_DIR/$arch"
   mkdir -p "$target_dir"

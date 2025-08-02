@@ -9,6 +9,7 @@
 * Adds Gradle Kotlin workaround: sets kotlinOptions.jvmTarget = 17 in build.gradle when needed
 * Prepares for multi-architecture output (e.g., x86, x86_64, riscv64) with clean separation per ABI
 * Improved logging and error handling (e.g., trap, tail of log on failure, log path output)
-* Silencing verbose OpenCV build output → Replaces the status() function in OpenCVUtils.cmake with a no-op definition
-  
-💡 Goal: Achieve smaller, consistent and reproducible native builds – a solid step toward leaner APKs and F-Droid compliance.
+* Silences verbose OpenCV build output by replacing the status() function in OpenCVUtils.cmake
+* Uses neutral build and source directories under /tmp to prevent hardcoded paths in binaries
+
+Goal: Achieve smaller, consistent and reproducible native builds – a solid step toward leaner APKs and F-Droid compliance.

@@ -7,14 +7,22 @@ export SOURCE_DATE_EPOCH=1700000000
 
 # ==== Absolute paths ====
 SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-OPENCV_DIR="$SCRIPT_DIR/external/opencv"
-BUILD_DIR="$SCRIPT_DIR/external/opencv-build"
+OPENCV_DIR_ORIG="$SCRIPT_DIR/external/opencv"
+BUILD_DIR="/tmp/opencv-build"
+OPENCV_DIR="/tmp/opencv-src"
 
 # ==== Clean OpenCV sources ====
 # Removes all untracked files and directories (ensures clean state)
-cd "$OPENCV_DIR"
+cd "$OPENCV_DIR_ORIG"
 git clean -xfd
 git checkout .
+
+# ==== Copy OpenCV sources to build directory ====
+# This ensures we have a clean copy of the OpenCV sources for building
+echo "🔄 Copying OpenCV sources to $OPENCV_DIR..."
+rm -rf "$OPENCV_DIR"
+mkdir -p "$OPENCV_DIR"
+cp -a "$OPENCV_DIR_ORIG/." "$OPENCV_DIR"
 
 # -----------------------------------------------------------------------------
 # 🩹 Patch OpenCV to suppress status() output and fix build info string
@@ -172,10 +180,14 @@ build_for_arch() {
     -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake" \
     -DANDROID_ABI="$arch" \
     -DANDROID_NATIVE_API_LEVEL=21 \
-    -DCMAKE_C_FLAGS="-g0 -fdebug-prefix-map=$SCRIPT_DIR=. -ffile-prefix-map=$SCRIPT_DIR=. " \
-    -DCMAKE_CXX_FLAGS="-g0 -fdebug-prefix-map=$SCRIPT_DIR=. -ffile-prefix-map=$SCRIPT_DIR=. " \
+    -DCMAKE_C_FLAGS="-g0 -fdebug-prefix-map=$OPENCV_DIR=. -ffile-prefix-map=$OPENCV_DIR=. " \
+    -DCMAKE_CXX_FLAGS="-g0 -fdebug-prefix-map=$OPENCV_DIR=. -ffile-prefix-map=$OPENCV_DIR=. " \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_C_FLAGS_RELEASE="-g0 -fdebug-prefix-map=$OPENCV_DIR=. -ffile-prefix-map=$OPENCV_DIR=." \
+    -DCMAKE_CXX_FLAGS_RELEASE="-g0 -fdebug-prefix-map=$OPENCV_DIR=. -ffile-prefix-map=$OPENCV_DIR=." \
     -DCMAKE_EXE_LINKER_FLAGS="-Wl,--build-id=none" \
     -DCMAKE_SHARED_LINKER_FLAGS="-Wl,--build-id=none" \
+    -DCMAKE_INSTALL_PREFIX="/__repro" \
     -DBUILD_ANDROID_PROJECTS=ON \
     -DBUILD_SHARED_LIBS=ON \
     -DBUILD_STATIC_LIBS=OFF \

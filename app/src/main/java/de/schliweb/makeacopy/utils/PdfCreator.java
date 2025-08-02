@@ -220,14 +220,6 @@ public class PdfCreator {
     }
 
     /**
-     * Overloaded method with default JPEG quality (75) and grayscale conversion (false)
-     * This ensures that PDFs are created in color by default unless explicitly set to grayscale.
-     */
-    public static Uri createSearchablePdf(Context context, Bitmap bitmap, List<RecognizedWord> words, Uri outputUri) {
-        return createSearchablePdf(context, bitmap, words, outputUri, 75, false);
-    }
-
-    /**
      * Adds a text layer to the PDF for searchability by positioning each recognized word
      * at its exact location in the document using PDFBox.
      * <p>
@@ -364,7 +356,7 @@ public class PdfCreator {
     private static float calculateScale(int imageWidth, int imageHeight, float pageWidth, float pageHeight) {
         float scaleX = pageWidth / imageWidth;
         float scaleY = pageHeight / imageHeight;
-        return Math.min(scaleX, scaleY) * 0.9f; // 90% of the maximum scale to add some margin
+        return Math.min(scaleX, scaleY) * 1.0f; // scale to fit the page
     }
 
     /**

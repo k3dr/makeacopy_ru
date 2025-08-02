@@ -166,6 +166,7 @@ build_for_arch() {
   echo "$(date): Starting OpenCV build for $arch" > "$arch_log"
 
   # Configure CMake with appropriate options for Android
+  export ZERO_AR_DATE=1
   echo "Configuring CMake for $arch..."
   "$CMAKE_PATH" \
     -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake" \
@@ -203,9 +204,9 @@ build_for_arch() {
     -DWITH_IPP=OFF \
     -DCMAKE_CXX_STANDARD=11 \
     -DCMAKE_CXX_STANDARD_REQUIRED=ON \
-    -DCMAKE_C_ARCHIVE_CREATE="<CMAKE_AR> qc <TARGET> <LINK_FLAGS> <OBJECTS>" \
+    -DCMAKE_C_ARCHIVE_CREATE="<CMAKE_AR> qcD <TARGET> <LINK_FLAGS> <OBJECTS>" \
     -DCMAKE_C_ARCHIVE_FINISH=":" \
-    -DCMAKE_CXX_ARCHIVE_CREATE="<CMAKE_AR> qc <TARGET> <LINK_FLAGS> <OBJECTS>" \
+    -DCMAKE_CXX_ARCHIVE_CREATE="<CMAKE_AR> qcD <TARGET> <LINK_FLAGS> <OBJECTS>" \
     -DCMAKE_CXX_ARCHIVE_FINISH=":" \
     -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
     "$OPENCV_DIR" 2>&1 | tee -a "$arch_log"
@@ -266,6 +267,7 @@ build_for_arch() {
 # ==== Build loop for all architectures ====
 echo "Building OpenCV for all target ABIs..."
 BUILD_FAILED=0
+
 for ARCH in "arm64-v8a" "armeabi-v7a" "x86" "x86_64"; do
   build_for_arch "$ARCH" || BUILD_FAILED=1
 done

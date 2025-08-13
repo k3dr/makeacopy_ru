@@ -90,3 +90,5 @@
 
 # Don't warn about missing dependencies
 -dontwarn org.opencv.**
+
+-keep class ai.onnxruntime.** { *; }

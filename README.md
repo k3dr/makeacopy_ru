@@ -13,7 +13,7 @@ Or download the latest APK from the [Releases Section](https://github.com/egdels
 ## Features
 
 - **Camera Scanning**: Capture documents using the device camera
-- **Edge Detection**: Automatic document edge detection using OpenCV
+- **Edge Detection**: Automatic document edge detection using OpenCV, optionally enhanced with a machine learning model ([ONNX, from DocAligner](https://github.com/DocsaidLab/DocAligner) – Apache 2.0)
 - **Perspective Correction**: Adjust and crop documents with manual or automatic perspective correction
 - **Image Enhancement**: Apply filters (grayscale, contrast, sharpening)
 - **OCR**: Offline text recognition with Tesseract
@@ -52,11 +52,11 @@ This workflow automatically builds APK and AAB files when a new tag is created:
 1. Create a new tag starting with 'v' (e.g., `v1.0.0`)
 2. Push the tag to GitHub
 3. The workflow will automatically:
-   - Set up JDK 21 and Android NDK 27.3.13750724
-   - Initialize OpenCV source (via Git submodule)
-   - Build OpenCV native libraries for all architectures
-   - Integrate the built native libraries into the app
-   - Build Debug APK, Release APK (unsigned), and Android App Bundle (AAB)
+    - Set up JDK 21 and Android NDK 27.3.13750724
+    - Initialize OpenCV source (via Git submodule)
+    - Build OpenCV native libraries for all architectures
+    - Integrate the built native libraries into the app
+    - Build Debug APK, Release APK (unsigned), and Android App Bundle (AAB)
 4. Artifacts will be attached to the GitHub Release
 
 This ensures that release builds are 100% F-Droid compatible, with all native libraries built from source and the required OpenCV Java classes bundled statically.
@@ -77,20 +77,20 @@ This ensures that the OpenCV integration is tested with each code change, buildi
 ### Building from Source
 
 1. Clone the repository with submodules:
-   ```
+   ```bash
    git clone --recurse-submodules https://github.com/egdels/makeacopy.git
    ```
 
 2. The build process will automatically:
-   - Build OpenCV native libraries for all architectures
-   - Integrate the built native libraries into the app
+    - Build OpenCV native libraries for all architectures
+    - Integrate the built native libraries into the app
 
    This is handled by Gradle tasks that run the following scripts:
-   - `scripts/build_opencv_android.sh`: Builds OpenCV native libraries
-   - `scripts/prepare_opencv.sh`: Integrates the built native libraries into the app
+    - `scripts/build_opencv_android.sh`: Builds OpenCV native libraries
+    - `scripts/prepare_opencv.sh`: Integrates the built native libraries into the app
 
 3. Build the app using Gradle:
-   ```
+   ```bash
    ./gradlew assembleDebug
    ```
 
@@ -105,16 +105,16 @@ This ensures that the OpenCV integration is tested with each code change, buildi
 #### Setting up the Android NDK
 
 1. **Install the NDK using Android Studio**:
-   - Open Android Studio > Settings/Preferences > Appearance & Behavior > System Settings > Android SDK
-   - Select the 'SDK Tools' tab
-   - Check 'NDK (Side by side)' and click 'Apply'
+    - Open Android Studio > Settings/Preferences > Appearance & Behavior > System Settings > Android SDK
+    - Select the 'SDK Tools' tab
+    - Check 'NDK (Side by side)' and click 'Apply'
 
 2. **Set the ANDROID_NDK_HOME environment variable** (optional):
-   - The build script will attempt to locate the NDK automatically
-   - If automatic detection fails, you can set it manually:
-     ```bash
-     export ANDROID_NDK_HOME=/path/to/android-sdk/ndk/27.3.13750724
-     ```
+    - The build script will attempt to locate the NDK automatically
+    - If automatic detection fails, you can set it manually:
+      ```bash
+      export ANDROID_NDK_HOME=/path/to/android-sdk/ndk/27.3.13750724
+      ```
 
 #### Maintaining the OpenCV Integration
 
@@ -162,11 +162,12 @@ MakeACopy follows the Single-Activity + Multi-Fragment pattern with MVVM archite
 
 ## Libraries Used
 
-| Purpose | Library | License |
-|--------|---------|---------|
+| Purpose | Library / Model | License |
+|--------|-----------------|---------|
 | Image Processing | OpenCV for Android | Apache 2.0 |
+| Document Corner Detection | [DocAligner ONNX model](https://github.com/DocsaidLab/DocAligner) | Apache 2.0 |
 | OCR | tess-two (Tesseract JNI) | Apache 2.0 |
-| PDF | Android PdfDocument | Apache 2.0 |
+| PDF | Android PdfDocument, pdfbox-android | Apache 2.0 |
 | UI | Material Components | Apache 2.0 |
 
 ## Privacy
@@ -214,4 +215,3 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 ```
-

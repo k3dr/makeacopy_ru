@@ -13,6 +13,7 @@
             android:required="false"/>
 
     <application
+            android:name=".MakeACopyApplication"
             android:allowBackup="true"
             android:dataExtractionRules="@xml/data_extraction_rules"
             android:fullBackupContent="@xml/backup_rules"
@@ -43,6 +44,12 @@
                     android:name="android.support.FILE_PROVIDER_PATHS"
                     android:resource="@xml/provider_paths"/>
         </provider>
+
+
+        <service
+                android:name=".services.CacheCleanupService"
+                android:enabled="true"
+                android:exported="false"/>
     </application>
 
 </manifest>

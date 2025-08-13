@@ -12,8 +12,8 @@ android {
         applicationId "de.schliweb.makeacopy"
         minSdk 29
         targetSdk 36
-        versionCode 10006
-        versionName "1.0.6"
+        versionCode 10007
+        versionName "1.0.7"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         
@@ -69,6 +69,15 @@ android {
         }
     }
 
+    splits {
+        abi {
+            enable true
+            reset()
+            include "arm64-v8a", "armeabi-v7a", "x86_64", "x86"
+            universalApk false
+        }
+    }
+
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
@@ -77,43 +86,17 @@ android {
         viewBinding true
         buildConfig true
     }
-    
+
     sourceSets {
         main {
-            assets.srcDirs = ['src/main/assets']
+            assets.srcDirs = [
+                    'src/main/assets',
+                    layout.buildDirectory.dir("generated/assets/licenses").get().asFile
+            ]
             jniLibs.srcDirs = ['src/main/jniLibs']
         }
     }
 }
-
-/*
-// Tasks for building OpenCV native libraries from source
-task fetchOpenCV(type: Exec) {
-    workingDir rootDir
-    commandLine 'bash', '-c', './scripts/fetch_opencv.sh'
-    description = 'Fetches OpenCV source code'
-    group = 'opencv'
-}
-
-task buildOpenCVNative(type: Exec) {
-    workingDir rootDir
-    commandLine 'bash', '-c', './scripts/build_opencv_android.sh'
-    description = 'Builds OpenCV native libraries for Android'
-    group = 'opencv'
-    dependsOn fetchOpenCV
-}
-
-task prepareOpenCV(type: Exec) {
-    workingDir rootDir
-    commandLine 'bash', '-c', './scripts/prepare_opencv.sh'
-    description = 'Prepares OpenCV native libraries for the app'
-    group = 'opencv'
-    dependsOn buildOpenCVNative
-}
-
-// Make the preBuild task depend on prepareOpenCV
-preBuild.dependsOn prepareOpenCV
-*/
 dependencies {
 
     implementation libs.appcompat
@@ -136,11 +119,24 @@ dependencies {
 
     // Tesseract OCR dependency
     implementation libs.tesseract
-    
+
+    // Onnx-Runtime dependency
+    implementation fileTree(dir: 'libs', include: ['*.jar'])
+
     // PdfBox-Android dependency
     implementation libs.pdfbox.android
     
     testImplementation libs.junit
     androidTestImplementation libs.ext.junit
     androidTestImplementation libs.espresso.core
+}
+
+tasks.register("copyNotices", Sync) {
+    from("$rootDir/NOTICE", "$rootDir/LICENSE")
+    into(layout.buildDirectory.dir("generated/assets/licenses"))
+}
+
+// Sicherstellen, dass die Dateien vor dem Assets-Merge da sind
+tasks.named("preBuild").configure {
+    dependsOn("copyNotices")
 }

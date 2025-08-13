@@ -35,9 +35,6 @@ camerax-camera2 = { group = "androidx.camera", name = "camera-camera2", version.
 camerax-lifecycle = { group = "androidx.camera", name = "camera-lifecycle", version.ref = "camerax" }
 camerax-view = { group = "androidx.camera", name = "camera-view", version.ref = "camerax" }
 
-# OpenCV dependency
-opencv = { group = "org.opencv", name = "opencv-android", version.ref = "opencv" }
-
 # Tesseract OCR dependency
 tesseract = { group = "cz.adaptech.tesseract4android", name = "tesseract4android", version.ref = "tesseract" }
 

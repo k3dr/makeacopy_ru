@@ -78,13 +78,16 @@ jobs:
           echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
           echo "VERSION_CODE=$VERSION_CODE" >> $GITHUB_OUTPUT
 
-      # Build ohne Signieren (PRs/Branches)
+      # Build (unsigned) – PRs/branches
       - name: Build (unsigned) – PRs/branches
         if: ${{ !startsWith(github.ref, 'refs/tags/') }}
         run: |
-          ./gradlew --no-daemon clean assembleRelease bundleRelease
+          # 1) AAB ohne ABI-Splits
+          ./gradlew --no-daemon clean bundleRelease -PenableAbiSplits=false
+          # 2) APKs mit ABI-Splits
+          ./gradlew --no-daemon assembleRelease -PenableAbiSplits=true
 
-      # Build mit Signieren (Tags) – nur Props setzen, wenn Secrets vorhanden
+      # Build (signed) – tags
       - name: Build (signed) – tags
         if: startsWith(github.ref, 'refs/tags/')
         env:
@@ -98,7 +101,10 @@ jobs:
           else
             echo "Signing secrets missing → building unsigned even for tag."
           fi
-          ./gradlew --no-daemon clean assembleRelease bundleRelease $EXTRA_PROPS
+          # 1) AAB ohne ABI-Splits (signiert, falls Secrets vorhanden)
+          ./gradlew --no-daemon clean bundleRelease -PenableAbiSplits=false $EXTRA_PROPS
+          # 2) APKs mit ABI-Splits (signiert, falls Secrets vorhanden)
+          ./gradlew --no-daemon assembleRelease -PenableAbiSplits=true $EXTRA_PROPS
 
       - name: Rename artifacts
         run: |

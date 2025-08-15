@@ -15,7 +15,6 @@ ORT_DIR="$REPO_DIR/external/onnxruntime"            # Submodule (v1.22.1)
 JNI_LIBS_BASE="$REPO_DIR/app/src/main/jniLibs"
 APP_LIBS="$REPO_DIR/app/libs"
 BUILD_ROOT="/tmp/onnxruntime-build"
-ORT_TAG="v1.22.1"
 
 # ABIs (bei Bedarf erweitern)
 ABIS=("arm64-v8a" "armeabi-v7a" "x86" "x86_64")
@@ -77,14 +76,8 @@ if [ ! -x "$STRIP_BIN" ] && [ "$HOST_OS" = "darwin" ]; then
 fi
 [ -x "$STRIP_BIN" ] && echo "llvm-strip: $STRIP_BIN" || echo "WARN: llvm-strip nicht gefunden – skip stripping."
 
-# ===============================
-# Submodule pinnen (nur Top-Level)
-# ===============================
-git -C "$ORT_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1 || { echo "ERROR: Submodule missing at $ORT_DIR"; exit 1; }
+
 pushd "$ORT_DIR" >/dev/null
-git fetch --tags --prune
-git checkout "$ORT_TAG"
-git submodule update --init --recursive
 git clean -xfd
 git checkout .
 popd >/dev/null

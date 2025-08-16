@@ -232,6 +232,7 @@ build_for_arch() {
     -DCMAKE_JOB_POOLS="compile=${CORES};link=1" \
     -DCMAKE_JOB_POOL_COMPILE=compile \
     -DCMAKE_JOB_POOL_LINK=link \
+    "$OPENCV_DIR" 2>&1 | tee -a "$arch_log"
 
     "$OPENCV_DIR" 2>&1 | tee -a "$arch_log"
 

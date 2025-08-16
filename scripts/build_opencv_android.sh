@@ -4,6 +4,13 @@ set -o pipefail  # Fail if any command in a pipeline fails
 # ==== Reproducible build timestamp ====
 # This ensures deterministic timestamps in builds (for reproducibility)
 export SOURCE_DATE_EPOCH=1700000000
+export TZ=UTC
+export LC_ALL=C
+
+# Parallel-Jobs (Cross-Platform)
+CORES="$(getconf _NPROCESSORS_ONLN 2>/dev/null || nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 1)"
+echo "Parallel compile jobs: $CORES"
+
 
 # ==== Absolute paths ====
 SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
@@ -162,7 +169,7 @@ echo "Build log will be saved to: $BUILD_LOG"
 echo "$(date): Starting OpenCV build" > "$BUILD_LOG"
 echo "NDK version: $NDK_VERSION" >> "$BUILD_LOG"
 
-# ==== Function to build OpenCV for a given architecture ====
+# ==== Per-ABI build function ====
 build_for_arch() {
   local arch=$1
   local arch_build_dir="${BUILD_DIR}_${arch}"
@@ -177,6 +184,7 @@ build_for_arch() {
   export ZERO_AR_DATE=1
   echo "Configuring CMake for $arch..."
   "$CMAKE_PATH" \
+    -G Ninja \
     -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake" \
     -DANDROID_ABI="$arch" \
     -DANDROID_NATIVE_API_LEVEL=21 \
@@ -221,6 +229,10 @@ build_for_arch() {
     -DCMAKE_CXX_ARCHIVE_CREATE="<CMAKE_AR> qcD <TARGET> <LINK_FLAGS> <OBJECTS>" \
     -DCMAKE_CXX_ARCHIVE_FINISH=":" \
     -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+    -DCMAKE_JOB_POOLS="compile=${CORES};link=1" \
+    -DCMAKE_JOB_POOL_COMPILE=compile \
+    -DCMAKE_JOB_POOL_LINK=link \
+
     "$OPENCV_DIR" 2>&1 | tee -a "$arch_log"
 
   if [ ${PIPESTATUS[0]} -ne 0 ]; then
@@ -240,9 +252,8 @@ build_for_arch() {
   }
   " | tee -a "$arch_build_dir/opencv_android/opencv/build.gradle"
 
-  # Run the build (single-threaded for reproducibility)
-  echo "Building OpenCV for $arch (single-threaded)..."
-  if ! make -j1 2>&1 | tee -a "$arch_log"; then
+  echo "🛠  Building OpenCV for $arch with Ninja (deterministic)..."
+  if ! ninja -j"$CORES" 2>&1 | tee -a "$arch_log"; then
     echo "Build failed for $arch"
     tail -n 20 "$arch_log"
     cd "$SCRIPT_DIR"

@@ -36,6 +36,17 @@ export CMAKE_BUILD_PARALLEL_LEVEL="$JOBS"   # CMake/Ninja honor this
 echo "Parallel jobs: $JOBS"
 
 # ===============================
+# Prefer Ninja if available (faster), otherwise fall back
+# ===============================
+if command -v ninja >/dev/null 2>&1; then
+  CMAKE_GENERATOR="Ninja"
+  echo "CMake generator: Ninja"
+else
+  CMAKE_GENERATOR=""
+  echo "CMake generator: Unix Makefiles (ninja not found)"
+fi
+
+# ===============================
 # Locate SDK/NDK (macOS & Linux)
 # ===============================
 # Prefer existing env if provided
@@ -151,6 +162,10 @@ for ABI in "${ABIS[@]}"; do
     --skip_submodule_sync
     --compile_no_warning_as_error
   )
+  # Prefer Ninja if available
+  if [ -n "${CMAKE_GENERATOR:-}" ]; then
+    COMMON_ARGS+=( --cmake_generator "$CMAKE_GENERATOR" )
+  fi
 
   # CMake defines
   CMAKE_DEFINES=(

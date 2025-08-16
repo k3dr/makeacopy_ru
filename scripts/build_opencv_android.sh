@@ -234,8 +234,6 @@ build_for_arch() {
     -DCMAKE_JOB_POOL_LINK=link \
     "$OPENCV_DIR" 2>&1 | tee -a "$arch_log"
 
-    "$OPENCV_DIR" 2>&1 | tee -a "$arch_log"
-
   if [ ${PIPESTATUS[0]} -ne 0 ]; then
     log_error "CMake configuration for $arch failed. See $arch_log for details."
     tail -n 20 "$arch_log"

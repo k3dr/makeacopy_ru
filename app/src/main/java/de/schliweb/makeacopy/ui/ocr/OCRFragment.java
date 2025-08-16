@@ -19,21 +19,19 @@ import androidx.navigation.Navigation;
 import de.schliweb.makeacopy.R;
 import de.schliweb.makeacopy.databinding.FragmentOcrBinding;
 import de.schliweb.makeacopy.ui.crop.CropViewModel;
-import de.schliweb.makeacopy.utils.ImageScaler;
-import de.schliweb.makeacopy.utils.OCRHelper;
-import de.schliweb.makeacopy.utils.UIUtils;
+import de.schliweb.makeacopy.utils.*;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.IntStream;
 
 /**
- * OCRFragment is a UI fragment designed to facilitate Optical Character Recognition (OCR)
- * processing. It integrates a Tesseract-based OCR engine and provides an interface for users
- * to process image-based text recognition, select languages, and view or further export OCR results.
- * <p>
- * The functionality includes initialization of OCR engine, handling input images,
- * processing text recognition, updating the UI based on processing results, and managing
- * available language options for OCR processing.
+ * Fragment for OCR functionality.
+ * This fragment handles the OCR functionality of a document.
+ * It manages user interactions for selecting a language, starting OCR,
+ * and displaying the results.
  */
 public class OCRFragment extends Fragment {
     private static final String TAG = "OCRFragment";
@@ -41,6 +39,7 @@ public class OCRFragment extends Fragment {
     private OCRViewModel ocrViewModel;
     private CropViewModel cropViewModel;
     private OCRHelper ocrHelper;
+    private final AtomicBoolean internalImageUpdate = new AtomicBoolean(false);
 
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
@@ -49,52 +48,53 @@ public class OCRFragment extends Fragment {
         binding = FragmentOcrBinding.inflate(inflater, container, false);
         View root = binding.getRoot();
 
-        // OCR-Engine initialisieren
+        // init OCR-Engine
         ocrHelper = new OCRHelper(requireContext());
         if (!ocrHelper.initTesseract()) {
             UIUtils.showToast(requireContext(), "Failed to initialize Tesseract", Toast.LENGTH_SHORT);
         } else {
-            ocrHelper.setPageSegMode(3);
-            ocrHelper.setVariable("tessedit_char_whitelist", de.schliweb.makeacopy.utils.OCRWhitelist.DEFAULT);
+            ocrHelper.applyDefaultsForLanguage("eng");
+            ocrHelper.setWhitelist(OCRWhitelist.DEFAULT);
         }
 
-        // Text-Status-Observer
-        ocrViewModel.getText().observe(getViewLifecycleOwner(), binding.textOcr::setText);
+        // State-Observer
+        ocrViewModel.getState().observe(getViewLifecycleOwner(), state -> {
+            binding.buttonProcess.setEnabled(!state.processing());
+            binding.textOcr.setText(state.processing()
+                    ? getString(R.string.processing_image)
+                    : (state.imageProcessed() ? getString(R.string.ocr_processing_complete_tap_the_button_to_proceed_to_export)
+                    : getString(R.string.no_image_processed_crop_an_image_first)));
 
-        // OCR Ergebnis-TextView
-        ocrViewModel.getOcrResult().observe(getViewLifecycleOwner(), result -> {
-            binding.ocrResultText.setText(result == null || result.isEmpty() ? getString(R.string.ocr_results_will_appear_here) : result);
-        });
+            binding.ocrResultText.setText((state.ocrText() == null || state.ocrText().isEmpty())
+                    ? getString(R.string.ocr_results_will_appear_here)
+                    : state.ocrText());
 
-        // Verarbeitung-Button
-        binding.buttonProcess.setOnClickListener(v -> performOCR());
-
-        // Window-Inset-Margins für Button-Container
-        ViewCompat.setOnApplyWindowInsetsListener(binding.buttonContainer, (v, insets) -> {
-            de.schliweb.makeacopy.utils.UIUtils.adjustMarginForSystemInsets(binding.buttonContainer, 8);
-            return insets;
-        });
-
-        // Prozess-Status anzeigen
-        ocrViewModel.isProcessing().observe(getViewLifecycleOwner(), processing -> {
-            binding.buttonProcess.setEnabled(!processing);
-            if (processing) binding.textOcr.setText(R.string.processing_image);
-        });
-
-        // Status: Kein Bild vorhanden
-        ocrViewModel.isImageProcessed().observe(getViewLifecycleOwner(), processed -> {
-            binding.textOcr.setText(processed ? R.string.ocr_processing_complete_tap_the_button_to_proceed_to_export : R.string.no_image_processed_crop_an_image_first);
-        });
-
-        // Crop-Resultat laden
-        cropViewModel.getImageBitmap().observe(getViewLifecycleOwner(), bitmap -> {
-            if (bitmap != null) {
-                ocrViewModel.setImageProcessed(false);
-                ocrViewModel.setOcrResult("");
+            if (state.imageProcessed()) {
+                binding.buttonProcess.setText(R.string.btn_export);
+                binding.buttonProcess.setOnClickListener(v ->
+                        Navigation.findNavController(requireView()).navigate(R.id.navigation_export));
+            } else {
+                binding.buttonProcess.setText(R.string.btn_process);
+                binding.buttonProcess.setOnClickListener(v -> performOCR());
             }
         });
 
-        // Insets (Status bar)
+        // Error-Events
+        ocrViewModel.getErrorEvents().observe(getViewLifecycleOwner(), ev -> {
+            if (ev == null) return;
+            String msg = ev.getContentIfNotHandled();
+            if (msg != null) UIUtils.showToast(requireContext(), "OCR failed: " + msg, Toast.LENGTH_LONG);
+        });
+
+        // On image change (only trigger reset)
+        cropViewModel.getImageBitmap().observe(getViewLifecycleOwner(), bitmap -> {
+            if (bitmap != null) {
+                if (internalImageUpdate.getAndSet(false)) return; // internes Update ignorieren
+                ocrViewModel.resetForNewImage();
+            }
+        });
+
+        // Insets (Statusbar)
         ViewCompat.setOnApplyWindowInsetsListener(root, (v, insets) -> {
             int topInset = insets.getInsets(WindowInsetsCompat.Type.systemBars()).top;
             ViewGroup.MarginLayoutParams textParams = (ViewGroup.MarginLayoutParams) binding.textOcr.getLayoutParams();
@@ -103,25 +103,26 @@ public class OCRFragment extends Fragment {
             return insets;
         });
 
-        // Language Spinner vorbereiten
+        // select language
         setupLanguageSpinner();
 
         return root;
     }
 
     /**
-     * Language-Auswahl vorbereiten und reagieren
+     * Setup the language spinner
      */
     private void setupLanguageSpinner() {
         Spinner spinner = binding.languageSpinner;
         String[] availableLanguages = getAvailableLanguages();
-        ArrayAdapter<String> adapter = new ArrayAdapter<>(requireContext(), android.R.layout.simple_spinner_item, availableLanguages);
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(requireContext(),
+                android.R.layout.simple_spinner_item, availableLanguages);
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         spinner.setAdapter(adapter);
 
-        // Default: Systemsprache oder Englisch
         String systemLang = mapSystemLanguageToTesseract(java.util.Locale.getDefault().getLanguage());
-        int defaultPos = IntStream.range(0, availableLanguages.length).filter(i -> availableLanguages[i].equals(systemLang)).findFirst().orElse(0);
+        int defaultPos = IntStream.range(0, availableLanguages.length)
+                .filter(i -> availableLanguages[i].equals(systemLang)).findFirst().orElse(0);
         spinner.setSelection(defaultPos);
 
         final boolean[] firstSelection = {true};
@@ -136,15 +137,19 @@ public class OCRFragment extends Fragment {
                 }
                 try {
                     ocrHelper.setLanguage(lang);
+                    ocrHelper.applyDefaultsForLanguage(lang);
+                    ocrHelper.setWhitelist(OCRWhitelist.getWhitelistForLangSpec(lang));
                 } catch (IOException e) {
                     throw new RuntimeException(e);
                 }
-                ocrHelper.setVariable("tessedit_char_whitelist", de.schliweb.makeacopy.utils.OCRWhitelist.getWhitelistForLanguage(lang));
+                ocrViewModel.setLanguage(lang);
+
                 if (firstSelection[0]) {
                     firstSelection[0] = false;
                     Bitmap bitmap = cropViewModel.getImageBitmap().getValue();
                     if (bitmap != null) performOCR();
-                } else if (ocrViewModel.isImageProcessed().getValue() != null && ocrViewModel.isImageProcessed().getValue()) {
+                } else if (ocrViewModel.getState().getValue() != null
+                        && ocrViewModel.getState().getValue().imageProcessed()) {
                     binding.buttonProcess.setText(R.string.btn_process);
                     binding.buttonProcess.setOnClickListener(v -> performOCR());
                 }
@@ -157,7 +162,7 @@ public class OCRFragment extends Fragment {
     }
 
     /**
-     * Liefert Liste aller verfügbaren Sprachen, oder Default-Liste
+     * Returns the list of available languages
      */
     private String[] getAvailableLanguages() {
         String[] langs = ocrHelper.getAvailableLanguages();
@@ -166,7 +171,7 @@ public class OCRFragment extends Fragment {
     }
 
     /**
-     * OCR-Funktion
+     * Performs OCR on the current image
      */
     private void performOCR() {
         Bitmap imageBitmap = cropViewModel.getImageBitmap().getValue();
@@ -176,43 +181,56 @@ public class OCRFragment extends Fragment {
         }
         if (!ocrHelper.isTesseractInitialized()) {
             UIUtils.showToast(requireContext(), "Tesseract not initialized. Please restart the app.", Toast.LENGTH_LONG);
-            ocrViewModel.setProcessing(false);
+            ocrViewModel.finishError("Engine not initialized");
             return;
         }
 
-        ocrViewModel.setProcessing(true);
+        ocrViewModel.startProcessing();
+
         new Thread(() -> {
+            long t0 = System.nanoTime();
             try {
-                // Pre-scale the image to A4 dimensions before OCR
-                // This ensures that OCR coordinates will match PDF coordinates
                 Log.d(TAG, "performOCR: Pre-scaling image to A4 dimensions before OCR");
                 Bitmap scaledBitmap = ImageScaler.scaleToA4(imageBitmap);
 
-                // Store the scaled bitmap back in the CropViewModel for PDF export
+                // calculate transform
+                OCRViewModel.OcrTransform tx = new OCRViewModel.OcrTransform(
+                        imageBitmap.getWidth(), imageBitmap.getHeight(),
+                        scaledBitmap.getWidth(), scaledBitmap.getHeight(),
+                        scaledBitmap.getWidth() / (float) imageBitmap.getWidth(),
+                        scaledBitmap.getHeight() / (float) imageBitmap.getHeight(),
+                        0, 0
+                );
+
+                // UI-Thread: set bitmap and transform
+                internalImageUpdate.set(true);
                 requireActivity().runOnUiThread(() -> {
+                    if (!isAdded() || binding == null) return;
                     cropViewModel.setImageBitmap(scaledBitmap);
-                    Log.d(TAG, "performOCR: Updated CropViewModel with pre-scaled bitmap");
+                    ocrViewModel.setTransform(tx); // UI-Thread
                 });
 
-                // Perform OCR on the pre-scaled image
-                String recognizedText = ocrHelper.recognizeText(scaledBitmap);
+                // OCR with word boxes
+                OCRHelper.OcrResultWords r = ocrHelper.runOcrWithWords(scaledBitmap);
+                long durMs = (System.nanoTime() - t0) / 1_000_000L;
 
+                String finalText = (r.text == null || r.text.trim().isEmpty())
+                        ? getString(R.string.ocr_results_will_appear_here)
+                        : r.text;
+
+                List<RecognizedWord> words = (r.words != null) ? r.words : new ArrayList<>();
+
+                // UI-Thread: Result
                 requireActivity().runOnUiThread(() -> {
-                    if (recognizedText == null || recognizedText.trim().isEmpty()) {
-                        ocrViewModel.setOcrResult(getString(R.string.ocr_results_will_appear_here));
-                    } else {
-                        ocrViewModel.setOcrResult(recognizedText);
-                    }
-                    ocrViewModel.setImageProcessed(true);
-                    ocrViewModel.setProcessing(false);
-                    binding.buttonProcess.setText(R.string.btn_export);
-                    binding.buttonProcess.setOnClickListener(v -> Navigation.findNavController(requireView()).navigate(R.id.navigation_export));
+                    if (!isAdded() || binding == null) return;
+                    ocrViewModel.setWords(words);
+                    ocrViewModel.finishSuccess(finalText, words, durMs, r.meanConfidence, tx);
                 });
+
             } catch (Exception e) {
                 requireActivity().runOnUiThread(() -> {
-                    ocrViewModel.setProcessing(false);
-                    ocrViewModel.setOcrResult("OCR failed: " + (e.getMessage() != null ? e.getMessage() : e));
-                    UIUtils.showToast(requireContext(), "OCR failed: " + e.getMessage(), Toast.LENGTH_LONG);
+                    if (!isAdded() || binding == null) return;
+                    ocrViewModel.finishError(e.getMessage() != null ? e.getMessage() : e.toString());
                 });
             }
         }).start();
@@ -221,11 +239,12 @@ public class OCRFragment extends Fragment {
     @Override
     public void onDestroyView() {
         super.onDestroyView();
+        if (ocrHelper != null) ocrHelper.shutdown();
         binding = null;
     }
 
     /**
-     * Mapping ISO-Lang-Codes auf Tesseract
+     * Maps the system language to the language used by Tesseract
      */
     private String mapSystemLanguageToTesseract(String systemLanguage) {
         switch (systemLanguage) {

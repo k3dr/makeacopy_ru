@@ -37,6 +37,16 @@
     <string name="no_image_processed_crop_an_image_first">No image processed. Crop an image first.</string>
     <string name="ocr_processing_complete_tap_the_button_to_proceed_to_export">OCR processing complete. Tap the button to proceed to export.</string>
 
+    <string name="initializing_camera">Initializing camera…</string>
+    <string name="resetting_camera">Resetting camera…</string>
+    <string name="error_initializing_camera">Error initializing camera: %1$s</string>
+    <string name="error_camera_provider_null">Failed to initialize camera – provider is null</string>
+    <string name="error_camera_not_initialized">Camera not initialized. Please try again.</string>
+    <string name="error_image_capture_failed">Image capture failed: %1$s</string>
+    <string name="error_displaying_image">Error displaying image: %1$s</string>
+    <string name="error_resetting_camera">Error resetting camera: %1$s</string>
+    <string name="error_toggling_flashlight">Error toggling flashlight: %1$s</string>
+
     <!-- Export options -->
     <string name="convert_to_grayscale">Convert to grayscale</string>
     

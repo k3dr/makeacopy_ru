@@ -14,8 +14,8 @@ android {
         applicationId "de.schliweb.makeacopy"
         minSdk 29
         targetSdk 36
-        versionCode 10007
-        versionName "1.0.7"
+        versionCode 10100
+        versionName "1.1.0"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         
@@ -138,7 +138,6 @@ tasks.register("copyNotices", Sync) {
     into(layout.buildDirectory.dir("generated/assets/licenses"))
 }
 
-// Sicherstellen, dass die Dateien vor dem Assets-Merge da sind
 tasks.named("preBuild").configure {
     dependsOn("copyNotices")
 }

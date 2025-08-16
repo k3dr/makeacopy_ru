@@ -22,15 +22,9 @@ public class MakeACopyApplication extends Application {
         // Initialize OpenCV
         initializeOpenCV();
 
-        // TODO: Prüfen, ob zu entfernen
-        if (!isRunningInTest()) {
-            initializeCacheCleanupService();
-        }
-        Log.i(TAG, "MakeACopy Application initialized successfully");
-    }
+        initializeCacheCleanupService();
 
-    private boolean isRunningInTest() {
-        return "true".equals(System.getProperty("IS_TESTING"));
+        Log.i(TAG, "MakeACopy Application initialized successfully");
     }
 
     /**

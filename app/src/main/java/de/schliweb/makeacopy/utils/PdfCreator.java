@@ -154,20 +154,21 @@ public class PdfCreator {
     }
 
     /**
-     * Adds a selectable and searchable text layer over an existing PDF page content based
-     * on recognized text data. The method processes recognized words, groups them into lines,
-     * and positions the text layer accurately over the image content while taking into account
-     * scaling and offsets.
+     * Adds a text layer to a PDF page content stream by rendering recognized words
+     * into the provided content stream, maintaining their layout and formatting.
+     * This method processes the words to determine their line grouping, positions them
+     * accurately within the text layer, and employs adjustments for proper alignment.
+     * It also handles fallback scenarios for word-by-word rendering in case of errors.
      *
-     * @param cs          the {@link PDPageContentStream} in which the text layer will be drawn
-     * @param words       the list of {@link RecognizedWord} objects representing the recognized text and bounding boxes
-     * @param font        the {@link PDFont} to be used for the text layer
-     * @param scale       the scaling factor for positioning the text
-     * @param offsetX     the horizontal offset to adjust text placement
-     * @param offsetY     the vertical offset to adjust text placement
-     * @param imageHeight the height of the image related to the recognized words
-     * @param pageHeight  the height of the PDF page
-     * @throws Exception if an error occurs during text layer creation or rendering
+     * @param cs          the PDF page content stream where the text layer will be drawn
+     * @param words       the list of recognized words to be rendered onto the text layer
+     * @param font        the font to be used for rendering the text
+     * @param scale       the scaling factor applied to the text layer
+     * @param offsetX     the horizontal offset for positioning the text layer
+     * @param offsetY     the vertical offset for positioning the text layer
+     * @param imageHeight the height of the original image from which the text layer is derived
+     * @param pageHeight  the height of the PDF page where the text layer will be placed
+     * @throws Exception if an error occurs while processing or rendering the text
      */
     private static void addTextLayer(PDPageContentStream cs,
                                      List<RecognizedWord> words,
@@ -180,6 +181,10 @@ public class PdfCreator {
         if (words == null || words.isEmpty()) return;
 
         try {
+
+            final float ADJ_EPS_PT = 0.75f;
+            final float ADJ_CLAMP = 5000f;
+
             // 1) Sort words top-to-bottom, then left-to-right
             words.sort((a, b) -> {
                 int cmp = Float.compare(midY(a), midY(b));
@@ -244,17 +249,28 @@ public class PdfCreator {
 
                     if (i < line.size() - 1) {
                         RecognizedWord next = line.get(i + 1);
-                        float tokenWidthPt = font.getStringWidth(token) / 1000f * fontSize;
+
+                        // (2) getStringWidth robust mit Fallback
+                        float tokenWidthPt;
+                        try {
+                            tokenWidthPt = font.getStringWidth(token) / 1000f * fontSize;
+                        } catch (Exception ex) {
+                            tokenWidthPt = Math.max(1f, fontSize * token.length() * 0.5f);
+                        }
+
                         float expectedNextX = cursorX + tokenWidthPt;
                         float targetNextX = next.getBoundingBox().left * scale + offsetX + OCR_X_ADJUSTMENT;
 
                         float gapPt = targetNextX - expectedNextX;
-                        float adj = -(gapPt * 1000f) / fontSize;
-                        if (adj > 5000f) adj = 5000f;
-                        if (adj < -5000f) adj = -5000f;
-
-                        tj.add(adj);
-                        cursorX = expectedNextX + gapPt;
+                        if (Math.abs(gapPt) > ADJ_EPS_PT) {
+                            float adj = -(gapPt * 1000f) / fontSize;
+                            if (adj > ADJ_CLAMP) adj = ADJ_CLAMP;
+                            if (adj < -ADJ_CLAMP) adj = -ADJ_CLAMP;
+                            tj.add(adj);
+                            cursorX = expectedNextX + gapPt;
+                        } else {
+                            cursorX = expectedNextX;
+                        }
                     }
                 }
 

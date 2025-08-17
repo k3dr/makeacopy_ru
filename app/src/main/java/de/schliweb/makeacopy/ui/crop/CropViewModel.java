@@ -92,4 +92,26 @@ public class CropViewModel extends BaseViewModel {
     public void setOriginalImageBitmap(Bitmap bitmap) {
         mOriginalImageBitmap.setValue(bitmap);
     }
+
+    private final MutableLiveData<Integer> captureRotationDegrees = new MutableLiveData<>(0);
+
+    /**
+     * Retrieves the rotation degrees applied to the captured image.
+     *
+     * @return LiveData containing the rotation degrees as an Integer.
+     */
+    public LiveData<Integer> getCaptureRotationDegrees() {
+        return captureRotationDegrees;
+    }
+
+    /**
+     * Sets the rotation degrees for the captured image.
+     * The value is normalized to be within the range [0, 360).
+     *
+     * @param deg The rotation degrees to set, can be any integer. The value will be adjusted to fall within 0 to 359 degrees.
+     */
+    public void setCaptureRotationDegrees(int deg) {
+        captureRotationDegrees.setValue(((deg % 360) + 360) % 360);
+    }
+
 }

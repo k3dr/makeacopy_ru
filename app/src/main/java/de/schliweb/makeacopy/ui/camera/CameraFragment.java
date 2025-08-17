@@ -521,6 +521,10 @@ public class CameraFragment extends Fragment implements SensorEventListener {
                             );
 
                             if (cameraViewModel != null && isAdded()) {
+                                int captureDeg = toDegrees(getViewFinderRotation());
+                                if (cropViewModel != null) {
+                                    cropViewModel.setCaptureRotationDegrees(captureDeg);
+                                }
                                 cameraViewModel.setImageUri(imageUri);
                                 displayCapturedImage(imageUri);
                             }
@@ -944,6 +948,28 @@ public class CameraFragment extends Fragment implements SensorEventListener {
     public void onAccuracyChanged(Sensor sensor, int accuracy) {
         if (sensor.getType() == Sensor.TYPE_LIGHT) {
             Log.d(TAG, "Light sensor accuracy changed: " + accuracy);
+        }
+    }
+
+    /**
+     * Converts a given surface rotation value to its corresponding degree representation.
+     *
+     * @param surfaceRotation the surface rotation value, typically one of the predefined constants
+     *                        (e.g., Surface.ROTATION_0, Surface.ROTATION_90, etc.).
+     * @return the equivalent degree value for the given rotation: 0, 90, 180, or 270. Returns 0 for unrecognized values.
+     */
+    private static int toDegrees(int surfaceRotation) {
+        switch (surfaceRotation) {
+            case Surface.ROTATION_0:
+                return 0;
+            case Surface.ROTATION_90:
+                return 90;
+            case Surface.ROTATION_180:
+                return 180;
+            case Surface.ROTATION_270:
+                return 270;
+            default:
+                return 0;
         }
     }
 }

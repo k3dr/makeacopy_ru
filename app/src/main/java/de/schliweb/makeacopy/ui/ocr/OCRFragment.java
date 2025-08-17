@@ -1,6 +1,7 @@
 package de.schliweb.makeacopy.ui.ocr;
 
 import android.graphics.Bitmap;
+import android.graphics.Matrix;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.LayoutInflater;
@@ -245,15 +246,28 @@ public class OCRFragment extends Fragment {
         new Thread(() -> {
             long t0 = System.nanoTime();
             try {
+
+                Log.d(TAG, "performOCR: Preparing image for OCR - change orientation");
+                Bitmap src = imageBitmap;
+
+                int capDeg = 0;
+                Integer v = cropViewModel.getCaptureRotationDegrees().getValue();
+                if (v != null) capDeg = v;
+
+                int rotateCW = (360 - (capDeg % 360)) % 360;
+                if (rotateCW != 0) {
+                    src = rotateBitmap(src, rotateCW);
+                }
+
                 Log.d(TAG, "performOCR: Pre-scaling image to A4 dimensions before OCR");
-                Bitmap scaledBitmap = ImageScaler.scaleToA4(imageBitmap);
+                Bitmap scaledBitmap = ImageScaler.scaleToA4(src);
 
                 // calculate transform
                 OCRViewModel.OcrTransform tx = new OCRViewModel.OcrTransform(
-                        imageBitmap.getWidth(), imageBitmap.getHeight(),
+                        src.getWidth(), src.getHeight(),
                         scaledBitmap.getWidth(), scaledBitmap.getHeight(),
-                        scaledBitmap.getWidth() / (float) imageBitmap.getWidth(),
-                        scaledBitmap.getHeight() / (float) imageBitmap.getHeight(),
+                        scaledBitmap.getWidth() / (float) src.getWidth(),
+                        scaledBitmap.getHeight() / (float) src.getHeight(),
                         0, 0
                 );
 
@@ -320,5 +334,22 @@ public class OCRFragment extends Fragment {
             default:
                 return "eng";
         }
+    }
+
+    /**
+     * Rotates the given Bitmap by the specified degree in a clockwise direction.
+     * If the degrees are a multiple of 360, the original Bitmap is returned unchanged.
+     *
+     * @param src       The Bitmap to be rotated. Must not be null.
+     * @param degreesCW The number of degrees to rotate the Bitmap clockwise.
+     *                  Values outside the range [0, 360) will be normalized.
+     * @return A new rotated Bitmap object, or the original Bitmap if no rotation is applied.
+     */
+    private static Bitmap rotateBitmap(Bitmap src, int degreesCW) {
+        if (degreesCW % 360 == 0) return src;
+        Matrix m = new Matrix();
+        m.postRotate(degreesCW);
+        Bitmap out = Bitmap.createBitmap(src, 0, 0, src.getWidth(), src.getHeight(), m, true);
+        return out;
     }
 }

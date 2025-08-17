@@ -170,6 +170,14 @@ MakeACopy follows the Single-Activity + Multi-Fragment pattern with MVVM archite
 | PDF | Android PdfDocument, pdfbox-android | Apache 2.0 |
 | UI | Material Components | Apache 2.0 |
 
+## Submodules
+
+- external/opencv — OpenCV source used to build native libraries during the build; Apache 2.0.
+- external/onnxruntime — ONNX Runtime source used optionally for ML-assisted corner detection; MIT License.
+  - Built from source via scripts/build_onnxruntime_android.sh (CPU-only, Java bindings).
+  - Artifacts integrated into app/src/main/jniLibs/<ABI>/ (libonnxruntime.so, libonnxruntime4j_jni.so) and app/libs/ (onnxruntime-*.jar).
+  - See NOTICE.md for attributions.
+
 ## Privacy
 
 MakeACopy respects your privacy:
@@ -215,3 +223,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 ```
+
+## Technical Documentation
+
+For a complete technical overview of the project, see docs/TECHNICAL_DOCUMENTATION.md.

@@ -5,11 +5,9 @@ import androidx.lifecycle.MutableLiveData;
 import de.schliweb.makeacopy.ui.BaseViewModel;
 
 /**
- * CameraViewModel is a ViewModel class that provides functionality for managing
- * the state and data relevant to the camera permissions and operations within
- * the corresponding UI component.
- * <p>
- * It extends the BaseViewModel to utilize common ViewModel functionality.
+ * ViewModel class for managing camera-related permissions and state.
+ * This class extends the BaseViewModel to inherit common ViewModel functionality
+ * and provides specific logic related to the camera.
  */
 public class CameraViewModel extends BaseViewModel {
 
@@ -22,10 +20,22 @@ public class CameraViewModel extends BaseViewModel {
         mCameraPermissionGranted.setValue(false);
     }
 
+    /**
+     * Checks whether the camera permission is granted.
+     *
+     * @return A LiveData object containing a Boolean value indicating if the camera permission is granted.
+     *         Returns true if the permission is granted, false otherwise.
+     */
     public LiveData<Boolean> isCameraPermissionGranted() {
         return mCameraPermissionGranted;
     }
 
+    /**
+     * Updates the camera permission status.
+     *
+     * @param granted A boolean value indicating whether the camera permission has been granted.
+     *                Pass true if the permission is granted, false otherwise.
+     */
     public void setCameraPermissionGranted(boolean granted) {
         mCameraPermissionGranted.setValue(granted);
     }

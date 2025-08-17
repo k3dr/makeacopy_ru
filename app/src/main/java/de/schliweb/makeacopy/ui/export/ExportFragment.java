@@ -10,7 +10,6 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Toast;
-
 import androidx.activity.OnBackPressedCallback;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
@@ -21,7 +20,6 @@ import androidx.fragment.app.Fragment;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.navigation.NavOptions;
 import androidx.navigation.Navigation;
-
 import de.schliweb.makeacopy.R;
 import de.schliweb.makeacopy.databinding.FragmentExportBinding;
 import de.schliweb.makeacopy.ui.camera.CameraViewModel;
@@ -39,10 +37,35 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * ExportFragment is a Fragment that handles the export functionality of a document.
- * It manages user interactions for exporting documents to specific formats such as PDF
- * or TXT with optional OCR (Optical Character Recognition) data. This class leverages
- * ViewModels to maintain state and logic separation.
+ * ExportFragment is a UI component that extends Fragment and facilitates exporting
+ * scanned or captured documents in various formats such as PDF or TXT.
+ * It integrates with ViewModel classes to manage and interact with export logic,
+ * OCR text, and camera functionalities.
+ * <p>
+ * Fields:
+ * - TAG: A string tag used for logging.
+ * - binding: Represents view binding used for interacting with the fragment's layout.
+ * - exportViewModel: Manages the state and logic related to exporting documents.
+ * - cropViewModel: Handles the cropping functionality of the document.
+ * - ocrViewModel: Manages Optical Character Recognition (OCR) results and data.
+ * - cameraViewModel: Manages camera operations and captures.
+ * - createDocumentLauncher: ActivityResultLauncher for creating a document.
+ * - createTxtDocumentLauncher: ActivityResultLauncher for creating TXT files.
+ * - lastExportedDocumentUri: The URI of the last exported document for reference.
+ * - lastExportedPdfName: The name of the last exported PDF document.
+ * <p>
+ * Methods:
+ * - onCreateView: Inflates the fragment's layout, initializes ViewModels, sets up event listeners,
+ * and manages shared preferences.
+ * - checkDocumentReady: Validates if the document is ready for export.
+ * - performExport: Executes the export operation based on the specified configurations.
+ * - selectFileLocation: Opens the file chooser to select the export file location.
+ * - launchTxtFileCreation: Launches the dialog for creating a TXT file.
+ * - exportOcrTextToTxt: Exports OCR text data to a specified TXT file.
+ * - shareDocument: Facilitates sharing the exported document.
+ * - onDestroyView: Handles cleanup tasks when the fragment's view is destroyed.
+ * - getOcrTextFromState: Retrieves the OCR text content from the application state.
+ * - getOcrWordsFromState: Retrieves a list of recognized OCR words from the application state.
  */
 public class ExportFragment extends Fragment {
     private static final String TAG = "ExportFragment";
@@ -60,17 +83,28 @@ public class ExportFragment extends Fragment {
     private Uri lastExportedDocumentUri;
     private String lastExportedPdfName;
 
+    /**
+     * Creates and initializes the view hierarchy associated with this fragment.
+     * This method handles view inflation, view model setup, event listeners, and initializes
+     * shared preferences for maintaining user selections.
+     *
+     * @param inflater           The LayoutInflater object that can be used to inflate any views in the fragment.
+     * @param container          If non-null, this is the parent view that the fragment's UI should be attached to.
+     *                           The fragment should not add the view itself, but this can be used to generate
+     *                           the LayoutParams of the view.
+     * @param savedInstanceState If non-null, this fragment is being re-constructed from
+     *                           a previous saved state as given here.
+     * @return The root view of the fragment's layout that has been created and initialized.
+     */
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
         binding = FragmentExportBinding.inflate(inflater, container, false);
         View root = binding.getRoot();
 
-        // SharedPreferences für Export-Optionen
         Context context = requireContext();
         String prefsName = "export_options";
         android.content.SharedPreferences prefs = context.getSharedPreferences(prefsName, Context.MODE_PRIVATE);
 
-        // Auswahl aus SharedPreferences laden
         boolean includeOcr = prefs.getBoolean("include_ocr", false);
         boolean convertToGrayscale = prefs.getBoolean("convert_to_grayscale", false);
         binding.checkboxIncludeOcr.setChecked(includeOcr);
@@ -91,7 +125,6 @@ public class ExportFragment extends Fragment {
         ocrViewModel = new ViewModelProvider(requireActivity()).get(OCRViewModel.class);
         cameraViewModel = new ViewModelProvider(requireActivity()).get(CameraViewModel.class);
 
-        // PDF-Auswahl
         createDocumentLauncher = registerForActivityResult(new ActivityResultContracts.CreateDocument("application/pdf"), uri -> {
             Log.d(TAG, "createDocumentLauncher: Document creation result received");
             if (uri != null) {
@@ -105,7 +138,6 @@ public class ExportFragment extends Fragment {
             }
         });
 
-        // TXT-Auswahl
         createTxtDocumentLauncher = registerForActivityResult(new ActivityResultContracts.CreateDocument("text/plain"), uri -> {
             if (uri != null) {
                 String displayName = FileUtils.getDisplayNameFromUri(requireContext(), uri);
@@ -118,7 +150,8 @@ public class ExportFragment extends Fragment {
 
         // Back-Handling
         requireActivity().getOnBackPressedDispatcher().addCallback(getViewLifecycleOwner(), new OnBackPressedCallback(true) {
-            @Override public void handleOnBackPressed() {
+            @Override
+            public void handleOnBackPressed() {
                 cameraViewModel.setImageUri(null);
                 cropViewModel.setImageCropped(false);
                 cropViewModel.setImageBitmap(null);
@@ -129,7 +162,6 @@ public class ExportFragment extends Fragment {
             }
         });
 
-        // UI Binding und LiveData
         exportViewModel.getText().observe(getViewLifecycleOwner(), binding.textExport::setText);
 
         binding.checkboxIncludeOcr.setOnCheckedChangeListener((button, checked) -> {
@@ -167,12 +199,23 @@ public class ExportFragment extends Fragment {
             }
         });
 
-        // Daten von vorherigen Schritten übernehmen
         checkDocumentReady();
 
         return root;
     }
 
+    /**
+     * Checks and determines whether the document is ready for export.
+     * This method evaluates the current state of the cropped bitmap and OCR text, updates the
+     * corresponding fields in the exportViewModel, and sets the document ready status accordingly.
+     * <p>
+     * - Retrieves the cropped bitmap from the cropViewModel. If it exists, it sets the document bitmap
+     * in the exportViewModel.
+     * - Extracts the OCR text from the current state. If available, it updates the exportViewModel with
+     * the extracted OCR text.
+     * - Updates the document ready status in the exportViewModel. The document is considered ready
+     * if the document bitmap is not null.
+     */
     private void checkDocumentReady() {
         Bitmap cropped = cropViewModel.getImageBitmap().getValue();
         if (cropped != null) exportViewModel.setDocumentBitmap(cropped);
@@ -183,6 +226,32 @@ public class ExportFragment extends Fragment {
         exportViewModel.setDocumentReady(exportViewModel.getDocumentBitmap().getValue() != null);
     }
 
+    /**
+     * Initiates the export process for the current document. This method handles the generation
+     * of a PDF with optional OCR content, allows customization options such as grayscale conversion,
+     * and manages user-selected file locations.
+     * <p>
+     * If the required document bitmap is not available, it shows a warning message to the user and
+     * cancels the export process. The method also supports the generation of plain text files
+     * containing OCR data if enabled.
+     * <p>
+     * Upon successful export, the resulting file URI and metadata (such as display name) are updated
+     * and made available for further actions like sharing. In case of export failure, an error
+     * message is displayed, and necessary fields are cleared.
+     * <p>
+     * The export process runs on a background thread to avoid blocking the UI thread, and state updates
+     * such as export status and generated file paths are synchronized with the UI thread.
+     * <p>
+     * Steps performed in this method include:
+     * - Fetching the current document and ensuring it is ready for export.
+     * - Checking and applying user preferences for grayscale conversion and OCR inclusion.
+     * - Creating a searchable PDF (or notifying the user of failure if the process fails).
+     * - Optionally triggering subsequent TXT creation if OCR data is included in the export.
+     * - Updating UI elements based on the success or failure of the export.
+     * <p>
+     * Error handling ensures that unexpected failures are logged, and user feedback is provided
+     * through toast messages and UI updates.
+     */
     private void performExport() {
         Log.d(TAG, "performExport: Starting export process");
 
@@ -196,7 +265,6 @@ public class ExportFragment extends Fragment {
         boolean convertToGrayscale = Boolean.TRUE.equals(exportViewModel.isConvertToGrayscale().getValue());
         Uri selectedLocation = exportViewModel.getSelectedFileLocation().getValue();
 
-        // Wortliste nur übergeben, wenn vorhanden/nicht leer (aktuell ohne HOCR -> meist leer)
         List<RecognizedWord> recognizedWords;
         if (includeOcr) {
             List<RecognizedWord> words = getOcrWordsFromState();
@@ -232,7 +300,6 @@ public class ExportFragment extends Fragment {
                         binding.buttonShare.setEnabled(true);
                         UIUtils.showToast(appContext, "Document " + lastExportedPdfName + " exported", Toast.LENGTH_LONG);
 
-                        // Optional: TXT-Export direkt im Anschluss, wenn Checkbox gesetzt
                         if (includeOcr) {
                             launchTxtFileCreation();
                         }
@@ -257,13 +324,33 @@ public class ExportFragment extends Fragment {
         }).start();
     }
 
+    /**
+     * Handles the selection of the file location and initiates the document creation process.
+     * <p>
+     * This method generates a default file name with the current timestamp in the format
+     * "yyyyMMdd_HHmmss" combined with a "DOC_" prefix and a ".pdf" suffix. The generated
+     * file name is passed to the document creation launcher, which prompts the user to
+     * select a location for saving the file. The selected location can subsequently be used
+     * for exporting or saving the generated PDF document.
+     */
     private void selectFileLocation() {
         String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new Date());
         String defaultFileName = "DOC_" + timeStamp + ".pdf";
         createDocumentLauncher.launch(defaultFileName);
     }
 
-    /** Launches the TXT file creation dialog */
+    /**
+     * Launches the process to create a TXT file with a generated name based on the last exported
+     * PDF name or a default timestamp.
+     * <p>
+     * - If the last exported PDF name (`lastExportedPdfName`) is `null`, a default file name is
+     * generated using the current timestamp in the format "yyyyMMdd_HHmmss" with a "DOC_" prefix.
+     * - If a valid PDF name exists, it is used as the base name, after removing the ".pdf" extension.
+     * - In case of an exception during name processing, a fallback file name based on the timestamp
+     * is used.
+     * - A ".txt" suffix is appended to the final base name, and the resulting file name is
+     * provided to the `createTxtDocumentLauncher` to trigger the TXT file creation process.
+     */
     private void launchTxtFileCreation() {
         String pdfName = lastExportedPdfName;
         if (pdfName == null) {
@@ -283,7 +370,17 @@ public class ExportFragment extends Fragment {
         createTxtDocumentLauncher.launch(txtFileName);
     }
 
-    /** Exports OCR text to a TXT file */
+    /**
+     * Exports the OCR text to a specified TXT file in the given URI.
+     * This method retrieves the OCR text from the current state and writes
+     * it to the provided TXT file URI. If the OCR text is not available or
+     * the output stream cannot be opened, it logs an error or displays a
+     * message to the user. On successful export, the URI of the exported
+     * TXT file is saved, and a confirmation message is shown to the user.
+     *
+     * @param txtUri The URI of the TXT file where the OCR text will be exported.
+     *               If null, the method will exit without performing any actions.
+     */
     private void exportOcrTextToTxt(Uri txtUri) {
         if (txtUri == null) return;
 
@@ -309,6 +406,26 @@ public class ExportFragment extends Fragment {
         }
     }
 
+    /**
+     * Shares the last exported document along with an optional corresponding text (TXT) file if available.
+     * <p>
+     * This method prepares an Intent to share the exported document, ensuring compatibility with PDF and
+     * TXT file formats. If the last exported document URI is null, it displays a message notifying the user to
+     * export a document before attempting to share.
+     * <p>
+     * Key functionality:
+     * - Validates the presence of a document to share. Displays a notification if no document is available.
+     * - Retrieves the file name and optionally locates a corresponding TXT file for sharing.
+     * - Configures the sharing intent based on the presence or absence of a TXT file:
+     * - If a TXT file exists, prepares a multiple-file sharing intent including both the PDF and TXT files.
+     * - If no TXT file exists, prepares a single-file sharing intent for the PDF file only.
+     * - Handles file URIs consistently, using a file provider if necessary to ensure secure content access.
+     * - Sets intent details such as the title, subject, shared text, and necessary permissions.
+     * - Initiates a system UI to allow users to choose a sharing destination from available apps.
+     * <p>
+     * Includes robust error handling to catch and log exceptions, displaying appropriate user feedback
+     * when sharing fails.
+     */
     private void shareDocument() {
         if (lastExportedDocumentUri == null) {
             UIUtils.showToast(requireContext(), "No document available to share. Export a document first.", Toast.LENGTH_SHORT);
@@ -382,13 +499,31 @@ public class ExportFragment extends Fragment {
         binding = null;
     }
 
-    // ==== Helpers zum Zugriff auf den neuen OCR-State ====
-
+    /**
+     * Retrieves the OCR (Optical Character Recognition) text from the current state
+     * managed by the `ocrViewModel`.
+     * <p>
+     * This method accesses the `OcrUiState` from the `ocrViewModel`, and if the state
+     * is not null, it extracts and returns the available OCR text. If the state or
+     * OCR text is null, it will return null.
+     *
+     * @return The extracted OCR text from the current state, or null if the state
+     * or OCR text is unavailable.
+     */
     private String getOcrTextFromState() {
         OCRViewModel.OcrUiState s = ocrViewModel.getState().getValue();
         return (s != null) ? s.ocrText() : null;
     }
 
+    /**
+     * Retrieves a list of recognized words from the current OCR (Optical Character Recognition)
+     * state managed by the `ocrViewModel`.
+     * <p>
+     * This method accesses the `OcrUiState` from the `ocrViewModel` and extracts the recognized
+     * words if the state is not null. If the state is null, it returns null.
+     *
+     * @return A list of recognized words from the current OCR state, or null if the state is unavailable.
+     */
     private List<RecognizedWord> getOcrWordsFromState() {
         OCRViewModel.OcrUiState s = ocrViewModel.getState().getValue();
         return (s != null) ? s.words() : null;

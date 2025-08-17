@@ -6,8 +6,9 @@ import android.widget.ImageView;
 import org.opencv.core.Point;
 
 /**
- * Utility class for transforming coordinates between view space and image space.
- * This consolidates duplicate coordinate transformation methods from CropFragment and TrapezoidSelectionView.
+ * Utility class providing methods for coordinate transformation
+ * between view space and image space in scenarios involving images
+ * displayed in a view with scaling and padding considerations.
  */
 public class CoordinateTransformUtils {
     private static final String TAG = "CoordinateTransformUtils";
@@ -17,13 +18,18 @@ public class CoordinateTransformUtils {
     }
 
     /**
-     * Transforms coordinates from view space to image space
+     * Transforms an array of coordinates from view space to image space based on the dimensions of the
+     * view and bitmap. This is useful for mapping positions from a scaled or padded ImageView to the
+     * corresponding positions on the actual image.
      *
-     * @param viewCoordinates Array of points in view coordinates
-     * @param bitmap          The image bitmap
-     * @param viewWidth       The width of the view
-     * @param viewHeight      The height of the view
-     * @return Array of points in image coordinates
+     * @param viewCoordinates An array of points in the coordinate space of the view.
+     * @param bitmap          The bitmap of the image displayed in the view.
+     * @param viewWidth       The width of the view displaying the image.
+     * @param viewHeight      The height of the view displaying the image.
+     * @return An array of points transformed to the coordinate space of the bitmap, adjusted for scaling,
+     * offsets, and clamped within the bitmap's boundaries. If {@code viewCoordinates} or {@code bitmap}
+     * is null, or {@code viewWidth} or {@code viewHeight} is non-positive, the method returns the
+     * input {@code viewCoordinates}.
      */
     public static Point[] transformViewToImageCoordinates(Point[] viewCoordinates, Bitmap bitmap, int viewWidth, int viewHeight) {
 

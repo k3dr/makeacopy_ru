@@ -19,12 +19,75 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Background service for centralized cache cleanup management.
- * Handles cleanup of temporary files, debug images, old camera captures,
- * and memory management across the entire application.
- *
- * This service runs independently of UI components and provides
- * consistent cache management regardless of app state.
+ * CacheCleanupService is a background service that performs periodic and immediate
+ * cache cleanup operations to maintain optimal performance and storage usage.
+ * The service can be configured dynamically and operates both regularly based on
+ * a schedule and in response to specific memory pressure conditions.
+ * <p>
+ * The service supports cleaning up various types of temporary files, including debug images,
+ * old camera images, and other temporary files. Configuration properties, such as
+ * cleanup intervals and maximum resource thresholds, are customizable through
+ * SharedPreferences and Intent-based updates.
+ * <p>
+ * The service is compatible with Android 8.0+ and includes memory-safe static utility
+ * methods for direct cleanup operations when service-based cleanup is not feasible.
+ * <p>
+ * Key Features:
+ * - Scheduled cleanup tasks with adjustable intervals
+ * - Immediate cleanup triggered via intents
+ * - Memory threshold monitoring for adaptive cleanup
+ * - Comprehensive caching and temporary file removal
+ * - Static utility methods for use in memory-sensitive contexts
+ * - Configuration persistence and runtime updates
+ * <p>
+ * Predefined Constants:
+ * - TAG: Logs tag for debugging purposes
+ * - PREFS_NAME: Name of the SharedPreferences storage
+ * - PREF_LAST_CLEANUP: Key for storing the timestamp of the last cleanup
+ * - PREF_CLEANUP_ENABLED: Key to enable/disable cleanup
+ * - PREF_CLEANUP_INTERVAL_HOURS: Key for cleanup interval in hours
+ * - PREF_MAX_DEBUG_FILES: Key for maximum debug files to retain
+ * - PREF_MAX_TEMP_AGE_HOURS: Key for maximum permissible age of temporary files
+ * - PREF_MEMORY_THRESHOLD_PERCENT: Key for memory threshold percentage to trigger cleanup
+ * - DEFAULT_CLEANUP_INTERVAL_HOURS: Default interval for cleanup in hours
+ * - DEFAULT_MAX_DEBUG_FILES: Default maximum debug files
+ * - DEFAULT_MAX_TEMP_AGE_HOURS: Default maximum temporary file age in hours
+ * - DEFAULT_MEMORY_THRESHOLD_PERCENT: Default memory usage threshold percentage
+ * <p>
+ * Execution Context:
+ * - The service operates as a background task utilizing scheduled executors.
+ * - File system operations and memory monitoring occur in separate threads to ensure
+ * minimal impact on application performance.
+ * <p>
+ * Threading Model:
+ * - Scheduled tasks and immediate cleanup operations execute in the context of a
+ * ScheduledExecutorService to avoid blocking the main thread.
+ * - Direct cleanup methods offer static alternatives for scenarios where
+ * background services are restricted.
+ * <p>
+ * Methods Overview:
+ * - onCreate, onStartCommand, onDestroy: Lifecycle management of the service
+ * - onBind: Binder implementation for service-client communication
+ * - loadConfiguration: Loads configuration parameters from SharedPreferences
+ * - updateConfiguration: Dynamically updates service configuration based on Intent extras
+ * - startScheduledCleanup, stopScheduledCleanup, restartScheduledCleanup: Manage
+ * the lifecycle of scheduled periodic cleanup tasks
+ * - performScheduledCleanup: Checks if cleanup is necessary and triggers comprehensive cleanup
+ * - performImmediateCleanup: Executes immediate cleanup in response to requests
+ * - performComprehensiveCleanup: Orchestrates cleanup across multiple cache types
+ * - cleanupDebugImages, cleanupOldCameraImages, cleanupTempFiles: Specific cleanup tasks
+ * - isMemoryUsageHigh: Checks if memory usage exceeds the defined threshold
+ * - cleanupDirectoryRecursively: Deletes files older than a predefined age within a directory
+ * - logMemoryUsage: Logs current memory statistics for diagnostic purposes
+ * - Static utility methods: Provide alternatives for direct cleanup scenarios, including
+ * cleanupDebugImagesDirect, cleanupOldCameraImagesDirect, cleanupTempFilesDirect,
+ * cleanupDirectoryRecursivelyDirect, performCacheCleanupDirect, and logMemoryUsageStatic
+ * <p>
+ * Note:
+ * - Ensure the service is properly configured with adequate SharedPreferences entries
+ * or intent extras to avoid unexpected behavior.
+ * - Static utility methods should only be used when the associated cleanup operations
+ * need to occur without instantiating the service or when the app is in a background state.
  */
 public class CacheCleanupService extends Service {
 
@@ -128,7 +191,22 @@ public class CacheCleanupService extends Service {
     }
 
     /**
-     * Updates configuration from intent extras
+     * Updates the service configuration based on the provided intent.
+     * The configuration is persisted in SharedPreferences and adjustments
+     * are made to the scheduled cleanup task accordingly.
+     *
+     * @param intent The intent containing updated configuration values. This
+     *               intent may include the following optional extras:
+     *               - PREF_CLEANUP_ENABLED: Boolean flag indicating whether
+     *               cleanup is enabled.
+     *               - PREF_CLEANUP_INTERVAL_HOURS: Long value specifying the
+     *               interval in hours between cleanup tasks.
+     *               - PREF_MAX_DEBUG_FILES: Integer specifying the maximum
+     *               number of debug files to retain.
+     *               - PREF_MAX_TEMP_AGE_HOURS: Integer specifying the maximum
+     *               age in hours of temporary files to retain.
+     *               - PREF_MEMORY_THRESHOLD_PERCENT: Integer specifying the
+     *               memory usage threshold percentage to trigger cleanup.
      */
     private void updateConfiguration(Intent intent) {
         SharedPreferences.Editor editor = preferences.edit();
@@ -183,10 +261,10 @@ public class CacheCleanupService extends Service {
         long intervalMs = cleanupIntervalHours * 60 * 60 * 1000;
 
         scheduledExecutor.scheduleAtFixedRate(
-            this::performScheduledCleanup,
-            intervalMs, // Initial delay
-            intervalMs, // Period
-            TimeUnit.MILLISECONDS
+                this::performScheduledCleanup,
+                intervalMs, // Initial delay
+                intervalMs, // Period
+                TimeUnit.MILLISECONDS
         );
 
         Log.i(TAG, "Scheduled cleanup started with interval: " + cleanupIntervalHours + " hours");
@@ -273,7 +351,7 @@ public class CacheCleanupService extends Service {
             double memoryUsagePercent = (double) usedMemory / maxMemory * 100;
 
             Log.d(TAG, String.format("Current memory usage: %.1f%% (threshold: %d%%)",
-                  memoryUsagePercent, memoryThresholdPercent));
+                    memoryUsagePercent, memoryThresholdPercent));
 
             return memoryUsagePercent > memoryThresholdPercent;
 
@@ -309,7 +387,7 @@ public class CacheCleanupService extends Service {
             long duration = System.currentTimeMillis() - startTime;
 
             Log.i(TAG, String.format("Cache cleanup completed in %dms. Files removed: debug=%d, camera=%d, temp=%d",
-                  duration, debugFilesCleanup, cameraFilesCleanup, tempFilesCleanup));
+                    duration, debugFilesCleanup, cameraFilesCleanup, tempFilesCleanup));
 
         } catch (Exception e) {
             Log.e(TAG, "Error during comprehensive cleanup", e);
@@ -325,7 +403,7 @@ public class CacheCleanupService extends Service {
             if (externalDir == null || !externalDir.exists()) return 0;
 
             File[] debugFiles = externalDir.listFiles((file, name) ->
-                name.startsWith("debug_") && name.endsWith(".png"));
+                    name.startsWith("debug_") && name.endsWith(".png"));
             if (debugFiles == null) return 0;
 
             // Sort by last modified date (oldest first)
@@ -362,7 +440,7 @@ public class CacheCleanupService extends Service {
             if (!picturesDir.exists()) return 0;
 
             File[] imageFiles = picturesDir.listFiles((file, name) ->
-                name.startsWith("MakeACopy_") && name.endsWith(".jpg"));
+                    name.startsWith("MakeACopy_") && name.endsWith(".jpg"));
             if (imageFiles == null) return 0;
 
             long maxAgeMs = maxTempAgeHours * 60 * 60 * 1000L;
@@ -403,7 +481,16 @@ public class CacheCleanupService extends Service {
     }
 
     /**
-     * Recursively cleans up files in a directory older than maxTempAgeHours
+     * Recursively cleans up the files and directories within the specified directory.
+     * Temporary files older than the maximum allowed age are deleted. Empty directories
+     * are also removed during the cleanup process.
+     *
+     * @param directory The root directory to start the cleanup process. This must be a valid
+     *                  directory; if it is null, does not exist, or is not a directory, the
+     *                  method will return immediately without performing any cleanup.
+     * @return The total number of files and directories that were successfully deleted during
+     * the cleanup process. Returns 0 if no deletions occur or if the input directory
+     * is invalid.
      */
     private int cleanupDirectoryRecursively(File directory) {
         if (directory == null || !directory.exists() || !directory.isDirectory()) {
@@ -435,7 +522,14 @@ public class CacheCleanupService extends Service {
     }
 
     /**
-     * Logs current memory usage
+     * Logs the current memory usage details, including the percentage of used memory
+     * relative to the maximum available memory and the absolute values in MB for
+     * both used and maximum memory. This method helps in tracking memory usage
+     * during various operations in the service.
+     *
+     * @param context A string that provides additional context for the log
+     *                (e.g., "before cleanup", "after cleanup") to help identify
+     *                the stage or operation being monitored.
      */
     private void logMemoryUsage(String context) {
         try {
@@ -445,7 +539,7 @@ public class CacheCleanupService extends Service {
             double memoryUsagePercent = (double) usedMemory / maxMemory * 100;
 
             Log.d(TAG, String.format("Memory usage %s: %.1f%% (%d MB / %d MB)",
-                  context, memoryUsagePercent, usedMemory / (1024 * 1024), maxMemory / (1024 * 1024)));
+                    context, memoryUsagePercent, usedMemory / (1024 * 1024), maxMemory / (1024 * 1024)));
 
         } catch (Exception e) {
             Log.e(TAG, "Error logging memory usage", e);
@@ -453,7 +547,14 @@ public class CacheCleanupService extends Service {
     }
 
     /**
-     * Static utility method to start the service
+     * Starts the CacheCleanupService using the provided context. This method
+     * initializes the service responsible for performing cache cleanup operations
+     * based on its pre-configured settings.
+     *
+     * @param context The context from which the service is started. Typically,
+     *                this will be an instance of an Activity or Application
+     *                derived class, required to properly bind and start the
+     *                service.
      */
     public static void startService(Context context) {
         Intent intent = new Intent(context, CacheCleanupService.class);
@@ -461,8 +562,13 @@ public class CacheCleanupService extends Service {
     }
 
     /**
-     * Static utility method to force immediate cleanup
-     * Android 8.0+ compatible - uses direct cleanup to avoid BackgroundServiceStartNotAllowedException
+     * Forces an immediate cleanup operation using either a service-based approach or
+     * a direct cleanup fallback in case of service start failure. This method initiates
+     * comprehensive cache management to free up memory or storage resources.
+     *
+     * @param context The context from which the cleanup is initiated. Typically,
+     *                this will be an instance of an Activity, Service, or Application
+     *                required to properly invoke the service or perform fallback cleanup.
      */
     public static void forceCleanup(Context context) {
         try {
@@ -480,14 +586,28 @@ public class CacheCleanupService extends Service {
     }
 
     /**
-     * Static utility method to update service configuration
+     * Updates the configuration of the CacheCleanupService. The method sends the updated
+     * parameters to the service via an intent, which adjusts its behavior based on the
+     * provided values.
+     *
+     * @param context                The context from which the service is called. Typically,
+     *                               this will be an Activity or Application instance.
+     * @param enabled                A boolean flag indicating whether the cleanup service
+     *                               is enabled or disabled.
+     * @param intervalHours          The interval, in hours, between consecutive cleanup operations.
+     * @param maxDebugFiles          The maximum number of debug files that should be retained
+     *                               by the service.
+     * @param maxTempAgeHours        The maximum age, in hours, that temporary files should be
+     *                               retained before being cleaned up.
+     * @param memoryThresholdPercent The memory usage threshold percentage at which the service
+     *                               will initiate cleanup operations.
      */
     public static void updateConfiguration(Context context,
-                                         boolean enabled,
-                                         long intervalHours,
-                                         int maxDebugFiles,
-                                         int maxTempAgeHours,
-                                         int memoryThresholdPercent) {
+                                           boolean enabled,
+                                           long intervalHours,
+                                           int maxDebugFiles,
+                                           int maxTempAgeHours,
+                                           int memoryThresholdPercent) {
         try {
             Intent intent = new Intent(context, CacheCleanupService.class);
             intent.setAction("UPDATE_CONFIG");
@@ -503,9 +623,15 @@ public class CacheCleanupService extends Service {
     }
 
     /**
-     * MEMORY-SAFE: Direct cache cleanup without starting service
-     * This method can be called even when the app is in background
-     * Android 8.0+ compatible alternative to service-based cleanup
+     * Performs a direct cache cleanup operation without starting a service.
+     * This method handles cleaning up various cache files and updates preferences
+     * to reflect the last cleanup time. It is designed to be safe for background
+     * execution and can be used as a fallback when service-based cleanup fails.
+     *
+     * @param context The context in which the cleanup will be performed. Typically,
+     *                this is an instance of an Activity, Service, or Application.
+     *                It is used to access application-specific resources, such as
+     *                SharedPreferences for updating cleanup metadata.
      */
     public static void performDirectCleanup(Context context) {
         Log.i(TAG, "Direct cache cleanup requested (background-safe)");
@@ -526,8 +652,15 @@ public class CacheCleanupService extends Service {
     }
 
     /**
-     * Performs cache cleanup directly without service context
-     * Background-safe alternative for memory pressure situations
+     * Performs a direct cache cleanup operation. This method cleans up debug files,
+     * old camera images, and temporary files while logging memory usage before and
+     * after the cleanup. Garbage collection is also explicitly triggered during the process.
+     * The operation is designed to be executed in a controlled manner to efficiently
+     * manage resources and log cleanup performance metrics.
+     *
+     * @param context The context in which the cleanup is performed. This is typically
+     *                an instance of an Activity, Service, or Application, used to
+     *                access application-specific resources required during the cleanup process.
      */
     private static void performCacheCleanupDirect(Context context) {
         long startTime = System.currentTimeMillis();
@@ -550,7 +683,7 @@ public class CacheCleanupService extends Service {
             long duration = System.currentTimeMillis() - startTime;
 
             Log.i(TAG, String.format("Direct cache cleanup completed in %dms. Files removed: debug=%d, camera=%d, temp=%d",
-                  duration, debugFilesCleanup, cameraFilesCleanup, tempFilesCleanup));
+                    duration, debugFilesCleanup, cameraFilesCleanup, tempFilesCleanup));
 
         } catch (Exception e) {
             Log.e(TAG, "Error during direct cache cleanup", e);
@@ -558,7 +691,15 @@ public class CacheCleanupService extends Service {
     }
 
     /**
-     * Static version of cleanupDebugImages for direct cleanup
+     * Cleans up debug images directly from the application's external files directory.
+     * This method identifies and deletes debug image files prefixed with "debug_" and
+     * suffixed with ".png". It ensures that only a predefined maximum number of recent
+     * debug files are retained, deleting the older ones to free up storage space.
+     *
+     * @param context The application context used to access the external files directory.
+     *                This must not be null, as it is required to retrieve the directory.
+     * @return The number of debug image files successfully deleted during the cleanup process.
+     * Returns 0 if no files are deleted or if an error occurs.
      */
     private static int cleanupDebugImagesDirect(Context context) {
         try {
@@ -566,7 +707,7 @@ public class CacheCleanupService extends Service {
             if (externalDir == null || !externalDir.exists()) return 0;
 
             File[] debugFiles = externalDir.listFiles((file, name) ->
-                name.startsWith("debug_") && name.endsWith(".png"));
+                    name.startsWith("debug_") && name.endsWith(".png"));
             if (debugFiles == null) return 0;
 
             // Use default max files value
@@ -598,7 +739,14 @@ public class CacheCleanupService extends Service {
     }
 
     /**
-     * Static version of cleanupOldCameraImages for direct cleanup
+     * Cleans up old camera image files directly from the application's external files directory.
+     * This method identifies image files with a specific naming pattern, compares their last modified
+     * timestamps to a defined cutoff time, and deletes files that exceed the maximum allowed age.
+     *
+     * @param context The application context used to access the external files directory. This must not
+     *                be null, as it is required to retrieve the directory for performing the cleanup.
+     * @return The number of camera image files successfully deleted during the cleanup process. Returns
+     * 0 if no files are deleted or if an error occurs.
      */
     private static int cleanupOldCameraImagesDirect(Context context) {
         try {
@@ -606,7 +754,7 @@ public class CacheCleanupService extends Service {
             if (!picturesDir.exists()) return 0;
 
             File[] imageFiles = picturesDir.listFiles((file, name) ->
-                name.startsWith("MakeACopy_") && name.endsWith(".jpg"));
+                    name.startsWith("MakeACopy_") && name.endsWith(".jpg"));
             if (imageFiles == null) return 0;
 
             // Use default max age value
@@ -633,7 +781,15 @@ public class CacheCleanupService extends Service {
     }
 
     /**
-     * Static version of cleanupTempFiles for direct cleanup
+     * Cleans up temporary files directly from the application's cache directory.
+     * This method attempts to delete files and directories within the app's cache directory
+     * and returns the total count of items successfully deleted. In case of any error during
+     * the cleanup process, the method logs the exception and returns 0.
+     *
+     * @param context The application context used to access the cache directory. This must not
+     *                be null, as it is necessary to perform the cleanup operation.
+     * @return The total number of files and directories successfully deleted. Returns 0 if
+     * no items are deleted or if an error occurs.
      */
     private static int cleanupTempFilesDirect(Context context) {
         try {
@@ -648,7 +804,16 @@ public class CacheCleanupService extends Service {
     }
 
     /**
-     * Static version of cleanupDirectoryRecursively for direct cleanup
+     * Recursively cleans up a directory by deleting files and subdirectories
+     * that match age or empty directory criteria. Files older than the
+     * defined maximum temporary file age will be deleted. Empty directories
+     * are also removed.
+     *
+     * @param directory the directory to be cleaned up. If the directory is null,
+     *                  does not exist, or is not a valid directory, the method
+     *                  returns immediately without performing any actions.
+     * @return the number of files and directories that were successfully deleted
+     * during the cleanup process.
      */
     private static int cleanupDirectoryRecursivelyDirect(File directory) {
         if (directory == null || !directory.exists() || !directory.isDirectory()) {
@@ -680,7 +845,9 @@ public class CacheCleanupService extends Service {
     }
 
     /**
-     * Static version of logMemoryUsage for direct cleanup
+     * Logs the memory usage including the used memory, maximum memory, and usage percentage.
+     *
+     * @param context A descriptive string to provide context for the memory usage log.
      */
     private static void logMemoryUsageStatic(String context) {
         try {
@@ -690,7 +857,7 @@ public class CacheCleanupService extends Service {
             double memoryUsagePercent = (double) usedMemory / maxMemory * 100;
 
             Log.d(TAG, String.format("Memory usage %s: %.1f%% (%d MB / %d MB)",
-                  context, memoryUsagePercent, usedMemory / (1024 * 1024), maxMemory / (1024 * 1024)));
+                    context, memoryUsagePercent, usedMemory / (1024 * 1024), maxMemory / (1024 * 1024)));
 
         } catch (Exception e) {
             Log.e(TAG, "Error logging memory usage", e);

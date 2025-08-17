@@ -28,10 +28,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.IntStream;
 
 /**
- * Fragment for OCR functionality.
- * This fragment handles the OCR functionality of a document.
- * It manages user interactions for selecting a language, starting OCR,
- * and displaying the results.
+ * OCRFragment handles the Optical Character Recognition (OCR) functionality within the application.
+ * This fragment is responsible for managing the lifecycle, user interface, and integration with OCR processing logic.
+ * It interacts with OCRViewModel and CropViewModel to manage image processing states and updates.
+ * The OCRHelper class is used to perform OCR on given images.
  */
 public class OCRFragment extends Fragment {
     private static final String TAG = "OCRFragment";
@@ -41,6 +41,19 @@ public class OCRFragment extends Fragment {
     private OCRHelper ocrHelper;
     private final AtomicBoolean internalImageUpdate = new AtomicBoolean(false);
 
+    /**
+     * Inflates and initializes the OCRFragment's view and its components.
+     * Sets up the ViewModel observers, initializes the OCR engine, assigns
+     * UI event handlers, and applies window insets for proper layout adjustments.
+     *
+     * @param inflater           The LayoutInflater object that can be used to inflate
+     *                           any views in the fragment.
+     * @param container          The parent view to which the fragment's UI should be attached,
+     *                           or null if it should not be attached to any parent.
+     * @param savedInstanceState If non-null, this fragment is being re-created from
+     *                           a previous saved state as given here.
+     * @return The root View for the fragment's UI, or null if no UI is provided.
+     */
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
         ocrViewModel = new ViewModelProvider(requireActivity()).get(OCRViewModel.class);
@@ -110,7 +123,26 @@ public class OCRFragment extends Fragment {
     }
 
     /**
-     * Setup the language spinner
+     * Initializes and configures the language selection spinner for the OCR functionality.
+     * <p>
+     * The spinner is populated with the list of available OCR languages retrieved from the
+     * `getAvailableLanguages()` method and sets the system language as the default selected option if it is
+     * available. If the system language is not available, the spinner defaults to the first language in the list.
+     * <p>
+     * Sets a listener to handle language selection events. When a new language is selected, it validates
+     * the language availability using `ocrHelper.isLanguageAvailable`, updates the OCR engine configuration,
+     * and triggers appropriate UI updates or OCR processing events based on the selection state.
+     * <p>
+     * If the selected language is not available, the spinner reverts to the default language, and a toast
+     * message is shown to notify the user about the unavailability of the selected language.
+     * <p>
+     * The selected language is applied to the OCR engine using `ocrHelper.setLanguage`, and default settings
+     * for the language are configured using `ocrHelper.applyDefaultsForLanguage`. The OCR whitelist is updated
+     * using `OCRWhitelist.getWhitelistForLangSpec`.
+     * <p>
+     * For the first language selection during the fragment's lifecycle, if an image is already loaded, the OCR
+     * operation is triggered immediately by calling `performOCR`. On subsequent selections, the UI is updated
+     * to allow the user to manually trigger OCR once the language is changed.
      */
     private void setupLanguageSpinner() {
         Spinner spinner = binding.languageSpinner;
@@ -162,7 +194,11 @@ public class OCRFragment extends Fragment {
     }
 
     /**
-     * Returns the list of available languages
+     * Retrieves the list of available OCR languages based on the OCR engine's language data.
+     * If no languages are available, a default set of languages is returned.
+     *
+     * @return An array of strings representing the available OCR languages.
+     * If unavailable, the default languages are ["eng", "deu", "fra", "ita", "spa"].
      */
     private String[] getAvailableLanguages() {
         String[] langs = ocrHelper.getAvailableLanguages();
@@ -171,7 +207,26 @@ public class OCRFragment extends Fragment {
     }
 
     /**
-     * Performs OCR on the current image
+     * Executes the Optical Character Recognition (OCR) process on the currently loaded image.
+     * <p>
+     * This method performs multiple tasks including:
+     * 1. Verifies if an image is available for processing and if the OCR engine is properly initialized.
+     * 2. Prepares the image by scaling it to A4 dimensions.
+     * 3. Updates the user interface with the scaled image and transformation details.
+     * 4. Runs the OCR process in a background thread to ensure smooth UI performance.
+     * 5. Processes the OCR results, including recognized text and word box data, and updates
+     * the ViewModel with the results.
+     * 6. Handles exceptions and errors by notifying the ViewModel and displaying appropriate messages.
+     * <p>
+     * The method checks the initialization state of the OCR engine and the presence of a valid image to
+     * process. If any of these conditions are not met, the method returns early with an appropriate user
+     * notification.
+     * <p>
+     * Time taken for the OCR process is captured and included in the result. The recognized text, word boxes,
+     * and confidence levels are processed and provided to the ViewModel for further handling.
+     * <p>
+     * This method uses multi-threading to ensure that computationally intensive OCR processing does not block
+     * the main thread, and UI updates are performed on the main/UI thread as required.
      */
     private void performOCR() {
         Bitmap imageBitmap = cropViewModel.getImageBitmap().getValue();
@@ -244,7 +299,11 @@ public class OCRFragment extends Fragment {
     }
 
     /**
-     * Maps the system language to the language used by Tesseract
+     * Maps a system language code to the corresponding Tesseract language code.
+     *
+     * @param systemLanguage The system language code (e.g., "en", "de", "fr").
+     * @return The Tesseract language code corresponding to the provided system language.
+     * Defaults to "eng" if the system language is not explicitly mapped.
      */
     private String mapSystemLanguageToTesseract(String systemLanguage) {
         switch (systemLanguage) {

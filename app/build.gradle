@@ -141,3 +141,10 @@ tasks.register("copyNotices", Sync) {
 tasks.named("preBuild").configure {
     dependsOn("copyNotices")
 }
+
+androidComponents {
+    onVariants(selector().withBuildType("release")) { variant ->
+        // Exclude test PDFs from release APK/AAB packaging
+        variant.packaging.resources.excludes.add("assets/test_pdfs/**")
+    }
+}

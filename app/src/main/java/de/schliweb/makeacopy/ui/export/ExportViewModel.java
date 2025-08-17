@@ -8,13 +8,17 @@ import androidx.lifecycle.MutableLiveData;
 import androidx.lifecycle.ViewModel;
 
 /**
- * The ExportViewModel class extends from ViewModel and is used to manage the
- * export state and related data in an observable way. It manages various
- * aspects of document exporting, including the document format, OCR inclusion,
- * and selected file location.
+ * The ExportViewModel class is responsible for managing the state and data
+ * related to document export functionality. It extends the ViewModel class
+ * to provide lifecycle-aware data management and ensure that data survives
+ * configuration changes.
  * <p>
- * This class uses LiveData to maintain the state of export-related data, which
- * allows clients to observe and react to changes in data.
+ * This ViewModel handles the following:
+ * - Document export settings such as export format, inclusion of OCR, and
+ * grayscale conversion.
+ * - Management of the document's bitmap and OCR text.
+ * - Management of selected export file location and TXT export URI.
+ * - Tracks export status and document readiness.
  */
 public class ExportViewModel extends ViewModel {
     private static final String TAG = "ExportViewModel";

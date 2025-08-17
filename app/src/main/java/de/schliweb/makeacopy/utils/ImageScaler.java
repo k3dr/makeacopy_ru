@@ -4,11 +4,15 @@ import android.graphics.Bitmap;
 import android.util.Log;
 
 /**
- * A utility class for scaling images to predefined dimensions while preserving their aspect ratio.
- * Primarily designed for preparing images to fit A4 dimensions at 300 DPI.
+ * Utility class for scaling images to predefined dimensions while maintaining aspect ratio.
  * <p>
- * This class is useful in scenarios where images need to be prepared for PDF generation
- * or any other process requiring uniform image dimensions.
+ * The primary use case for this class is scaling images to fit A4 dimensions at 300 DPI
+ * without distortion or stretching, making it useful for generating PDFs with accurate OCR.
+ * <p>
+ * The class provides a method to ensure that the scaled images match the desired dimensions
+ * with high accuracy, enabling better alignment of OCR coordinates.
+ * <p>
+ * This class is not intended to be instantiated.
  */
 public class ImageScaler {
     // A4 dimensions at 300 DPI (in pixels)
@@ -17,18 +21,12 @@ public class ImageScaler {
     private static final String TAG = "ImageScaler";
 
     /**
-     * Scales an image to A4 dimensions at 300 DPI while maintaining aspect ratio.
-     * The image will be scaled to fit within A4 dimensions without stretching.
-     * <p>
-     * This pre-scaling ensures that OCR coordinates will match PDF coordinates
-     * without complex transformations, resulting in perfect alignment of the
-     * OCR text layer in the final PDF.
-     * <p>
-     * Using 300 DPI (instead of 150 DPI) provides better OCR results and
-     * more accurate text positioning in the final PDF.
+     * Scales a given bitmap image to fit within A4 dimensions at 300 DPI while maintaining the aspect ratio.
+     * If the original bitmap is already smaller than or equal to A4 dimensions, no scaling is performed.
      *
-     * @param originalBitmap The original bitmap to scale
-     * @return A new bitmap scaled to A4 dimensions, or the original bitmap if it's already smaller
+     * @param originalBitmap The original bitmap to be scaled. Must not be null.
+     * @return A new bitmap scaled to fit within A4 dimensions at 300 DPI, or the original bitmap if no scaling is needed.
+     * Returns null if the input bitmap is null.
      */
     public static Bitmap scaleToA4(Bitmap originalBitmap) {
         if (originalBitmap == null) {

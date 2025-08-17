@@ -17,9 +17,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
- * Utility class for handling image operations such as loading and correcting orientation.
- * This class provides methods to load images asynchronously or synchronously while applying
- * the correct orientation based on the image's EXIF data.
+ * A utility class for handling image operations such as loading images from a URI
+ * and applying the correct orientation based on the EXIF information.
  */
 public class ImageUtils {
     private static final String TAG = "ImageUtils";
@@ -31,11 +30,14 @@ public class ImageUtils {
     }
 
     /**
-     * Loads an image from a URI and applies the correct orientation asynchronously
+     * Asynchronously loads an image from a URI and provides the result via a callback.
+     * The method uses a background thread to load the image and posts the result
+     * on the main thread using the provided callback.
      *
-     * @param context  The context
-     * @param uri      The URI of the image to load
-     * @param callback The callback to receive the loaded bitmap or error
+     * @param context  The Context to use for accessing resources and loading the image. Must not be null.
+     * @param uri      The URI of the image to be loaded. Must not be null.
+     * @param callback The callback to receive the result of the image loading process.
+     *                 The callback will be invoked with a loaded Bitmap or an error message if the loading fails.
      */
     public static void loadImageFromUriAsync(Context context, Uri uri, ImageLoadCallback callback) {
         if (context == null || uri == null) {
@@ -56,12 +58,12 @@ public class ImageUtils {
     }
 
     /**
-     * Loads an image from a URI and applies the correct orientation
-     * This method should be called from a background thread
+     * Loads an image from the provided URI and returns it as a Bitmap.
+     * This method decodes the image and applies rotation based on the image's EXIF orientation data.
      *
-     * @param context The context
-     * @param uri     The URI of the image to load
-     * @return The loaded and correctly oriented bitmap, or null if loading failed
+     * @param context The Context to use for accessing resources. Must not be null.
+     * @param uri     The URI of the image to load. Must not be null.
+     * @return A Bitmap representing the loaded image, or null if the image could not be loaded.
      */
     public static Bitmap loadImageFromUri(Context context, Uri uri) {
         if (context == null || uri == null) {
@@ -106,11 +108,14 @@ public class ImageUtils {
     }
 
     /**
-     * Gets the orientation of an image from its URI
+     * Retrieves the orientation of an image based on its EXIF metadata.
+     * This method extracts the orientation tag from the EXIF data of the image
+     * and returns the rotation angle in degrees.
      *
-     * @param resolver The content resolver
-     * @param uri      The URI of the image
-     * @return The orientation in degrees (0, 90, 180, or 270)
+     * @param resolver The ContentResolver to use for accessing the image. Must not be null.
+     * @param uri      The URI of the image whose orientation is to be determined. Must not be null.
+     * @return The rotation angle of the image in degrees (0, 90, 180, or 270). Returns 0 if the orientation
+     * cannot be determined or an error occurs.
      */
     private static int getImageOrientation(ContentResolver resolver, Uri uri) {
         try (InputStream inputStream = resolver.openInputStream(uri)) {
@@ -136,7 +141,9 @@ public class ImageUtils {
     }
 
     /**
-     * Interface for image loading callback
+     * A callback interface for handling the result of an asynchronous image loading operation.
+     * Classes implementing this interface can define behavior for both successful and failed
+     * image loading events.
      */
     public interface ImageLoadCallback {
         void onImageLoaded(Bitmap bitmap);

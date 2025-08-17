@@ -6,8 +6,9 @@ import androidx.lifecycle.MutableLiveData;
 import androidx.lifecycle.ViewModel;
 
 /**
- * Base ViewModel class that provides common functionality for all ViewModels in the app.
- * This consolidates duplicate code from CameraViewModel and CropViewModel.
+ * Abstract base class for ViewModel implementations that provides common functionality
+ * for managing LiveData properties like text and image URI.
+ * Extends the Android ViewModel class to ensure lifecycle-aware operations for UI components.
  */
 public abstract class BaseViewModel extends ViewModel {
 

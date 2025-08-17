@@ -1,0 +1,29 @@
+NOTICE
+
+This project is licensed under the Apache License 2.0 (see LICENSE). It also
+includes third‑party components under their respective licenses as noted below.
+
+1) OpenCV (selected Java classes vendored)
+    - Project: https://opencv.org
+    - License: Apache License, Version 2.0
+    - Notes: Selected Java classes from the org.opencv.* packages have been
+      copied into this project to enable OpenCV-based image processing.
+      Original license headers are preserved.
+
+2) DocAligner model (ONNX)
+    - Project: https://github.com/DocsaidLab/DocAligner
+    - License: Apache License, Version 2.0
+    - Notes: The FastViT-based document corner detection model is included as an
+      application asset for fully offline inference.
+
+3) ONNX Runtime (submodule, optional runtime)
+    - Project: https://github.com/microsoft/onnxruntime
+    - Path: external/onnxruntime (Git submodule)
+    - License: MIT License
+    - Notes: Built from source for Android (CPU-only, Java bindings) via
+      scripts/build_onnxruntime_android.sh. The resulting native libraries and
+      Java JAR are integrated into app/jniLibs and app/libs respectively when you
+      opt-in to ONNX Runtime support.
+
+For full license texts, see the corresponding upstream repositories and their
+LICENSE files. The Apache License 2.0 for this project is provided in LICENSE.

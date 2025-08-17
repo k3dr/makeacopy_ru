@@ -1,8 +1,11 @@
 package de.schliweb.makeacopy.utils;
 
 /**
- * Whitelist for OCR.
- * This class provides a static method to get the whitelist for a given language.
+ * A utility class that provides predefined whitelists for characters based on specific languages,
+ * commonly used in Optical Character Recognition (OCR) processes. This class helps restrict
+ * the character set to improve OCR accuracy and reduce errors.
+ * <p>
+ * This class is not intended to be instantiated.
  */
 public class OCRWhitelist {
 
@@ -24,6 +27,15 @@ public class OCRWhitelist {
     // Default: Superset
     public static final String DEFAULT = (DE + EN + ES + FR + IT);
 
+    /**
+     * Returns a predefined whitelist of allowed characters for a given language code.
+     * The whitelist is used to improve processing accuracy by restricting the character set.
+     *
+     * @param languageCode The ISO language code (e.g., "deu" for German, "eng" for English).
+     *                     When null or an unsupported code is provided, a default whitelist is returned.
+     * @return A string containing the whitelist of allowed characters for the specified language,
+     * or the default whitelist if the language code is null or unsupported.
+     */
     public static String getWhitelistForLanguage(String languageCode) {
         if (languageCode == null) return DEFAULT;
         switch (languageCode) {
@@ -42,6 +54,17 @@ public class OCRWhitelist {
         }
     }
 
+    /**
+     * Generates a composite whitelist of allowed characters for a given language specification.
+     * The language specification can consist of multiple language codes separated by a "+".
+     * Each language code will correspond to a predefined whitelist, and their characters
+     * are combined into a single whitelist, ensuring no duplicate characters are present.
+     *
+     * @param langSpec A string containing one or more ISO language codes separated by "+"
+     *                 (e.g., "eng+deu+fra"). If null or empty, a default whitelist is returned.
+     * @return A string containing the combined whitelist of allowed characters for the specified
+     * language specification, or the default whitelist if the input is null or empty.
+     */
     public static String getWhitelistForLangSpec(String langSpec) {
         if (langSpec == null || langSpec.trim().isEmpty()) return DEFAULT;
         StringBuilder sb = new StringBuilder();

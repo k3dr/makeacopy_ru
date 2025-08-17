@@ -8,7 +8,11 @@ import android.provider.OpenableColumns;
 import android.util.Log;
 
 /**
- * Utility class for performing file-related operations.
+ * A utility class providing functionality to interact with files and URIs, including methods
+ * for extracting display names from URIs. This class is designed to accommodate different schemes
+ * such as "content" and "file", and provides fallback mechanisms for unrecognized schemes.
+ * <p>
+ * This class is not intended to be instantiated.
  */
 public class FileUtils {
     private static final String TAG = "FileUtils";
@@ -18,14 +22,13 @@ public class FileUtils {
     }
 
     /**
-     * Extracts a display name for a given URI. Attempts to resolve the name from the URI by checking
-     * the content resolver for a name if the URI uses the content scheme. In cases where the content
-     * scheme is not present or fails, it derives the display name from the last path segment or falls
-     * back to the URI string.
+     * Extracts and returns the display name from the given URI. Handles URIs with content
+     * and file schemes, and falls back to returning the URI string if the display name cannot
+     * be determined.
      *
-     * @param context the context used to resolve content URIs.
-     * @param uri     the URI whose display name needs to be extracted.
-     * @return a string representing the display name for the URI, or the fallback URI string if no name can be resolved.
+     * @param context The application context used to access resources and content providers.
+     * @param uri     The URI from which to extract the display name.
+     * @return The extracted display name, or the URI string if the display name cannot be determined.
      */
     public static String getDisplayNameFromUri(Context context, Uri uri) {
         if (uri == null) {

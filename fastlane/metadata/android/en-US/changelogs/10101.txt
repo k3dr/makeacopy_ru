@@ -1,0 +1,4 @@
+* Improved OCR text layer: words are grouped into lines, aligned more precisely, and extracted as full phrases.
+* Better baseline, font sizing, and spacing.
+* Bugfix for split words in PDFs.
+* Added grayscale option and stronger image scaling.

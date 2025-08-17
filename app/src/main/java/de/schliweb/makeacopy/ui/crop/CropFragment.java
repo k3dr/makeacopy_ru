@@ -157,7 +157,17 @@ public class CropFragment extends Fragment {
     }
 
     /**
-     * UI-State: Cropping-Modus anzeigen
+     * Configures the UI for cropping mode by adjusting the visibility of relevant views
+     * and updating instructional text for the user.
+     * <p>
+     * The method prepares the fragment for the initial cropping workflow by:
+     * - Hiding the cropped image preview.
+     * - Displaying the image to be cropped.
+     * - Showing the trapezoid selection area, if available.
+     * - Making the cropping button container visible.
+     * - Hiding the general button container.
+     * - Setting an instructional message prompting the user to adjust the trapezoid corners
+     * and proceed with cropping.
      */
     private void showCropMode() {
         binding.croppedImage.setVisibility(View.GONE);
@@ -170,7 +180,14 @@ public class CropFragment extends Fragment {
     }
 
     /**
-     * UI-State: Review/Bestätigungsmodus nach Cropping
+     * Configures the UI to display the review mode after an image has been cropped.
+     * <p>
+     * This method adjusts the visibility of various UI components to allow the user
+     * to review the cropped image. It hides the cropping UI, shows the cropped image,
+     * and displays buttons for confirming or re-cropping the image. Additionally,
+     * it updates the instructional text to guide the user in the review process.
+     *
+     * @param croppedBitmap The bitmap of the cropped image to be displayed in review mode.
      */
     private void showReviewMode(Bitmap croppedBitmap) {
         binding.imageToCrop.setVisibility(View.GONE);

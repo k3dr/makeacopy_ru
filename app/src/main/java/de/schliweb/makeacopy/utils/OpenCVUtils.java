@@ -22,9 +22,11 @@ import java.nio.FloatBuffer;
 import java.util.*;
 
 /**
- * Utility class for OpenCV operations.
- * Provides methods for initializing OpenCV, applying perspective transformations,
- * and detecting document corners in images.
+ * Utility class for performing various operations with OpenCV and ONNX runtime.
+ * This class provides methods for initializing OpenCV, configuring safe mode,
+ * manipulating images, and interacting with ONNX runtime models.
+ * <p>
+ * This class cannot be instantiated.
  */
 public class OpenCVUtils {
     private static final String TAG = "OpenCVUtils";
@@ -76,17 +78,18 @@ public class OpenCVUtils {
     /**
      * Initializes the ONNX runtime for inference.
      * This method loads the ONNX model from the assets directory and creates an inference session.
+     *
      * @param context The application context.
      */
     private static void initOnnxRuntime(Context context) {
-        if(ortSession != null) return;
+        if (ortSession != null) return;
         Log.i(TAG, "Initializing ONNX runtime");
 
         try {
             File modelFile = copyAssetToCache(context, MODEL_ASSET_PATH);
-            if(ortEnv == null) {
+            if (ortEnv == null) {
                 synchronized (OpenCVUtils.class) {
-                    if(ortEnv == null) {
+                    if (ortEnv == null) {
                         ortEnv = OrtEnvironment.getEnvironment();
                     }
                 }
@@ -104,13 +107,13 @@ public class OpenCVUtils {
     }
 
     /**
-     * Copies an asset file to the application's cache directory.
-     * This method is used to copy the ONNX model to the application's cache directory.
+     * Copies an asset from the app's assets folder to the application's cache directory.
+     * If the asset already exists in the cache, it will not be copied again.
      *
-     * @param context The application context.
-     * @param assetPath The path of the asset file to be copied.
-     * @return The file object representing the copied asset file.
-     * @throws IOException if an error occurs while copying the asset file.
+     * @param context   the application context used to access the assets and cache directory
+     * @param assetPath the path of the asset file to be copied, relative to the assets directory
+     * @return a File object pointing to the copied asset in the cache directory
+     * @throws IOException if an I/O error occurs during file copy
      */
     private static File copyAssetToCache(Context context, String assetPath) throws IOException {
         Log.i(TAG, "Copying asset " + assetPath + " to cache");
@@ -133,8 +136,29 @@ public class OpenCVUtils {
     }
 
     /**
-     * Configures the safe mode based on device specifications.
-     * Determines whether to use safe mode and adaptive thresholding based on device capabilities.
+     * Configures the safe mode and adaptive threshold settings based on the device's specifications and characteristics.
+     * <p>
+     * This method evaluates the device manufacturer, model, device name, and Android SDK version
+     * to determine whether the device is classified as high-end or an emulator. Using this evaluation,
+     * it configures the `USE_SAFE_MODE` and `USE_ADAPTIVE_THRESHOLD` flags accordingly.
+     * <p>
+     * Conditions for classifying a device as high-end include:
+     * - SDK version 29 or higher.
+     * - The manufacturer does not contain "mediatek" or "spreadtrum".
+     * - The device name does not contain "generic".
+     * - The model does not contain "emulator" or "x86"/"x86_64".
+     * - The manufacturer is associated with reputable brands like Google, Samsung, or Xiaomi.
+     * <p>
+     * Conditions for identifying a device as an emulator include:
+     * - The device name contains "emu", "x86", or "x86_64".
+     * - The model contains "sdk", "emulator", or "virtual".
+     * - The manufacturer contains "genymotion".
+     * <p>
+     * Based on the classification:
+     * - `USE_SAFE_MODE` is enabled if the device is not high-end or is identified as an emulator.
+     * - `USE_ADAPTIVE_THRESHOLD` is enabled only if the device is high-end.
+     * <p>
+     * The method logs the safe mode and adaptive threshold configurations for debugging purposes.
      */
     private static void configureSafeMode() {
         String manufacturer = Build.MANUFACTURER.toLowerCase();
@@ -152,13 +176,17 @@ public class OpenCVUtils {
     }
 
     /**
-     * Applies a perspective warp to the input image using the specified source points.
-     * This method is a safe version that handles errors and invalid inputs gracefully.
+     * Applies a perspective transformation to the given input matrix (image) using the specified source points
+     * and maps it to a target size, ensuring the resulting perspective transformation fits within the target dimensions.
+     * The function ensures safe handling of invalid inputs and cleans up intermediate resources.
      *
-     * @param input      The input image as a Mat object.
-     * @param srcPoints  The source points defining the quadrilateral to warp.
-     * @param targetSize The size of the output image.
-     * @return The warped image as a Mat object, or the original input if an error occurs.
+     * @param input      The input image represented as a {@code Mat} object. Must not be null or empty.
+     * @param srcPoints  An array of four {@code Point} objects specifying the source quadrilateral
+     *                   to be transformed. Must not be null and must contain exactly four points.
+     * @param targetSize The target size for the output image, represented as a {@code Size} object.
+     *                   Specifies the dimensions (width and height) of the transformed image.
+     * @return A new {@code Mat} object containing the transformed (warped) image. If an error occurs
+     * or invalid input is provided, the original input image is returned.
      */
     private static Mat warpPerspectiveSafe(Mat input, Point[] srcPoints, Size targetSize) {
         if (input == null || input.empty() || srcPoints == null || srcPoints.length != 4) {
@@ -196,7 +224,16 @@ public class OpenCVUtils {
     }
 
     /**
-     * Applies perspective correction (with cleanup).
+     * Applies perspective correction to the given bitmap using the specified corner points.
+     * The method attempts to correct the perspective using either OpenCV or an Android fallback method
+     * based on the application's safe mode configuration. The result is a transformed bitmap with
+     * corrected perspective.
+     *
+     * @param originalBitmap The input bitmap to which perspective correction will be applied.
+     * @param corners        An array of four {@link Point} objects that specify the corner points of the region to correct.
+     *                       These points should define the desired transformation from the original bitmap.
+     * @return A new {@link Bitmap} object with perspective correction applied. The dimensions of the output
+     * bitmap match those of the input bitmap.
      */
     public static Bitmap applyPerspectiveCorrection(Bitmap originalBitmap, Point[] corners) {
         Mat mat = new Mat();
@@ -223,12 +260,17 @@ public class OpenCVUtils {
     }
 
     /**
-     * Applies a perspective warp to the input bitmap using the specified corners.
-     * This method uses Android's Matrix class for the transformation.
+     * Applies a perspective warp transformation to a given bitmap using the provided corner points
+     * and returns the transformed bitmap. The method maps the four given source corner points
+     * to the corners of the output bitmap and performs the perspective transformation.
      *
-     * @param srcBitmap The source bitmap to be warped.
-     * @param corners   The corners of the quadrilateral to warp.
-     * @return A new bitmap with the perspective warp applied.
+     * @param srcBitmap the source bitmap to be transformed
+     * @param corners   an array of four points representing the corners of the perspective warp
+     *                  in the source bitmap. The points should be specified in clockwise or
+     *                  counterclockwise order.
+     * @return the transformed bitmap with the perspective warp applied. If the corners array
+     * is null or does not contain exactly four points, the original source bitmap
+     * is returned unmodified.
      */
     private static Bitmap warpPerspectiveWithMatrix(Bitmap srcBitmap, Point[] corners) {
         if (corners == null || corners.length != 4) return srcBitmap;
@@ -253,7 +295,12 @@ public class OpenCVUtils {
     }
 
     /**
-     * Preprocess: Bitmap RGBA → BGR Mat → NCHW float [0..1].
+     * Converts a Bitmap image in RGBA format to a normalized float array in BGR format.
+     *
+     * @param bitmap the input Bitmap image to be converted; must not be null.
+     * @return a float array representation of the input image in BGR format, normalized
+     * and resized to 256x256 dimensions in NCHW format.
+     * @throws IllegalArgumentException if the input bitmap is null.
      */
     public static float[] fromBitmapBGR(Bitmap bitmap) {
         if (bitmap == null) throw new IllegalArgumentException("bitmap is null");
@@ -267,6 +314,21 @@ public class OpenCVUtils {
         }
     }
 
+    /**
+     * Converts an OpenCV Mat object in BGR format to a NCHW (batch, channels, height, width)
+     * float array scaled to the range [0,1].
+     * <p>
+     * This method performs resizing of the input Mat to the target width and height, scales the
+     * pixel values to the range [0,1], and reorders the data into NCHW format. The resulting array
+     * has dimensions [1, channels, targetH, targetW].
+     *
+     * @param bgr     The input OpenCV Mat object in BGR format. It must not be empty.
+     * @param targetW The target width for resizing the input Mat.
+     * @param targetH The target height for resizing the input Mat.
+     * @return A float array in NCHW format (batch=1, channels=3 (BGR), height=targetH, width=targetW),
+     * with values scaled to the range [0,1].
+     * @throws IllegalArgumentException If the input Mat is empty.
+     */
     private static float[] toNCHW01_BGR(Mat bgr, int targetW, int targetH) {
         if (bgr.empty()) throw new IllegalArgumentException("input Mat is empty");
 
@@ -281,7 +343,7 @@ public class OpenCVUtils {
 
             int H = targetH, W = targetW, C = 3;
             int HW = H * W;
-            float[] nchw = new float[1 * C * H * W];
+            float[] nchw = new float[C * H * W];
 
             for (int c = 0; c < C; c++) {
                 float[] buf = new float[HW];
@@ -296,7 +358,15 @@ public class OpenCVUtils {
     }
 
     /**
-     * Run ONNX model, return raw output.
+     * Executes inference on the provided input tensor using the ONNX runtime.
+     * The input tensor is expected to be in BGR format and NCHW order.
+     *
+     * @param inputTensor A float array representing the input tensor with a shape of [1, 3, 256, 256].
+     *                    The tensor must be in BGR format and NCHW layout.
+     * @return A float array containing the inference output.
+     * The shape and interpretation of the output depend on the specific ONNX model.
+     * @throws OrtException          If an error occurs during the inference process with the ONNX runtime.
+     * @throws IllegalStateException If the ONNX runtime is not initialized before calling this method.
      */
     private static float[] runInferenceBgrNchw(float[] inputTensor) throws OrtException {
         if (ortEnv == null || ortSession == null) {
@@ -316,10 +386,9 @@ public class OpenCVUtils {
             Log.i(TAG, String.format("Elapsed: %.3f ms", elapsedMs));
 
             OnnxValue out0 = result.get(0);
-            if (!(out0 instanceof OnnxTensor)) {
+            if (!(out0 instanceof OnnxTensor ot)) {
                 throw new RuntimeException("Unexpected output type: " + out0.getClass());
             }
-            OnnxTensor ot = (OnnxTensor) out0;
             long[] outShape = ot.getInfo().getShape();
             Log.i(TAG, "ONNX output shape=" + Arrays.toString(outShape));
 
@@ -340,11 +409,26 @@ public class OpenCVUtils {
         }
     }
 
+    /**
+     * Detects and processes a model inference based on the input bitmap image.
+     *
+     * @param bitmap the input image in the form of a Bitmap, to be processed for model inference
+     * @return a float array representing the results of the model inference
+     * @throws OrtException if an error occurs during the inference process
+     */
     private static float[] detectModel(Bitmap bitmap) throws OrtException {
         float[] inputTensor = fromBitmapBGR(bitmap);
         return runInferenceBgrNchw(inputTensor);
     }
 
+    /**
+     * Detects the corners of a document in a given bitmap using an ONNX model.
+     *
+     * @param bitmap The input bitmap image from which document corners are to be detected.
+     *               The bitmap should contain the document to be analyzed.
+     * @return An array of {@code Point} representing the detected corners of the document.
+     * Returns {@code null} if the corners could not be detected or if an error occurs.
+     */
     private static Point[] detectDocumentCornersWithOnnx(Bitmap bitmap) {
         Log.i(TAG, "Starting detectDocumentCornersWithOnnx()");
         try {
@@ -362,6 +446,14 @@ public class OpenCVUtils {
         }
     }
 
+    /**
+     * Determines if the provided points form a fallback condition based on specific coordinates.
+     *
+     * @param p an array of four {@code Point} objects to be evaluated
+     * @param w the width to be considered in the condition
+     * @param h the height to be considered in the condition
+     * @return {@code true} if the points satisfy the fallback condition; {@code false} otherwise
+     */
     private static boolean isFallback(Point[] p, int w, int h) {
         if (p == null || p.length != 4) return false;
         return (Math.round(p[0].x) == 100 && Math.round(p[0].y) == 100) &&
@@ -370,8 +462,18 @@ public class OpenCVUtils {
                 (Math.round(p[3].x) == 100 && Math.round(p[3].y) == h - 100);
     }
 
+    /**
+     * Converts a prediction heatmap into an array of points representing corners of a quadrilateral.
+     *
+     * @param pred A 1D array of predicted heatmap values, with expected dimensions 1x4x128x128.
+     *             This array represents the heatmap output from a model.
+     * @param outW The width of the output image used to scale the points.
+     * @param outH The height of the output image used to scale the points.
+     * @return An array of 4 points (corners) sorted in a clockwise order, or null if the input is invalid,
+     * the heatmap peaks are too low, or the computed points are deemed invalid based on area or geometry.
+     */
     private static Point[] predictionToPoints(float[] pred, int outW, int outH) {
-        if (pred == null || pred.length != 1 * 4 * 128 * 128) {
+        if (pred == null || pred.length != 4 * 128 * 128) {
             Log.w(TAG, "predictionToPoints: unexpected pred length " + (pred == null ? -1 : pred.length));
             return null;
         }
@@ -447,6 +549,15 @@ public class OpenCVUtils {
         return pts;
     }
 
+    /**
+     * Calculates the area of a quadrilateral defined by four points.
+     * The calculation is based on the Shoelace formula and assumes the points are ordered
+     * in a consistent clockwise or counterclockwise manner.
+     *
+     * @param q An array of four {@link Point} objects representing the vertices of the quadrilateral.
+     *          The order of the points must form a closed quadrilateral.
+     * @return The area of the quadrilateral as a double value. The result is always non-negative.
+     */
     private static double quadArea(Point[] q) {
         double area = 0;
         for (int i = 0; i < 4; i++) {
@@ -457,7 +568,15 @@ public class OpenCVUtils {
     }
 
     /**
-     * Detect corners with OpenCV; everything cleaned up via try/finally.
+     * Detects the corners of a document within a given bitmap using OpenCV operations.
+     * This method processes the bitmap to identify contours and determines the best
+     * quadrilateral representing the document, based on certain criteria such as
+     * aspect ratio and area.
+     *
+     * @param context the context used for saving debug images during the corner detection process.
+     * @param bitmap  the input bitmap image, representing the photograph of a document.
+     * @return an array of four {@link Point} objects representing the detected corners
+     * of the document in clockwise order, or a fallback rectangle if no suitable contour is found.
      */
     private static Point[] detectDocumentCornersWithOpenCV(Context context, Bitmap bitmap) {
         Log.i(TAG, "Starting detectDocumentCornersWithOpenCV()");
@@ -562,10 +681,24 @@ public class OpenCVUtils {
     public static Point[] detectDocumentCorners(Context context, Bitmap bitmap) {
         Log.i(TAG, "Starting detectDocumentCorners()");
         Point[] onnx = detectDocumentCornersWithOnnx(bitmap);
-        Point[] cv   = detectDocumentCornersWithOpenCV(context, bitmap);
+        Point[] cv = detectDocumentCornersWithOpenCV(context, bitmap);
         return getBestCorners(onnx, cv, bitmap.getWidth(), bitmap.getHeight());
     }
 
+    /**
+     * Determines the most suitable set of quadrilateral corners for document processing
+     * by evaluating and comparing corners detected through ONNX and OpenCV methods.
+     * The comparison takes into account certain validity and area-based conditions,
+     * falling back to the better option when necessary.
+     *
+     * @param cornersOnnx   An array of 4 points representing the document corners detected using ONNX.
+     * @param cornersOpenCV An array of 4 points representing the document corners detected using OpenCV.
+     * @param w             The width of the image within which the corners were detected.
+     * @param h             The height of the image within which the corners were detected.
+     * @return An array of 4 points representing the best set of corners for the document,
+     * chosen based on a comparison between the ONNX and OpenCV results.
+     * Will return one of the arrays, depending on the conditions evaluated within the method.
+     */
     private static Point[] getBestCorners(Point[] cornersOnnx, Point[] cornersOpenCV, int w, int h) {
         Log.i(TAG, "getBestCorners()");
         if (cornersOnnx == null || cornersOnnx.length != 4) return cornersOpenCV;
@@ -577,11 +710,11 @@ public class OpenCVUtils {
             return sortPointsClockwise(cornersOnnx);
         }
 
-        cornersOnnx   = sortPointsClockwise(cornersOnnx);
+        cornersOnnx = sortPointsClockwise(cornersOnnx);
         cornersOpenCV = sortPointsClockwise(cornersOpenCV);
 
         double aOnnx = quadArea(cornersOnnx);
-        double aCv   = quadArea(cornersOpenCV);
+        double aCv = quadArea(cornersOpenCV);
 
         if (aOnnx < 0.10 * aCv) return cornersOpenCV;
 
@@ -642,23 +775,39 @@ public class OpenCVUtils {
         }
     }
 
-    // -------------------------
-    // Release helpers (no-ops for null)
-    // -------------------------
+    /**
+     * Releases the provided OpenCV Mat objects to free up memory.
+     * This method is a no-op for null inputs and handles exceptions if any occur during the release process.
+     *
+     * @param mats An array of Mat objects to be released. Null values within the array are safely ignored.
+     */
     private static void release(Mat... mats) {
         if (mats == null) return;
         for (Mat m : mats) {
             if (m != null) {
-                try { m.release(); } catch (Throwable ignore) {}
+                try {
+                    m.release();
+                } catch (Throwable ignore) {
+                }
             }
         }
     }
 
+    /**
+     * Releases all OpenCV Mat objects in the provided list to free up memory.
+     * This method safely handles null elements within the list as well as null inputs.
+     * Any exceptions during the release process are caught and ignored.
+     *
+     * @param mats A list of Mat objects to be released. If the list is null or empty, the method does nothing.
+     */
     private static void releaseAll(List<Mat> mats) {
         if (mats == null) return;
         for (Mat m : mats) {
             if (m != null) {
-                try { m.release(); } catch (Throwable ignore) {}
+                try {
+                    m.release();
+                } catch (Throwable ignore) {
+                }
             }
         }
         mats.clear();

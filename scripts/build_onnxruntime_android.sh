@@ -1,6 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Quiet mode default: reduce console output. Set VERBOSE=1 for detailed logs.
+VERBOSE="${VERBOSE:-0}"
+info() {
+  if [ "$VERBOSE" = "1" ]; then
+    echo "$@"
+  else
+    >&2 echo "$@"
+  fi
+}
+
 # ===============================
 # Reproducible build timestamp
 # ===============================
@@ -19,7 +29,7 @@ BUILD_ROOT="/tmp/onnxruntime-build"
 
 # ABIs (extend if needed)
 ABIS=("arm64-v8a" "armeabi-v7a" "x86" "x86_64")
-echo "== ONNX Runtime → ABIs: ${ABIS[*]} =="
+info "ONNX Runtime ABIs: ${ABIS[*]}"
 
 # ===============================
 # Cross-platform CPU jobs
@@ -33,17 +43,17 @@ cpu_jobs() {
 }
 JOBS="$(cpu_jobs)"
 export CMAKE_BUILD_PARALLEL_LEVEL="$JOBS"   # CMake/Ninja honor this
-echo "Parallel jobs: $JOBS"
+info "Parallel jobs: $JOBS"
 
 # ===============================
 # Prefer Ninja if available (faster), otherwise fall back
 # ===============================
 if command -v ninja >/dev/null 2>&1; then
   CMAKE_GENERATOR="Ninja"
-  echo "CMake generator: Ninja"
+  info "CMake generator: Ninja"
 else
   CMAKE_GENERATOR=""
-  echo "CMake generator: Unix Makefiles (ninja not found)"
+  info "CMake generator: Unix Makefiles (ninja not found)"
 fi
 
 # ===============================
@@ -60,7 +70,7 @@ if [ -z "${ANDROID_SDK_ROOT:-}" ]; then
     export ANDROID_SDK_ROOT="$HOME/Android/Sdk"                 # Linux default
   fi
 fi
-echo "SDK: ${ANDROID_SDK_ROOT:-UNKNOWN}"
+info "SDK: ${ANDROID_SDK_ROOT:-UNKNOWN}"
 
 # NDK home
 if [ -z "${ANDROID_NDK_HOME:-}" ]; then
@@ -80,7 +90,7 @@ if [ -z "${ANDROID_NDK_HOME:-}" ]; then
   done
 fi
 [ -z "${ANDROID_NDK_HOME:-}" ] && { echo "ERROR: ANDROID_NDK_HOME not set and no NDK found"; exit 1; }
-echo "NDK: $ANDROID_NDK_HOME"
+info "NDK: $ANDROID_NDK_HOME"
 
 # ===============================
 # JDK 17/21 (Gradle/Java)
@@ -99,8 +109,8 @@ if [ -n "${JAVA_HOME:-}" ]; then
   export PATH="$JAVA_HOME/bin:$PATH"
   export ORG_GRADLE_JAVA_HOME="$JAVA_HOME"
 fi
-echo "JAVA_HOME: ${JAVA_HOME:-unset}"
-java -version || echo "WARN: 'java' not found or wrong version (need >= 17)"
+info "JAVA_HOME: ${JAVA_HOME:-unset}"
+java -version >/dev/null 2>&1 || info "WARN: 'java' not found or wrong version (need >= 17)"
 
 # ===============================
 # Strip tool (optional)
@@ -110,7 +120,7 @@ STRIP_BIN="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/$HOST_TAG/bin/llvm-strip"
 if [ ! -x "$STRIP_BIN" ]; then
   STRIP_BIN="$(command -v llvm-strip || true)"
 fi
-[ -x "$STRIP_BIN" ] && echo "llvm-strip: $STRIP_BIN" || echo "WARN: llvm-strip not found – skipping stripping."
+[ -x "$STRIP_BIN" ] && info "llvm-strip: $STRIP_BIN" || info "WARN: llvm-strip not found – skipping stripping."
 
 # ===============================
 # Clean submodule working tree
@@ -121,7 +131,7 @@ git checkout .
 popd >/dev/null
 
 # Fresh copy of ONNX Runtime sources into a path that's stable across machines
-echo "🔄 Copying ONNX sources to $ORT_DIR ..."
+info "Copying ONNX sources to $ORT_DIR ..."
 rm -rf "$ORT_DIR"
 mkdir -p "$ORT_DIR"
 cp -a "$ORT_DIR_ORIG/." "$ORT_DIR"
@@ -133,7 +143,7 @@ rm -rf "$BUILD_ROOT"
 mkdir -p "$BUILD_ROOT" "$APP_LIBS"
 
 for ABI in "${ABIS[@]}"; do
-  echo "=== Build ONNX Runtime for $ABI (FULL, CPU-only) ==="
+  info "Building ONNX Runtime for $ABI (CPU-only)"
   ABI_BUILD_DIR="$BUILD_ROOT/$ABI"
   rm -rf "$ABI_BUILD_DIR"
   mkdir -p "$ABI_BUILD_DIR"
@@ -217,9 +227,11 @@ for ABI in "${ABIS[@]}"; do
   )
 
   pushd "$ORT_DIR" >/dev/null
+  BUILD_LOG_FILE="$ABI_BUILD_DIR/build_$ABI.log"
   python3 tools/ci_build/build.py \
     "${COMMON_ARGS[@]}" \
-    --cmake_extra_defines "${CMAKE_DEFINES[@]}"
+    --cmake_extra_defines "${CMAKE_DEFINES[@]}" \
+    >> "$BUILD_LOG_FILE" 2>&1 || { echo "ERROR: ONNX build failed for $ABI. See $BUILD_LOG_FILE" >&2; tail -n 40 "$BUILD_LOG_FILE" >&2 || true; popd >/dev/null; exit 1; }
   popd >/dev/null
 
   # Locate artifacts
@@ -228,7 +240,7 @@ for ABI in "${ABIS[@]}"; do
   [ -f "$LIB_CORE" ] || LIB_CORE="$(find "$ABI_BUILD_DIR" -type f -name 'libonnxruntime.so' -print -quit || true)"
   [ -f "$LIB_JNI"  ] || LIB_JNI="$(find "$ABI_BUILD_DIR" -type f -name 'libonnxruntime4j_jni.so' -print -quit || true)"
   if [ -z "$LIB_CORE" ] || [ -z "$LIB_JNI" ]; then
-    echo "ERROR: libonnxruntime(.so) or libonnxruntime4j_jni(.so) not found."
+    echo "ERROR: libonnxruntime(.so) or libonnxruntime4j_jni(.so) not found." >&2
     exit 1
   fi
 
@@ -251,7 +263,7 @@ for ABI in "${ABIS[@]}"; do
       --remove-section=.note.gnu.build-id \
       --remove-section=.note.gnu.property \
       "$JNI_LIBS_BASE/$ABI/libonnxruntime4j_jni.so" || true
-    echo "✅ Stripping done."
+    info "Stripping done."
   fi
 
   # Copy Java JAR once
@@ -268,8 +280,8 @@ for ABI in "${ABIS[@]}"; do
   fi
 done
 
-echo "✅ Done."
-echo "→ JAR: $APP_LIBS/onnxruntime-1.22.1.jar"
+info "Done."
+info "JAR: $APP_LIBS/onnxruntime-1.22.1.jar"
 for ABI in "${ABIS[@]}"; do
-  echo "→ SOs ($ABI): $JNI_LIBS_BASE/$ABI/libonnxruntime.so, libonnxruntime4j_jni.so"
+  info "SOs ($ABI): $JNI_LIBS_BASE/$ABI/libonnxruntime.so, libonnxruntime4j_jni.so"
 done

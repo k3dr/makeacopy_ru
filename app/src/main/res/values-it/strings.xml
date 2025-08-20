@@ -1,0 +1,59 @@
+<resources>
+    <string name="app_name">MakeACopy</string>
+
+    <!-- New menu items for document scanner -->
+    <string name="title_camera">Fotocamera</string>
+    <string name="title_crop">Ritaglia</string>
+    <string name="title_ocr">OCR</string>
+    <string name="title_export">Esporta</string>
+
+    <!-- Button labels -->
+    <string name="btn_scan">Scansiona documento</string>
+    <string name="btn_crop">Ritaglia</string>
+    <string name="btn_process">Elabora</string>
+    <string name="btn_export">Esporta</string>
+    <string name="btn_share">Condividi</string>
+
+    <!-- Messages -->
+    <string name="msg_camera_permission_required">L’autorizzazione della fotocamera è necessaria per acquisire i documenti</string>
+    <string name="confirm">Conferma</string>
+    <string name="review_your_scan_tap_confirm_to_proceed_or_retake_to_try_again">Controlla la scansione. Tocca Conferma per procedere o Rifai per riprovare.</string>
+    <string name="camera_ready_tap_the_button_to_scan_a_document">Fotocamera pronta. Tocca il pulsante per scansionare un documento.</string>
+    <string name="captured_image">Immagine acquisita</string>
+    <string name="retake">Rifai</string>
+    <string name="image_to_crop">Immagine da ritagliare</string>
+    <string name="cropped_image">Immagine ritagliata</string>
+    <string name="recrop">Ritaglia di nuovo</string>
+    <string name="document_preview">Anteprima documento</string>
+    <string name="include_ocr_text">Includi testo OCR</string>
+    <string name="language">Lingua:</string>
+    <string name="ocr_results_will_appear_here">I risultati OCR verranno visualizzati qui</string>
+    <string name="no_image_loaded_capture_an_image_first">Nessuna immagine caricata. Acquisisci prima un’immagine.</string>
+    <string name="adjust_the_trapezoid_corners_to_select_the_area_to_crop_then_tap_the_crop_button">Regola gli angoli del trapezio per selezionare l’area da ritagliare, quindi tocca il pulsante Ritaglia.</string>
+    <string name="review_your_cropped_image_tap_confirm_to_proceed_or_recrop_to_try_again">Controlla l’immagine ritagliata. Tocca Conferma per procedere o Ritaglia di nuovo per riprovare.</string>
+    <string name="no_document_ready_process_ocr_first">Nessun documento pronto. Esegui prima l’OCR.</string>
+    <string name="document_ready_for_export">Documento pronto per l’esportazione</string>
+    <string name="processing_image">Elaborazione dell’immagine…</string>
+    <string name="no_image_processed_crop_an_image_first">Nessuna immagine elaborata. Ritaglia prima un’immagine.</string>
+    <string name="ocr_processing_complete_tap_the_button_to_proceed_to_export">Elaborazione OCR completata. Tocca il pulsante per procedere all’esportazione.</string>
+
+    <string name="initializing_camera">Inizializzazione della fotocamera…</string>
+    <string name="resetting_camera">Reimpostazione della fotocamera…</string>
+    <string name="error_initializing_camera">Errore durante l’inizializzazione della fotocamera: %1$s</string>
+    <string name="error_camera_provider_null">Inizializzazione della fotocamera non riuscita: provider nullo</string>
+    <string name="error_camera_not_initialized">Fotocamera non inizializzata. Riprova.</string>
+    <string name="error_image_capture_failed">Acquisizione immagine non riuscita: %1$s</string>
+    <string name="error_displaying_image">Errore durante la visualizzazione dell’immagine: %1$s</string>
+    <string name="error_resetting_camera">Errore durante il ripristino della fotocamera: %1$s</string>
+    <string name="error_toggling_flashlight">Errore durante l’attivazione della torcia: %1$s</string>
+
+    <!-- Export options -->
+    <string name="convert_to_grayscale">Converti in scala di grigi</string>
+
+    <!-- Flashlight options -->
+    <string name="toggle_flashlight">Attiva/disattiva torcia</string>
+    <string name="flashlight_on">Torcia accesa</string>
+    <string name="flashlight_off">Torcia spenta</string>
+    <string name="flashlight_not_available">Torcia non disponibile su questo dispositivo</string>
+    <string name="low_light_detected">Scarsa luminosità rilevata. Accendere la torcia?</string>
+</resources>

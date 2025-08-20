@@ -1,0 +1,59 @@
+<resources>
+    <string name="app_name">MakeACopy</string>
+
+    <!-- New menu items for document scanner -->
+    <string name="title_camera">Cámara</string>
+    <string name="title_crop">Recortar</string>
+    <string name="title_ocr">OCR</string>
+    <string name="title_export">Exportar</string>
+
+    <!-- Button labels -->
+    <string name="btn_scan">Escanear documento</string>
+    <string name="btn_crop">Recortar</string>
+    <string name="btn_process">Procesar</string>
+    <string name="btn_export">Exportar</string>
+    <string name="btn_share">Compartir</string>
+
+    <!-- Messages -->
+    <string name="msg_camera_permission_required">Se requiere el permiso de la cámara para escanear documentos</string>
+    <string name="confirm">Confirmar</string>
+    <string name="review_your_scan_tap_confirm_to_proceed_or_retake_to_try_again">Revisa tu escaneo. Toca Confirmar para continuar o Repetir para intentarlo de nuevo.</string>
+    <string name="camera_ready_tap_the_button_to_scan_a_document">Cámara lista. Toca el botón para escanear un documento.</string>
+    <string name="captured_image">Imagen capturada</string>
+    <string name="retake">Repetir</string>
+    <string name="image_to_crop">Imagen para recortar</string>
+    <string name="cropped_image">Imagen recortada</string>
+    <string name="recrop">Volver a recortar</string>
+    <string name="document_preview">Vista previa del documento</string>
+    <string name="include_ocr_text">Incluir texto OCR</string>
+    <string name="language">Idioma:</string>
+    <string name="ocr_results_will_appear_here">Los resultados de OCR aparecerán aquí</string>
+    <string name="no_image_loaded_capture_an_image_first">No hay imagen cargada. Captura una primero.</string>
+    <string name="adjust_the_trapezoid_corners_to_select_the_area_to_crop_then_tap_the_crop_button">Ajusta las esquinas del trapecio para seleccionar el área a recortar y luego toca el botón Recortar.</string>
+    <string name="review_your_cropped_image_tap_confirm_to_proceed_or_recrop_to_try_again">Revisa tu imagen recortada. Toca Confirmar para continuar o Volver a recortar para intentarlo de nuevo.</string>
+    <string name="no_document_ready_process_ocr_first">Ningún documento listo. Realiza primero el OCR.</string>
+    <string name="document_ready_for_export">Documento listo para exportar</string>
+    <string name="processing_image">Procesando la imagen…</string>
+    <string name="no_image_processed_crop_an_image_first">No se ha procesado ninguna imagen. Recorta una primero.</string>
+    <string name="ocr_processing_complete_tap_the_button_to_proceed_to_export">Procesamiento OCR completo. Toca el botón para continuar con la exportación.</string>
+
+    <string name="initializing_camera">Inicializando la cámara…</string>
+    <string name="resetting_camera">Restableciendo la cámara…</string>
+    <string name="error_initializing_camera">Error al inicializar la cámara: %1$s</string>
+    <string name="error_camera_provider_null">Error al inicializar la cámara: el proveedor es nulo</string>
+    <string name="error_camera_not_initialized">Cámara no inicializada. Por favor, inténtalo de nuevo.</string>
+    <string name="error_image_capture_failed">Error al capturar la imagen: %1$s</string>
+    <string name="error_displaying_image">Error al mostrar la imagen: %1$s</string>
+    <string name="error_resetting_camera">Error al restablecer la cámara: %1$s</string>
+    <string name="error_toggling_flashlight">Error al activar la linterna: %1$s</string>
+
+    <!-- Export options -->
+    <string name="convert_to_grayscale">Convertir a escala de grises</string>
+
+    <!-- Flashlight options -->
+    <string name="toggle_flashlight">Activar/desactivar linterna</string>
+    <string name="flashlight_on">Linterna encendida</string>
+    <string name="flashlight_off">Linterna apagada</string>
+    <string name="flashlight_not_available">Linterna no disponible en este dispositivo</string>
+    <string name="low_light_detected">Baja luz detectada. ¿Encender la linterna?</string>
+</resources>

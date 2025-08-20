@@ -1,0 +1,59 @@
+<resources>
+    <string name="app_name">MakeACopy</string>
+
+    <!-- New menu items for document scanner -->
+    <string name="title_camera">Kamera</string>
+    <string name="title_crop">Zuschneiden</string>
+    <string name="title_ocr">OCR</string>
+    <string name="title_export">Exportieren</string>
+
+    <!-- Button labels -->
+    <string name="btn_scan">Dokument scannen</string>
+    <string name="btn_crop">Zuschneiden</string>
+    <string name="btn_process">Verarbeiten</string>
+    <string name="btn_export">Exportieren</string>
+    <string name="btn_share">Teilen</string>
+
+    <!-- Messages -->
+    <string name="msg_camera_permission_required">Kamerazugriff ist erforderlich, um Dokumente zu scannen</string>
+    <string name="confirm">Bestätigen</string>
+    <string name="review_your_scan_tap_confirm_to_proceed_or_retake_to_try_again">Überprüfe deinen Scan. Tippe auf Bestätigen, um fortzufahren, oder auf Erneut aufnehmen, um es noch einmal zu versuchen.</string>
+    <string name="camera_ready_tap_the_button_to_scan_a_document">Kamera bereit. Tippe auf die Schaltfläche, um ein Dokument zu scannen.</string>
+    <string name="captured_image">Aufgenommenes Bild</string>
+    <string name="retake">Erneut aufnehmen</string>
+    <string name="image_to_crop">Bild zum Zuschneiden</string>
+    <string name="cropped_image">Zugeschnittenes Bild</string>
+    <string name="recrop">Erneut zuschneiden</string>
+    <string name="document_preview">Dokumentvorschau</string>
+    <string name="include_ocr_text">OCR-Text einfügen</string>
+    <string name="language">Sprache:</string>
+    <string name="ocr_results_will_appear_here">OCR-Ergebnisse werden hier angezeigt</string>
+    <string name="no_image_loaded_capture_an_image_first">Kein Bild geladen. Nimm zuerst ein Bild auf.</string>
+    <string name="adjust_the_trapezoid_corners_to_select_the_area_to_crop_then_tap_the_crop_button">Passe die Trapezecken an, um den zuzuschneidenden Bereich auszuwählen, und tippe dann auf Zuschneiden.</string>
+    <string name="review_your_cropped_image_tap_confirm_to_proceed_or_recrop_to_try_again">Überprüfe dein zugeschnittenes Bild. Tippe auf Bestätigen, um fortzufahren, oder auf Erneut zuschneiden, um es noch einmal zu versuchen.</string>
+    <string name="no_document_ready_process_ocr_first">Kein Dokument bereit. Führe zuerst OCR aus.</string>
+    <string name="document_ready_for_export">Dokument zum Export bereit</string>
+    <string name="processing_image">Bild wird verarbeitet…</string>
+    <string name="no_image_processed_crop_an_image_first">Kein Bild verarbeitet. Schneide zuerst ein Bild zu.</string>
+    <string name="ocr_processing_complete_tap_the_button_to_proceed_to_export">OCR-Verarbeitung abgeschlossen. Tippe auf die Schaltfläche, um mit dem Export fortzufahren.</string>
+
+    <string name="initializing_camera">Kamera wird initialisiert…</string>
+    <string name="resetting_camera">Kamera wird zurückgesetzt…</string>
+    <string name="error_initializing_camera">Fehler bei der Initialisierung der Kamera: %1$s</string>
+    <string name="error_camera_provider_null">Initialisierung der Kamera fehlgeschlagen – Provider ist null</string>
+    <string name="error_camera_not_initialized">Kamera nicht initialisiert. Bitte versuche es erneut.</string>
+    <string name="error_image_capture_failed">Aufnahme fehlgeschlagen: %1$s</string>
+    <string name="error_displaying_image">Fehler beim Anzeigen des Bildes: %1$s</string>
+    <string name="error_resetting_camera">Fehler beim Zurücksetzen der Kamera: %1$s</string>
+    <string name="error_toggling_flashlight">Fehler beim Umschalten der Taschenlampe: %1$s</string>
+
+    <!-- Export options -->
+    <string name="convert_to_grayscale">In Graustufen konvertieren</string>
+
+    <!-- Flashlight options -->
+    <string name="toggle_flashlight">Taschenlampe umschalten</string>
+    <string name="flashlight_on">Taschenlampe an</string>
+    <string name="flashlight_off">Taschenlampe aus</string>
+    <string name="flashlight_not_available">Taschenlampe auf diesem Gerät nicht verfügbar</string>
+    <string name="low_light_detected">Schwaches Licht erkannt. Taschenlampe einschalten?</string>
+</resources>

@@ -1,0 +1,59 @@
+<resources>
+    <string name="app_name">MakeACopy</string>
+
+    <!-- New menu items for document scanner -->
+    <string name="title_camera">Appareil photo</string>
+    <string name="title_crop">Recadrer</string>
+    <string name="title_ocr">OCR</string>
+    <string name="title_export">Exporter</string>
+
+    <!-- Button labels -->
+    <string name="btn_scan">Scanner le document</string>
+    <string name="btn_crop">Recadrer</string>
+    <string name="btn_process">Traiter</string>
+    <string name="btn_export">Exporter</string>
+    <string name="btn_share">Partager</string>
+
+    <!-- Messages -->
+    <string name="msg_camera_permission_required">L’autorisation de la caméra est requise pour scanner des documents</string>
+    <string name="confirm">Confirmer</string>
+    <string name="review_your_scan_tap_confirm_to_proceed_or_retake_to_try_again">Vérifiez votre scan. Touchez Confirmer pour continuer ou Reprendre pour réessayer.</string>
+    <string name="camera_ready_tap_the_button_to_scan_a_document">Caméra prête. Touchez le bouton pour scanner un document.</string>
+    <string name="captured_image">Image capturée</string>
+    <string name="retake">Reprendre</string>
+    <string name="image_to_crop">Image à recadrer</string>
+    <string name="cropped_image">Image recadrée</string>
+    <string name="recrop">Recadrer à nouveau</string>
+    <string name="document_preview">Aperçu du document</string>
+    <string name="include_ocr_text">Inclure le texte OCR</string>
+    <string name="language">Langue :</string>
+    <string name="ocr_results_will_appear_here">Les résultats OCR apparaîtront ici</string>
+    <string name="no_image_loaded_capture_an_image_first">Aucune image chargée. Capturez d’abord une image.</string>
+    <string name="adjust_the_trapezoid_corners_to_select_the_area_to_crop_then_tap_the_crop_button">Ajustez les coins du trapèze pour sélectionner la zone à recadrer, puis touchez le bouton Recadrer.</string>
+    <string name="review_your_cropped_image_tap_confirm_to_proceed_or_recrop_to_try_again">Vérifiez votre image recadrée. Touchez Confirmer pour continuer ou Recadrer à nouveau pour réessayer.</string>
+    <string name="no_document_ready_process_ocr_first">Aucun document prêt. Effectuez d’abord l’OCR.</string>
+    <string name="document_ready_for_export">Document prêt pour l’exportation</string>
+    <string name="processing_image">Traitement de l’image…</string>
+    <string name="no_image_processed_crop_an_image_first">Aucune image traitée. Recadrez d’abord une image.</string>
+    <string name="ocr_processing_complete_tap_the_button_to_proceed_to_export">Traitement OCR terminé. Touchez le bouton pour passer à l’exportation.</string>
+
+    <string name="initializing_camera">Initialisation de la caméra…</string>
+    <string name="resetting_camera">Réinitialisation de la caméra…</string>
+    <string name="error_initializing_camera">Erreur lors de l’initialisation de la caméra : %1$s</string>
+    <string name="error_camera_provider_null">Échec de l’initialisation de la caméra – le fournisseur est nul</string>
+    <string name="error_camera_not_initialized">Caméra non initialisée. Veuillez réessayer.</string>
+    <string name="error_image_capture_failed">Échec de la capture de l’image : %1$s</string>
+    <string name="error_displaying_image">Erreur d’affichage de l’image : %1$s</string>
+    <string name="error_resetting_camera">Erreur lors de la réinitialisation de la caméra : %1$s</string>
+    <string name="error_toggling_flashlight">Erreur lors de l’activation de la lampe : %1$s</string>
+
+    <!-- Export options -->
+    <string name="convert_to_grayscale">Convertir en niveaux de gris</string>
+
+    <!-- Flashlight options -->
+    <string name="toggle_flashlight">Activer/désactiver la lampe</string>
+    <string name="flashlight_on">Lampe allumée</string>
+    <string name="flashlight_off">Lampe éteinte</string>
+    <string name="flashlight_not_available">Lampe non disponible sur cet appareil</string>
+    <string name="low_light_detected">Faible luminosité détectée. Allumer la lampe ?</string>
+</resources>

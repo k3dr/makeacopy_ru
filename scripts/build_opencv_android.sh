@@ -12,16 +12,14 @@ info() {
   fi
 }
 
+# ===
+# ABIs (extend if needed)
+ABIS="${ABIS:-arm64-v8a armeabi-v7a x86 x86_64}"
+info "ABIS: [$ABIS]"
+
 # ==== Reproducible build timestamp ====
 # This ensures deterministic timestamps in builds (for reproducibility)
 export SOURCE_DATE_EPOCH=1700000000
-export TZ=UTC
-export LC_ALL=C
-
-# Parallel-Jobs (Cross-Platform)
-CORES="$(getconf _NPROCESSORS_ONLN 2>/dev/null || nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 1)"
-info "Parallel compile jobs: $CORES"
-
 
 # ==== Absolute paths ====
 SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
@@ -195,7 +193,6 @@ build_for_arch() {
   export ZERO_AR_DATE=1
   info "Configuring CMake for $arch..."
   "$CMAKE_PATH" \
-    -G Ninja \
     -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake" \
     -DANDROID_ABI="$arch" \
     -DANDROID_NATIVE_API_LEVEL=21 \
@@ -240,9 +237,6 @@ build_for_arch() {
     -DCMAKE_CXX_ARCHIVE_CREATE="<CMAKE_AR> qcD <TARGET> <LINK_FLAGS> <OBJECTS>" \
     -DCMAKE_CXX_ARCHIVE_FINISH=":" \
     -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
-    -DCMAKE_JOB_POOLS="compile=${CORES};link=1" \
-    -DCMAKE_JOB_POOL_COMPILE=compile \
-    -DCMAKE_JOB_POOL_LINK=link \
     "$OPENCV_DIR" >> "$arch_log" 2>&1
 
   if [ $? -ne 0 ]; then
@@ -252,18 +246,18 @@ build_for_arch() {
     return 1
   fi
 
-  # Append a fix to Gradle file to ensure Kotlin uses correct JVM target (quiet)
-  cat >> "$arch_build_dir/opencv_android/opencv/build.gradle" <<'GRADLE_APPEND'
+  # Append a fix to Gradle file to ensure Kotlin uses correct JVM target
+  echo "
+  tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+      kotlinOptions {
+          jvmTarget = '17'
+          println '✅ Set Kotlin JVM target to 17 for task'
+      }
+  }
+  " | tee -a "$arch_build_dir/opencv_android/opencv/build.gradle"
 
-tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
-    kotlinOptions {
-        jvmTarget = '17'
-    }
-}
-GRADLE_APPEND
-
-  info "Building OpenCV for $arch with Ninja..."
-  if ! ninja -j"$CORES" >> "$arch_log" 2>&1; then
+  info "Building OpenCV for $arch (single-threaded)..."
+  if ! make -j1 >> "$arch_log" 2>&1; then
     echo "Build failed for $arch" >&2
     tail -n 20 "$arch_log" >&2
     cd "$SCRIPT_DIR"
@@ -301,7 +295,7 @@ GRADLE_APPEND
 info "Building OpenCV for all target ABIs..."
 BUILD_FAILED=0
 
-for ARCH in "arm64-v8a" "armeabi-v7a" "x86" "x86_64"; do
+for ARCH in $ABIS; do
   build_for_arch "$ARCH" || BUILD_FAILED=1
 done
 

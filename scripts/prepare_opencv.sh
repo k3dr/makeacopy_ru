@@ -6,7 +6,8 @@ echo "🔧 Preparing OpenCV native libraries for the app..."
 SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 BUILD_BASE="/tmp/opencv-build"
 JNILIBS_DIR="$SCRIPT_DIR/app/src/main/jniLibs"
-ARCHS=(arm64-v8a armeabi-v7a x86 x86_64)
+# ABIs (extend if needed)
+ABIS="${ABIS:-arm64-v8a armeabi-v7a x86 x86_64}"
 
 # Clean existing jniLibs directory
 echo "🧹 Cleaning jniLibs directory..."
@@ -45,7 +46,7 @@ copy_libs() {
   fi
 }
 
-for ARCH in "${ARCHS[@]}"; do
+for ARCH in $ABIS; do
   copy_libs "$ARCH"
 done
 

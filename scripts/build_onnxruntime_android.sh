@@ -28,8 +28,8 @@ APP_LIBS="$REPO_DIR/app/libs"
 BUILD_ROOT="/tmp/onnxruntime-build"
 
 # ABIs (extend if needed)
-ABIS=("arm64-v8a" "armeabi-v7a" "x86" "x86_64")
-info "ONNX Runtime ABIs: ${ABIS[*]}"
+ABIS="${ABIS:-arm64-v8a armeabi-v7a x86 x86_64}"
+info "ONNX Runtime ABIs: $ABIS"
 
 # ===============================
 # Cross-platform CPU jobs
@@ -142,7 +142,7 @@ cp -a "$ORT_DIR_ORIG/." "$ORT_DIR"
 rm -rf "$BUILD_ROOT"
 mkdir -p "$BUILD_ROOT" "$APP_LIBS"
 
-for ABI in "${ABIS[@]}"; do
+for ABI in $ABIS; do
   info "Building ONNX Runtime for $ABI (CPU-only)"
   ABI_BUILD_DIR="$BUILD_ROOT/$ABI"
   rm -rf "$ABI_BUILD_DIR"
@@ -282,6 +282,6 @@ done
 
 info "Done."
 info "JAR: $APP_LIBS/onnxruntime-1.22.1.jar"
-for ABI in "${ABIS[@]}"; do
+for ABI in $ABIS; do
   info "SOs ($ABI): $JNI_LIBS_BASE/$ABI/libonnxruntime.so, libonnxruntime4j_jni.so"
 done

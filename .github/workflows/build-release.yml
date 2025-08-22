@@ -30,9 +30,20 @@ jobs:
         env:
           ANDROID_SDK_ROOT: ${{ env.ANDROID_HOME }}
 
-      # ANDROID_NDK_HOME für nachfolgende Schritte exportieren
-      - name: Export ANDROID_NDK_HOME for scripts
-        run: echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.3.13750724" >> $GITHUB_ENV
+      # SDK-CMake >= 3.28 installieren (z. B. 3.31.1)
+      - name: Install Android SDK CMake 3.31.1
+        run: |
+          yes | ${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager --sdk_root=${ANDROID_HOME} "cmake;3.31.1"
+        env:
+          ANDROID_SDK_ROOT: ${{ env.ANDROID_HOME }}
+
+      # ANDROID_NDK_HOME / ANDROID_SDK_ROOT / ORT_CMAKE exportieren
+      - name: Export ANDROID_* and ORT_CMAKE for scripts
+        run: |
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.3.13750724" >> $GITHUB_ENV
+          echo "ANDROID_SDK_ROOT=$ANDROID_HOME" >> $GITHUB_ENV
+          echo "ORT_CMAKE=$ANDROID_HOME/cmake/3.31.1/bin/cmake" >> $GITHUB_ENV
+          $ANDROID_HOME/cmake/3.31.1/bin/cmake --version
 
       - name: Check installed NDK
         run: ls -l $ANDROID_NDK_HOME

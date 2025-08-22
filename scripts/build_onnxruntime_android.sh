@@ -137,6 +137,49 @@ mkdir -p "$ORT_DIR"
 cp -a "$ORT_DIR_ORIG/." "$ORT_DIR"
 
 # ===============================
+# Pick a CMake >= 3.28 ONLY for ONNX Runtime
+# (prefer Android SDK; allow override via ORT_CMAKE)
+# ===============================
+ver_ge() {  # returns 0 if $1 >= $2
+  [ "$(printf '%s\n' "$1" "$2" | sort -V | head -n1)" = "$2" ]
+}
+
+pick_sdk_cmake() {
+  local sdk="${ANDROID_SDK_ROOT:-/opt/android-sdk}"
+  if [ -d "$sdk/cmake" ]; then
+    local cand
+    cand=$(find "$sdk/cmake" -maxdepth 1 -type d -name "[0-9]*" | sort -V | tail -n1)
+    if [ -n "$cand" ] && [ -x "$cand/bin/cmake" ]; then
+      echo "$cand/bin/cmake"
+      return 0
+    fi
+  fi
+  return 1
+}
+
+if [ -n "${ORT_CMAKE:-}" ] && [ -x "${ORT_CMAKE:-}" ]; then
+  CMAKE_PATH="$ORT_CMAKE"
+else
+  CMAKE_PATH="$(pick_sdk_cmake || true)"
+  if [ -z "${CMAKE_PATH:-}" ]; then
+    CMAKE_PATH="$(command -v cmake || true)"
+  fi
+fi
+
+if [ -z "${CMAKE_PATH:-}" ]; then
+  echo "ERROR: cmake not found (need >= 3.28 for ONNX Runtime)" >&2
+  exit 1
+fi
+
+cmv="$("$CMAKE_PATH" --version | awk '/version/{print $3; exit}')"
+info "CMake for ORT: $CMAKE_PATH (version $cmv)"
+if ! ver_ge "$cmv" "3.28.0"; then
+  echo "ERROR: CMake $cmv < 3.28.0 for ONNX Runtime." >&2
+  echo "       Install SDK cmake >= 3.28 (e.g. ANDROID_SDK_ROOT/cmake/3.31.x) or set ORT_CMAKE=<path>." >&2
+  exit 1
+fi
+
+# ===============================
 # Build per ABI (FULL, CPU-only, Java)
 # ===============================
 rm -rf "$BUILD_ROOT"
@@ -230,6 +273,7 @@ for ABI in $ABIS; do
   BUILD_LOG_FILE="$ABI_BUILD_DIR/build_$ABI.log"
   python3 tools/ci_build/build.py \
     "${COMMON_ARGS[@]}" \
+    --cmake_path "$CMAKE_PATH" \
     --cmake_extra_defines "${CMAKE_DEFINES[@]}" \
     >> "$BUILD_LOG_FILE" 2>&1 || { echo "ERROR: ONNX build failed for $ABI. See $BUILD_LOG_FILE" >&2; tail -n 40 "$BUILD_LOG_FILE" >&2 || true; popd >/dev/null; exit 1; }
   popd >/dev/null

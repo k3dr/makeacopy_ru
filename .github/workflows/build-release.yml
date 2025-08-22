@@ -23,6 +23,13 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
+      - name: Ensure Ninja
+        run: |
+          if ! command -v ninja >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y ninja-build
+          fi
+
       # NDK installieren
       - name: Install Android SDK NDK 27.3.13750724
         run: |
@@ -37,16 +44,21 @@ jobs:
         env:
           ANDROID_SDK_ROOT: ${{ env.ANDROID_HOME }}
 
-      # ANDROID_NDK_HOME / ANDROID_SDK_ROOT / ORT_CMAKE exportieren
-      - name: Export ANDROID_* and ORT_CMAKE for scripts
+      # ANDROID_* / CMake-Paths exportieren
+      - name: Export ANDROID_* and *CMAKE* for scripts
         run: |
           echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.3.13750724" >> $GITHUB_ENV
           echo "ANDROID_SDK_ROOT=$ANDROID_HOME" >> $GITHUB_ENV
           echo "ORT_CMAKE=$ANDROID_HOME/cmake/3.31.1/bin/cmake" >> $GITHUB_ENV
+          echo "OPENCV_CMAKE=$ANDROID_HOME/cmake/3.31.1/bin/cmake" >> $GITHUB_ENV
           $ANDROID_HOME/cmake/3.31.1/bin/cmake --version
 
       - name: Check installed NDK
         run: ls -l $ANDROID_NDK_HOME
+
+      # (optional) Nur arm64-v8a auf CI bauen – auskommentiert lassen, wenn alle ABIs gewünscht
+      # - name: Limit ABIs to arm64-v8a
+      #   run: echo "ABIS=arm64-v8a" >> $GITHUB_ENV
 
       - name: Build OpenCV native libraries
         run: |
@@ -93,9 +105,7 @@ jobs:
       - name: Build (unsigned) – PRs/branches
         if: ${{ !startsWith(github.ref, 'refs/tags/') }}
         run: |
-          # 1) AAB ohne ABI-Splits
           ./gradlew --no-daemon clean bundleRelease -PenableAbiSplits=false
-          # 2) APKs mit ABI-Splits
           ./gradlew --no-daemon assembleRelease -PenableAbiSplits=true
 
       # Build (signed) – tags
@@ -112,9 +122,7 @@ jobs:
           else
             echo "Signing secrets missing → building unsigned even for tag."
           fi
-          # 1) AAB ohne ABI-Splits (signiert, falls Secrets vorhanden)
           ./gradlew --no-daemon clean bundleRelease -PenableAbiSplits=false $EXTRA_PROPS
-          # 2) APKs mit ABI-Splits (signiert, falls Secrets vorhanden)
           ./gradlew --no-daemon assembleRelease -PenableAbiSplits=true $EXTRA_PROPS
 
       - name: Rename artifacts
@@ -123,11 +131,9 @@ jobs:
           VERSION="${{ steps.extract_version.outputs.VERSION }}"
           APK_OUT="app/build/outputs/apk/release"
           AAB_OUT="app/build/outputs/bundle/release"
-          # AAB
           if [ -f "$AAB_OUT/app-release.aab" ]; then
             mv "$AAB_OUT/app-release.aab" "$AAB_OUT/MakeACopy-v${VERSION}-release.aab"
           fi
-          # APK-Splits
           shopt -s nullglob
           for apk in "$APK_OUT"/app-*-release.apk; do
             abi=$(basename "$apk" | sed -n 's/^app-\(.*\)-release\.apk$/\1/p')

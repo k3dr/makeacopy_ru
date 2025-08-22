@@ -18,8 +18,10 @@ ABIS="${ABIS:-arm64-v8a armeabi-v7a x86 x86_64}"
 info "ABIS: [$ABIS]"
 
 # ==== Reproducible build timestamp ====
-# This ensures deterministic timestamps in builds (for reproducibility)
 export SOURCE_DATE_EPOCH=1700000000
+export TZ=UTC
+export LC_ALL=C
+export LANG=C
 
 # ==== Absolute paths ====
 SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
@@ -28,13 +30,11 @@ BUILD_DIR="/tmp/opencv-build"
 OPENCV_DIR="/tmp/opencv-src"
 
 # ==== Clean OpenCV sources ====
-# Removes all untracked files and directories (ensures clean state)
 cd "$OPENCV_DIR_ORIG"
 git clean -xfd
 git checkout .
 
 # ==== Copy OpenCV sources to build directory ====
-# This ensures we have a clean copy of the OpenCV sources for building
 info "Copying OpenCV sources to $OPENCV_DIR..."
 rm -rf "$OPENCV_DIR"
 mkdir -p "$OPENCV_DIR"
@@ -46,7 +46,6 @@ cp -a "$OPENCV_DIR_ORIG/." "$OPENCV_DIR"
 OPENCV_UTILS="$OPENCV_DIR/cmake/OpenCVUtils.cmake"
 BACKUP_UTILS="${OPENCV_UTILS}.bak"
 
-# macOS-kompatible sed
 sedi() {
   if sed --version >/dev/null 2>&1; then
     sed -i "$@"
@@ -57,11 +56,7 @@ sedi() {
 
 info "Patching ocv_output_status() in $OPENCV_UTILS..."
 cp "$OPENCV_UTILS" "$BACKUP_UTILS"
-
-# Delete original function
 sedi '/^[[:space:]]*function(ocv_output_status/,/^[[:space:]]*endfunction/ d' "$OPENCV_UTILS"
-
-# Append replacement at the end of the file
 cat <<'EOF' >> "$OPENCV_UTILS"
 
 # Patched: deterministic ocv_output_status()
@@ -69,21 +64,17 @@ function(ocv_output_status msg)
   set(OPENCV_BUILD_INFO_STR "\"OpenCV 4.12.0 (reproducible build)\\n\"" CACHE INTERNAL "")
 endfunction()
 EOF
-
 info "ocv_output_status() patched."
 
 # ==== Error handler ====
-# Function to report errors with helpful context
 log_error() {
   echo "ERROR: $1"
   echo "Please check the full build log for more details."
   echo "If you're using a different NDK version and experiencing issues, try using NDK version 27.3.13750724 instead."
 }
-# Triggers error function if any command fails
 trap 'log_error "Build failed at line $LINENO"' ERR
 
 # ==== Find ANDROID_NDK_HOME if not already set ====
-# Try several common locations in SDK directories
 if [ -z "$ANDROID_NDK_HOME" ]; then
   if [ -n "$ANDROID_SDK_ROOT" ]; then
     if [ -d "$ANDROID_SDK_ROOT/ndk" ]; then
@@ -147,30 +138,81 @@ if [ -z "$ANDROID_SDK_ROOT" ]; then
   fi
 fi
 
-# ==== Find CMake binary ====
-CMAKE_PATH=""
-if [ -n "$ANDROID_SDK_ROOT" ]; then
-  if [ -d "$ANDROID_SDK_ROOT/cmake" ]; then
+# ==== Pick CMake for OpenCV (pin via OPENCV_CMAKE; optional version guard) ====
+if [ -z "${OPENCV_CMAKE:-}" ]; then
+  if [ -n "$ANDROID_SDK_ROOT" ] && [ -d "$ANDROID_SDK_ROOT/cmake" ]; then
     LATEST_CMAKE_DIR=$(find "$ANDROID_SDK_ROOT/cmake" -maxdepth 1 -type d -name "[0-9]*" | sort -Vr | head -n 1)
-    if [ -n "$LATEST_CMAKE_DIR" ] && [ -d "$LATEST_CMAKE_DIR/bin" ]; then
-      if [ -x "$LATEST_CMAKE_DIR/bin/cmake" ]; then
-        CMAKE_PATH="$LATEST_CMAKE_DIR/bin/cmake"
-        info "Found CMake in Android SDK at $CMAKE_PATH"
-      fi
+    if [ -n "$LATEST_CMAKE_DIR" ] && [ -x "$LATEST_CMAKE_DIR/bin/cmake" ]; then
+      OPENCV_CMAKE="$LATEST_CMAKE_DIR/bin/cmake"
+      info "Found SDK CMake for OpenCV at $OPENCV_CMAKE"
     fi
   fi
 fi
-if [ -z "$CMAKE_PATH" ]; then
-  CMAKE_PATH=$(which cmake 2>/dev/null)
-  if [ -n "$CMAKE_PATH" ]; then
-    info "Found system CMake at $CMAKE_PATH"
-  fi
+if [ -z "${OPENCV_CMAKE:-}" ]; then
+  OPENCV_CMAKE="$(command -v cmake 2>/dev/null || true)"
+  [ -n "$OPENCV_CMAKE" ] && info "Using system CMake for OpenCV at $OPENCV_CMAKE"
 fi
-if [ -z "$CMAKE_PATH" ]; then
-  echo "ERROR: CMake not found. Please install CMake."
+if [ -z "${OPENCV_CMAKE:-}" ] || [ ! -x "$OPENCV_CMAKE" ]; then
+  echo "ERROR: CMake for OpenCV not found. Please set OPENCV_CMAKE." >&2
   exit 1
 fi
-info "Using CMake at: $CMAKE_PATH"
+
+OPENCV_CMAKE_VER="$("$OPENCV_CMAKE" --version | awk '/version/{print $3; exit}')"
+info "OpenCV CMake: $OPENCV_CMAKE (version $OPENCV_CMAKE_VER)"
+if [ -n "${OPENCV_CMAKE_REQ:-}" ] && [ "$OPENCV_CMAKE_VER" != "$OPENCV_CMAKE_REQ" ]; then
+  echo "ERROR: OpenCV CMake $OPENCV_CMAKE_VER != required $OPENCV_CMAKE_REQ" >&2
+  exit 1
+fi
+
+# ==== Robust toolchain dir detection (darwin-aarch64, darwin-x86_64, linux-x86_64) ====
+PREBUILT_BASE="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt"
+
+detect_toolchain_dir() {
+  local host_os host_arch
+  case "$(uname -s)" in
+    Darwin) host_os=darwin ;;
+    Linux)  host_os=linux  ;;
+    *)      host_os=linux  ;;
+  esac
+  # NDK nutzt "aarch64" (nicht "arm64") als Verzeichnisname
+  case "$(uname -m)" in
+    arm64|aarch64) host_arch=aarch64 ;;
+    x86_64|amd64)  host_arch=x86_64  ;;
+    *)             host_arch=x86_64  ;;
+  esac
+
+  # 1) Bevorzugte Kandidaten in Reihenfolge prüfen
+  for cand in \
+      "$PREBUILT_BASE/${host_os}-${host_arch}" \
+      "$PREBUILT_BASE/${host_os}-aarch64" \
+      "$PREBUILT_BASE/${host_os}-arm64" \
+      "$PREBUILT_BASE/${host_os}-x86_64"
+  do
+    if [ -x "$cand/bin/llvm-ar" ]; then
+      echo "$cand"
+      return 0
+    fi
+  done
+
+  # 2) Fallback: irgendein passendes Verzeichnis mit llvm-ar nehmen
+  local any
+  any="$(find "$PREBUILT_BASE" -maxdepth 1 -type d -name "${host_os}-*" 2>/dev/null | while read -r d; do
+    [ -x "$d/bin/llvm-ar" ] && echo "$d" && break
+  done)"
+  if [ -n "$any" ]; then
+    echo "$any"
+    return 0
+  fi
+
+  return 1
+}
+
+TOOLCHAIN_DIR="$(detect_toolchain_dir || true)"
+if [ -z "$TOOLCHAIN_DIR" ]; then
+  echo "ERROR: Could not locate NDK toolchain dir with llvm-ar under $PREBUILT_BASE" >&2
+  exit 1
+fi
+info "Using NDK toolchain: $TOOLCHAIN_DIR"
 
 # ==== Set log file for the build ====
 BUILD_LOG="$BUILD_DIR/opencv_build.log"
@@ -189,13 +231,25 @@ build_for_arch() {
   local arch_log="$arch_build_dir/opencv_build_$arch.log"
   echo "$(date): Starting OpenCV build for $arch" > "$arch_log"
 
-  # Configure CMake with appropriate options for Android
   export ZERO_AR_DATE=1
   info "Configuring CMake for $arch..."
-  "$CMAKE_PATH" \
+
+  local AR_BIN="$TOOLCHAIN_DIR/bin/llvm-ar"
+  local RANLIB_BIN="$TOOLCHAIN_DIR/bin/llvm-ranlib"
+  if [ ! -x "$AR_BIN" ] || [ ! -x "$RANLIB_BIN" ]; then
+    echo "ERROR: llvm-ar/llvm-ranlib not found under $TOOLCHAIN_DIR/bin" >&2
+    exit 1
+  fi
+
+  # Ensure library target dirs exist
+  mkdir -p "$arch_build_dir/3rdparty/lib/$arch" "$arch_build_dir/lib/$arch"
+
+  "$OPENCV_CMAKE" -G "Unix Makefiles" \
     -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake" \
     -DANDROID_ABI="$arch" \
     -DANDROID_NATIVE_API_LEVEL=21 \
+    -DCMAKE_AR="$AR_BIN" \
+    -DCMAKE_RANLIB="$RANLIB_BIN" \
     -DCMAKE_C_FLAGS="-g0 -fdebug-prefix-map=$OPENCV_DIR=. -ffile-prefix-map=$OPENCV_DIR=. " \
     -DCMAKE_CXX_FLAGS="-g0 -fdebug-prefix-map=$OPENCV_DIR=. -ffile-prefix-map=$OPENCV_DIR=. " \
     -DCMAKE_BUILD_TYPE=Release \
@@ -241,49 +295,44 @@ build_for_arch() {
 
   if [ $? -ne 0 ]; then
     log_error "CMake configuration for $arch failed. See $arch_log for details."
-    tail -n 20 "$arch_log" >&2
+    tail -n 50 "$arch_log" >&2
     cd "$SCRIPT_DIR"
     return 1
   fi
 
-  # Append a fix to Gradle file to ensure Kotlin uses correct JVM target
+  # Gradle Kotlin jvmTarget safety
   echo "
   tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
-      kotlinOptions {
-          jvmTarget = '17'
-          println '✅ Set Kotlin JVM target to 17 for task'
-      }
+      kotlinOptions { jvmTarget = '17' }
   }
-  " | tee -a "$arch_build_dir/opencv_android/opencv/build.gradle"
+  " | tee -a "$arch_build_dir/opencv_android/opencv/build.gradle" >/dev/null
 
   info "Building OpenCV for $arch (single-threaded)..."
   if ! make -j1 >> "$arch_log" 2>&1; then
     echo "Build failed for $arch" >&2
-    tail -n 20 "$arch_log" >&2
+    tail -n 50 "$arch_log" >&2
     cd "$SCRIPT_DIR"
     return 1
   fi
-  # Copy the built libraries to the build directory
+
   mkdir -p "$BUILD_DIR/lib/$arch"
   info "Copying shared libraries for $arch..."
   find . -name "*.so" -exec cp -f {} "$BUILD_DIR/lib/$arch/" \;
 
-  # Strip debug symbols to reduce file size
-  HOST_TAG="$(uname | tr '[:upper:]' '[:lower:]')-x86_64"
-  STRIP="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/$HOST_TAG/bin/llvm-strip"
+  local STRIP="$TOOLCHAIN_DIR/bin/llvm-strip"
   if [ -x "$STRIP" ]; then
-      info "Stripping debug and metadata sections from $arch libraries..."
-      find "$BUILD_DIR/lib/$arch" -name "*.so" -exec "$STRIP" \
-          --strip-all \
-          --remove-section=.comment \
-          --remove-section=.note \
-          --remove-section=.note.gnu.build-id \
-          --remove-section=.note.gnu.property \
-          --remove-section=.note.ABI-tag \
-          {} \;
-      info "Stripped and cleaned $arch libraries for reproducibility."
+    info "Stripping debug and metadata sections from $arch libraries..."
+    find "$BUILD_DIR/lib/$arch" -name "*.so" -exec "$STRIP" \
+      --strip-all \
+      --remove-section=.comment \
+      --remove-section=.note \
+      --remove-section=.note.gnu.build-id \
+      --remove-section=.note.gnu.property \
+      --remove-section=.note.ABI-tag \
+      {} \;
+    info "Stripped and cleaned $arch libraries for reproducibility."
   else
-      echo "⚠️ Warning: Strip tool not found at $STRIP. Skipping stripping for $arch."
+    echo "⚠️ Warning: Strip tool not found at $STRIP. Skipping stripping for $arch."
   fi
 
   cd "$SCRIPT_DIR"
@@ -291,7 +340,7 @@ build_for_arch() {
   return 0
 }
 
-# ==== Build loop for all architectures ====
+# ==== Build loop for all target ABIs ====
 info "Building OpenCV for all target ABIs..."
 BUILD_FAILED=0
 
@@ -300,10 +349,10 @@ for ARCH in $ABIS; do
 done
 
 if [ $BUILD_FAILED -eq 0 ]; then
-  info "OpenCV for Android built successfully."
+  info "✅ OpenCV for Android built successfully."
   echo "$(date): Build completed successfully." >> "$BUILD_LOG"
 else
-  echo "Error: Some builds failed." >&2
+  echo "❌ Error: Some builds failed." >&2
   exit 1
 fi
 

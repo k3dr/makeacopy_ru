@@ -1,6 +1,5 @@
 #!/bin/bash
-set -o pipefail  # Fail if any command in a pipeline fails
-
+set -Eeuo pipefail  # robust: exit on errors, undefined vars, pipe fails
 # Quiet mode: reduce console noise by default. Set VERBOSE=1 to stream more info.
 VERBOSE="${VERBOSE:-0}"
 info() {
@@ -22,6 +21,7 @@ export SOURCE_DATE_EPOCH=1700000000
 export TZ=UTC
 export LC_ALL=C
 export LANG=C
+export PYTHONHASHSEED=0
 
 # ==== Absolute paths ====
 SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
@@ -71,6 +71,7 @@ log_error() {
   echo "ERROR: $1"
   echo "Please check the full build log for more details."
   echo "If you're using a different NDK version and experiencing issues, try using NDK version 27.3.13750724 instead."
+  exit 1
 }
 trap 'log_error "Build failed at line $LINENO"' ERR
 
@@ -232,6 +233,8 @@ build_for_arch() {
   echo "$(date): Starting OpenCV build for $arch" > "$arch_log"
 
   export ZERO_AR_DATE=1
+  PY3_BIN="${PY3_BIN:-$(command -v python3)}"
+  info "Python: $($PY3_BIN --version 2>&1)"
   info "Configuring CMake for $arch..."
 
   local AR_BIN="$TOOLCHAIN_DIR/bin/llvm-ar"
@@ -250,6 +253,10 @@ build_for_arch() {
     -DANDROID_NATIVE_API_LEVEL=21 \
     -DCMAKE_AR="$AR_BIN" \
     -DCMAKE_RANLIB="$RANLIB_BIN" \
+    -DPYTHON_DEFAULT_EXECUTABLE="$PY3_BIN" \
+    -DPython3_EXECUTABLE="$PY3_BIN" \
+    -DBUILD_opencv_python3=OFF \
+    -DBUILD_opencv_python_bindings_generator=OFF \
     -DCMAKE_C_FLAGS="-g0 -fdebug-prefix-map=$OPENCV_DIR=. -ffile-prefix-map=$OPENCV_DIR=. " \
     -DCMAKE_CXX_FLAGS="-g0 -fdebug-prefix-map=$OPENCV_DIR=. -ffile-prefix-map=$OPENCV_DIR=. " \
     -DCMAKE_BUILD_TYPE=Release \

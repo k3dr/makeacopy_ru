@@ -23,12 +23,11 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Ensure Ninja
-        run: |
-          if ! command -v ninja >/dev/null 2>&1; then
-            sudo apt-get update
-            sudo apt-get install -y ninja-build
-          fi
+      # Python für deterministische CMake-Skripte pinnen (nur Host-Interpreter, keine Py-Bindings)
+      - name: Set up Python 3.11.2
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11.2'
 
       # NDK installieren
       - name: Install Android SDK NDK 27.3.13750724
@@ -45,20 +44,22 @@ jobs:
           ANDROID_SDK_ROOT: ${{ env.ANDROID_HOME }}
 
       # ANDROID_* / CMake-Paths exportieren
-      - name: Export ANDROID_* and *CMAKE* for scripts
+      - name: ANDROID_* / CMAKE / PY3_BIN exportieren
         run: |
           echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.3.13750724" >> $GITHUB_ENV
           echo "ANDROID_SDK_ROOT=$ANDROID_HOME" >> $GITHUB_ENV
           echo "ORT_CMAKE=$ANDROID_HOME/cmake/3.31.6/bin/cmake" >> $GITHUB_ENV
           echo "OPENCV_CMAKE=$ANDROID_HOME/cmake/3.31.6/bin/cmake" >> $GITHUB_ENV
+          echo "PY3_BIN=$(which python3)" >> $GITHUB_ENV
           $ANDROID_HOME/cmake/3.31.6/bin/cmake --version
+          python3 --version
 
       - name: Check installed NDK
         run: ls -l $ANDROID_NDK_HOME
 
       # (optional) Nur arm64-v8a auf CI bauen – auskommentiert lassen, wenn alle ABIs gewünscht
-      # - name: Limit ABIs to arm64-v8a
-      #   run: echo "ABIS=arm64-v8a" >> $GITHUB_ENV
+      - name: Limit ABIs to arm64-v8a
+        run: echo "ABIS=arm64-v8a" >> $GITHUB_ENV
 
       - name: Build OpenCV native libraries
         run: |

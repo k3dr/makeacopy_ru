@@ -51,7 +51,7 @@ jobs:
           echo "ANDROID_SDK_ROOT=$ANDROID_HOME" >> $GITHUB_ENV
           echo "ORT_CMAKE=$ANDROID_HOME/cmake/3.31.6/bin/cmake" >> $GITHUB_ENV
           echo "OPENCV_CMAKE=$ANDROID_HOME/cmake/3.31.6/bin/cmake" >> $GITHUB_ENV
-          $ANDROID_HOME/cmake/3.31.1/bin/cmake --version
+          $ANDROID_HOME/cmake/3.31.6/bin/cmake --version
 
       - name: Check installed NDK
         run: ls -l $ANDROID_NDK_HOME

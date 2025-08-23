@@ -1,5 +1,7 @@
 #!/bin/bash
 set -Eeuo pipefail  # robust: exit on errors, undefined vars, pipe fails
+umask 022
+
 # Quiet mode: reduce console noise by default. Set VERBOSE=1 to stream more info.
 VERBOSE="${VERBOSE:-0}"
 info() {
@@ -175,14 +177,11 @@ detect_toolchain_dir() {
     Linux)  host_os=linux  ;;
     *)      host_os=linux  ;;
   esac
-  # NDK nutzt "aarch64" (nicht "arm64") als Verzeichnisname
   case "$(uname -m)" in
     arm64|aarch64) host_arch=aarch64 ;;
     x86_64|amd64)  host_arch=x86_64  ;;
     *)             host_arch=x86_64  ;;
   esac
-
-  # 1) Bevorzugte Kandidaten in Reihenfolge prüfen
   for cand in \
       "$PREBUILT_BASE/${host_os}-${host_arch}" \
       "$PREBUILT_BASE/${host_os}-aarch64" \
@@ -194,17 +193,13 @@ detect_toolchain_dir() {
       return 0
     fi
   done
-
-  # 2) Fallback: irgendein passendes Verzeichnis mit llvm-ar nehmen
   local any
   any="$(find "$PREBUILT_BASE" -maxdepth 1 -type d -name "${host_os}-*" 2>/dev/null | while read -r d; do
     [ -x "$d/bin/llvm-ar" ] && echo "$d" && break
   done)"
   if [ -n "$any" ]; then
-    echo "$any"
-    return 0
+    echo "$any"; return 0
   fi
-
   return 1
 }
 
@@ -302,9 +297,6 @@ build_for_arch() {
 
   if [ $? -ne 0 ]; then
     log_error "CMake configuration for $arch failed. See $arch_log for details."
-    tail -n 50 "$arch_log" >&2
-    cd "$SCRIPT_DIR"
-    return 1
   fi
 
   # Gradle Kotlin jvmTarget safety
@@ -322,14 +314,50 @@ build_for_arch() {
     return 1
   fi
 
-  mkdir -p "$BUILD_DIR/lib/$arch"
-  info "Copying shared libraries for $arch..."
-  find . -name "*.so" -exec cp -f {} "$BUILD_DIR/lib/$arch/" \;
+  # -------- Deterministisches Staging der .so-Dateien --------
+  local SRC_LIB_DIR="$arch_build_dir/lib/$arch"
+  mkdir -p "$SRC_LIB_DIR"
 
+  # libopencv_java4.so kommt aus dem JNI-Output → gezielt übernehmen
+  local JNI_SO="$arch_build_dir/jni/$arch/libopencv_java4.so"
+  if [ -f "$JNI_SO" ]; then
+    cp -f "$JNI_SO" "$SRC_LIB_DIR/"
+    info "Staged libopencv_java4.so from JNI output -> $SRC_LIB_DIR"
+  else
+    info "WARN: libopencv_java4.so not found under $arch_build_dir/jni/$arch (continuing)"
+  fi
+
+  # Zielordner vorbereiten und ausschließlich aus SRC_LIB_DIR befüllen
+  local OUT_DIR="$BUILD_DIR/lib/$arch"
+  rm -rf "$OUT_DIR"
+  mkdir -p "$OUT_DIR"
+  shopt -s nullglob
+  cp -f "$SRC_LIB_DIR"/*.so "$OUT_DIR/" 2>/dev/null || true
+  shopt -u nullglob
+
+  # Prüfen, ob wir überhaupt Artefakte haben
+  if ! ls -1 "$OUT_DIR"/*.so >/dev/null 2>&1; then
+    echo "ERROR: No .so artifacts staged for $arch (expected in $SRC_LIB_DIR)" >&2
+    tail -n 50 "$arch_log" >&2
+    cd "$SCRIPT_DIR"
+    return 1
+  fi
+
+  # Timestamps vereinheitlichen (hilft Reproducibility)
+  find "$OUT_DIR" -type f -name "*.so" -exec touch -h -d "@$SOURCE_DATE_EPOCH" {} +
+
+  # Optional: Hashes loggen (hilfreich für Diff-Analysen)
+  if command -v shasum >/dev/null 2>&1; then
+    ( cd "$OUT_DIR" && shasum -a 256 *.so ) >> "$arch_log" 2>&1 || true
+  elif command -v sha256sum >/dev/null 2>&1; then
+    ( cd "$OUT_DIR" && sha256sum *.so ) >> "$arch_log" 2>&1 || true
+  fi
+
+  # Strippen – nur das, was im OUT_DIR liegt
   local STRIP="$TOOLCHAIN_DIR/bin/llvm-strip"
   if [ -x "$STRIP" ]; then
     info "Stripping debug and metadata sections from $arch libraries..."
-    find "$BUILD_DIR/lib/$arch" -name "*.so" -exec "$STRIP" \
+    find "$OUT_DIR" -name "*.so" -exec "$STRIP" \
       --strip-all \
       --remove-section=.comment \
       --remove-section=.note \
@@ -341,6 +369,7 @@ build_for_arch() {
   else
     echo "⚠️ Warning: Strip tool not found at $STRIP. Skipping stripping for $arch."
   fi
+  # -------- Ende deterministisches Staging --------
 
   cd "$SCRIPT_DIR"
   info "OpenCV for $arch built successfully."

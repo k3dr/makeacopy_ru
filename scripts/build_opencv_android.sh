@@ -132,6 +132,38 @@ perl -0777 -pe 's~(\n\s*ocv_add_library\(\$\{the_module\}.*\n)~\n# Repro: stabil
 
 info "Deterministic ordering patches applied."
 
+# ========= Patch 5:  =========
+perl -0777 -pe 's~(add_dependencies\(\$\{the_module\}\s+gen_opencv_java_source\)\s*\n)~$1# ---- Debug dump (Patch 5 v4) ----
+set(_abi "\$\{CMAKE_ANDROID_ARCH_ABI\}")
+if(NOT _abi)
+  set(_abi "\$\{ANDROID_NDK_ABI_NAME\}")
+endif()
+set(_dump "\$\{CMAKE_CURRENT_BINARY_DIR\}/jni_state_\$\{_abi\}.txt")
+set(_map  "\$\{CMAKE_CURRENT_BINARY_DIR\}/libopencv_java4_\$\{_abi\}.map")
+file(WRITE "\$\{_dump\}" "Generator=\$\{CMAKE_GENERATOR\}\nCXX=\$\{CMAKE_CXX_COMPILER\}\nLinker=\$\{CMAKE_LINKER\}\n")
+foreach(v handwritten_h_sources handwritten_cpp_sources generated_cpp_sources jni_sources java_sources srcs sources __srcs)
+  if(DEFINED \$\{v\})
+    list(SORT \$\{v\})
+    file(APPEND "\$\{_dump\}" "\$\{v\}=\n")
+    foreach(x IN LISTS \$\{v\})
+      file(APPEND "\$\{_dump\}" "  \$\{x\}\n")
+    endforeach()
+  endif()
+endforeach()
+get_target_property(_tgt_sources \$\{the_module\} SOURCES)
+if(_tgt_sources)
+  list(SORT _tgt_sources)
+  file(APPEND "\$\{_dump\}" "TARGET_SOURCES=\n")
+  foreach(x IN LISTS _tgt_sources)
+    file(APPEND "\$\{_dump\}" "  \$\{x\}\n")
+  endforeach()
+endif()
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
+  target_link_options(\$\{the_module\} PRIVATE -Wl,-Map,\$\{_map\})
+endif()
+# ---- End Patch 5 v4 ----
+~s' -i "$JNI_TOP"
+
 
 # ========= Error-Handler =========
 log_error() {
@@ -370,6 +402,45 @@ build_for_arch() {
     fi
   fi
 
+  # --- Debug-Dumps für CI-Logs + Kopie ins ABI-Root ---
+    local JNI_DIR="$arch_build_dir/modules/java/jni"
+
+    # Finde erzeugte Dateien (robust, falls Name/ABI mal abweicht)
+    local STATE_DUMP="$(ls "$JNI_DIR"/jni_state_*.txt 2>/dev/null | head -n1 || true)"
+    local MAP_DUMP="$(ls "$JNI_DIR"/libopencv_java4_*.map 2>/dev/null | head -n1 || true)"
+
+    # Optional: in /tmp/opencv-build_${ARCH}/ spiegeln, damit dein bestehender Loop sie findet
+    if [ -n "$STATE_DUMP" ]; then cp -f "$STATE_DUMP" "$arch_build_dir/jni_state_${arch}.txt" || true; fi
+    if [ -n "$MAP_DUMP" ]; then cp -f "$MAP_DUMP" "$arch_build_dir/libopencv_java4_${arch}.map" || true; fi
+
+    # Ins Build-Log schreiben (kurz halten, damit F-Droid-Logs nicht explodieren)
+    if [ -n "$STATE_DUMP" ]; then
+      echo "===== DUMP: $STATE_DUMP ====="
+      sed -n '1,160p' "$STATE_DUMP" || true
+      echo "===== END $STATE_DUMP ====="
+    else
+      info "No jni_state dump found in $JNI_DIR"
+    fi
+
+    if [ -n "$MAP_DUMP" ]; then
+      echo "===== DUMP: $MAP_DUMP ====="
+      grep -nE 'CamShift|meanShift|OpticalFlow|BackgroundSubtractor(MOG2|KNN)' "$MAP_DUMP" | head -n 120 || true
+      echo "===== END $MAP_DUMP ====="
+    else
+      info "No map file found in $JNI_DIR"
+    fi
+
+    # Bonus: tatsächliche Link-Reihenfolge aus CMake link.txt extrahieren
+    local LINK_TXT
+    LINK_TXT="$(find "$JNI_DIR" -path '*/CMakeFiles/*/link.txt' -print -quit 2>/dev/null || true)"
+    if [ -n "$LINK_TXT" ] && [ -f "$LINK_TXT" ]; then
+      echo "===== DUMP: $LINK_TXT (opencv*-Libs in Link-Zeile) ====="
+      tr ' ' '\n' < "$LINK_TXT" | grep -E '/libopencv_.*\.so|-lopencv_' | nl -ba | sed -n '1,120p'
+      echo "===== END link.txt ====="
+    else
+      info "No link.txt found under $JNI_DIR (CMake layout may differ)"
+    fi
+
   # ----- Deterministisches Staging -----
   local SRC_LIB_DIR="$arch_build_dir/lib/$arch"
   mkdir -p "$SRC_LIB_DIR"
@@ -448,6 +519,22 @@ else
   echo "❌ Error: Some builds failed." >&2
   exit 1
 fi
+
+for ARCH in $ABIS; do
+  B="/tmp/opencv-build_${ARCH}"
+  for F in "$B/jni_state_${ARCH}.txt" "$B/libopencv_java4_${ARCH}.map"; do
+    if [ -f "$F" ]; then
+      echo "===== DUMP: $F ====="
+      # kurz & fokussiert:
+      if [[ "$F" == *".map" ]]; then
+        grep -nE 'CamShift|meanShift|OpticalFlow|BackgroundSubtractor(MOG2|KNN)' "$F" | head -n 80 || true
+      else
+        sed -n '1,160p' "$F"
+      fi
+      echo "===== END $F ====="
+    fi
+  done
+done
 
 info "Build log: $BUILD_LOG"
 exit 0

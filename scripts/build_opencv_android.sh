@@ -287,7 +287,9 @@ build_for_arch() {
 
   mkdir -p "$arch_build_dir/3rdparty/lib/$arch" "$arch_build_dir/lib/$arch"
 
-  "$OPENCV_CMAKE" -G Ninja \
+  local BUILD_GENERATOR="${BUILD_GENERATOR:-Unix Makefiles}"
+  info "Using CMake generator: $BUILD_GENERATOR"
+  "$OPENCV_CMAKE" -G "$BUILD_GENERATOR" \
     -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake" \
     -DANDROID_ABI="$arch" \
     -DANDROID_NATIVE_API_LEVEL=21 \
@@ -352,11 +354,20 @@ build_for_arch() {
   " | tee -a "$arch_build_dir/opencv_android/opencv/build.gradle" >/dev/null
 
   info "Building OpenCV for $arch (single-threaded)..."
-  if ! ninja -j1 >> "$arch_log" 2>&1; then
-    echo "Build failed for $arch" >&2
-    tail -n 50 "$arch_log" >&2
-    cd "$SCRIPT_DIR"
-    return 1
+  if [ "$BUILD_GENERATOR" = "Ninja" ]; then
+    if ! ninja -j1 >> "$arch_log" 2>&1; then
+      echo "Build failed for $arch" >&2
+      tail -n 50 "$arch_log" >&2
+      cd "$SCRIPT_DIR"
+      return 1
+    fi
+  else
+    if ! make -j1 >> "$arch_log" 2>&1; then
+      echo "Build failed for $arch" >&2
+      tail -n 50 "$arch_log" >&2
+      cd "$SCRIPT_DIR"
+      return 1
+    fi
   fi
 
   # ----- Deterministisches Staging -----

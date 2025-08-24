@@ -23,12 +23,6 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Ensure Ninja
-        run: |
-          if ! command -v ninja >/dev/null 2>&1; then
-            sudo apt-get update
-            sudo apt-get install -y ninja-build
-          fi
       
       # Python für deterministische CMake-Skripte pinnen (nur Host-Interpreter, keine Py-Bindings)
       - name: Set up Python 3.11.2
@@ -43,22 +37,22 @@ jobs:
         env:
           ANDROID_SDK_ROOT: ${{ env.ANDROID_HOME }}
 
-      # SDK-CMake >= 3.28 installieren (z. B. 3.31.6)
-      - name: Install Android SDK CMake 3.31.6
-        run: |
-          yes | ${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager --sdk_root=${ANDROID_HOME} "cmake;3.31.6"
-        env:
-          ANDROID_SDK_ROOT: ${{ env.ANDROID_HOME }}
+      # Install exact CMake version to match FDroid (3.31.6 from bookworm-backports)
+      - name: Set up CMake 3.31.6
+        uses: jwlawson/actions-setup-cmake@v2
+        with:
+          cmake-version: '3.31.6'
 
-      # ANDROID_* / CMake-Paths exportieren
-      - name: ANDROID_* / CMAKE / PY3_BIN exportieren
+      # Use the installed CMake on PATH to align with FDroid
+      - name: Export ANDROID_*, CMake and Python paths
         run: |
           echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.3.13750724" >> $GITHUB_ENV
           echo "ANDROID_SDK_ROOT=$ANDROID_HOME" >> $GITHUB_ENV
-          echo "ORT_CMAKE=$ANDROID_HOME/cmake/3.31.6/bin/cmake" >> $GITHUB_ENV
-          echo "OPENCV_CMAKE=$ANDROID_HOME/cmake/3.31.6/bin/cmake" >> $GITHUB_ENV
+          echo "BUILD_GENERATOR=Unix Makefiles" >> $GITHUB_ENV
+          echo "ORT_CMAKE=$(which cmake)" >> $GITHUB_ENV
+          echo "OPENCV_CMAKE=$(which cmake)" >> $GITHUB_ENV
           echo "PY3_BIN=$(which python3)" >> $GITHUB_ENV
-          $ANDROID_HOME/cmake/3.31.6/bin/cmake --version
+          cmake --version
           python3 --version
 
       - name: Check installed NDK

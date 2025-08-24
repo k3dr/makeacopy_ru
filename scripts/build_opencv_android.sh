@@ -1,53 +1,39 @@
 #!/bin/bash
-set -Eeuo pipefail  # robust: exit on errors, undefined vars, pipe fails
+set -Eeuo pipefail
 umask 022
 
-# Quiet mode: reduce console noise by default. Set VERBOSE=1 to stream more info.
+# ========= Logging =========
 VERBOSE="${VERBOSE:-0}"
 info() {
-  if [ "$VERBOSE" = "1" ]; then
-    echo "$@"
-  else
-    # In quiet mode, send minimal info to stderr so it appears on CI
-    >&2 echo "$@"
-  fi
+  if [ "$VERBOSE" = "1" ]; then echo "$@"; else >&2 echo "$@"; fi
 }
 
-# ===
-# ABIs (extend if needed)
+# ========= Konfiguration =========
 ABIS="${ABIS:-arm64-v8a armeabi-v7a x86 x86_64}"
 info "ABIS: [$ABIS]"
 
-# ==== Reproducible build timestamp ====
-export SOURCE_DATE_EPOCH=1700000000
+export SOURCE_DATE_EPOCH="${SOURCE_DATE_EPOCH:-1700000000}"
 export TZ=UTC
 export LC_ALL=C
 export LANG=C
 export PYTHONHASHSEED=0
 
-# ==== Absolute paths ====
 SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 OPENCV_DIR_ORIG="$SCRIPT_DIR/external/opencv"
 BUILD_DIR="/tmp/opencv-build"
 OPENCV_DIR="/tmp/opencv-src"
 
-# ==== Clean OpenCV sources ====
+# ========= Clean + Copy =========
 cd "$OPENCV_DIR_ORIG"
 git clean -xfd
 git checkout .
 
-# ==== Copy OpenCV sources to build directory ====
 info "Copying OpenCV sources to $OPENCV_DIR..."
 rm -rf "$OPENCV_DIR"
 mkdir -p "$OPENCV_DIR"
 cp -a "$OPENCV_DIR_ORIG/." "$OPENCV_DIR"
 
-# -----------------------------------------------------------------------------
-# 🩹 Patch OpenCV to suppress status() output and fix build info string
-# -----------------------------------------------------------------------------
-OPENCV_UTILS="$OPENCV_DIR/cmake/OpenCVUtils.cmake"
-BACKUP_UTILS="${OPENCV_UTILS}.bak"
-
+# ========= sed helper (macOS/GNU) =========
 sedi() {
   if sed --version >/dev/null 2>&1; then
     sed -i "$@"
@@ -56,9 +42,13 @@ sedi() {
   fi
 }
 
+# ========= Patch 1: deterministisches Build-Info-String =========
+OPENCV_UTILS="$OPENCV_DIR/cmake/OpenCVUtils.cmake"
 info "Patching ocv_output_status() in $OPENCV_UTILS..."
-cp "$OPENCV_UTILS" "$BACKUP_UTILS"
+cp "$OPENCV_UTILS" "$OPENCV_UTILS.bak"
+# Funktion entfernen
 sedi '/^[[:space:]]*function(ocv_output_status/,/^[[:space:]]*endfunction/ d' "$OPENCV_UTILS"
+# Ersatzfunktion anhängen
 cat <<'EOF' >> "$OPENCV_UTILS"
 
 # Patched: deterministic ocv_output_status()
@@ -68,86 +58,117 @@ endfunction()
 EOF
 info "ocv_output_status() patched."
 
-# ==== Error handler ====
+# ========= Patch 2: internes Strip von libopencv_java4.so deaktivieren =========
+JNI_CMAKELISTS="$OPENCV_DIR/modules/java/jni/CMakeLists.txt"
+info "Patching internal strip in $JNI_CMAKELISTS..."
+cp "$JNI_CMAKELISTS" "$JNI_CMAKELISTS.bak"
+
+if command -v perl >/dev/null 2>&1; then
+  # Entweder: komplette Zeile löschen (sauberste Lösung)
+  perl -0777 -pe 's/^[ \t]*add_custom_command\(TARGET[^\n]*POST_BUILD[^\n]*\n//m' -i "$JNI_CMAKELISTS"
+  # Alternativ (wenn du lieber einen Kommentar hinterlassen willst):
+  # perl -0777 -pe 's/^[ \t]*add_custom_command\(TARGET[^\n]*POST_BUILD[^\n]*\n/# removed by build script: strip disabled\n/m' -i "$JNI_CMAKELISTS"
+else
+  # Fallback nur mit sed (BSD/GNU): Zeile entfernen
+  sedi '/^[[:space:]]*add_custom_command(TARGET[[:space:]]\+\${the_module}[[:space:]]\+POST_BUILD/d' "$JNI_CMAKELISTS"
+fi
+info "Removed POST_BUILD strip of libopencv_java4.so."
+
+
+# Verifizieren
+if grep -q 'POST_BUILD' "$JNI_CMAKELISTS"; then
+  info "WARN: POST_BUILD strip still present somewhere in $JNI_CMAKELISTS (check manuell)."
+else
+  info "Removed POST_BUILD strip of libopencv_java4.so."
+fi
+
+# ========= Patch 3: Gradle-AAR nicht standardmäßig bauen (remove `ALL`) =========
+ANDROID_SDK_CMAKE="$OPENCV_DIR/modules/java/android_sdk/CMakeLists.txt"
+info "Patching Gradle target (remove ALL) in $ANDROID_SDK_CMAKE..."
+cp "$ANDROID_SDK_CMAKE" "$ANDROID_SDK_CMAKE.bak"
+if command -v perl >/dev/null 2>&1; then
+  perl -0777 -pe 's/add_custom_target\(([^)]*_android)\s+ALL/add_custom_target($1/g' -i "$ANDROID_SDK_CMAKE"
+else
+  awk '{
+    if ($0 ~ /add_custom_target\(.+_android[[:space:]]+ALL/) sub(/_android[[:space:]]+ALL/, "_android")
+    print
+  }' "$ANDROID_SDK_CMAKE" > "${ANDROID_SDK_CMAKE}.tmp" && mv "${ANDROID_SDK_CMAKE}.tmp" "$ANDROID_SDK_CMAKE"
+fi
+if grep -qE 'add_custom_target\(.+_android[[:space:]]+ALL' "$ANDROID_SDK_CMAKE"; then
+  echo "ERROR: Failed to remove 'ALL' from add_custom_target in $ANDROID_SDK_CMAKE" >&2
+  exit 1
+fi
+info "Gradle AAR target no longer built by default."
+
+# ========= Error-Handler =========
 log_error() {
   echo "ERROR: $1"
-  echo "Please check the full build log for more details."
-  echo "If you're using a different NDK version and experiencing issues, try using NDK version 27.3.13750724 instead."
+  echo "Please check the full build log for details."
+  echo "If issues persist, try Android NDK 27.3.13750724."
   exit 1
 }
 trap 'log_error "Build failed at line $LINENO"' ERR
 
-# ==== Find ANDROID_NDK_HOME if not already set ====
-if [ -z "$ANDROID_NDK_HOME" ]; then
-  if [ -n "$ANDROID_SDK_ROOT" ]; then
+# ===== locate NDK =====
+if [ -z "${ANDROID_NDK_HOME:-}" ]; then
+  if [ -n "${ANDROID_SDK_ROOT:-}" ]; then
     if [ -d "$ANDROID_SDK_ROOT/ndk" ]; then
-      LATEST_NDK=$(find "$ANDROID_SDK_ROOT/ndk" -maxdepth 1 -type d -name "[0-9]*" | sort -Vr | head -n 1)
-      if [ -n "$LATEST_NDK" ]; then
-        export ANDROID_NDK_HOME="$LATEST_NDK"
-        info "Found NDK at $ANDROID_NDK_HOME"
-      fi
+      LATEST_NDK="$(find "$ANDROID_SDK_ROOT/ndk" -maxdepth 1 -type d -name "[0-9]*" | sort -Vr | head -n 1 || true)"
+      if [ -n "$LATEST_NDK" ]; then export ANDROID_NDK_HOME="$LATEST_NDK"; info "Found NDK at $ANDROID_NDK_HOME"; fi
     fi
-    if [ -z "$ANDROID_NDK_HOME" ] && [ -d "$ANDROID_SDK_ROOT/ndk-bundle" ]; then
-      export ANDROID_NDK_HOME="$ANDROID_SDK_ROOT/ndk-bundle"
-      info "Found NDK at $ANDROID_NDK_HOME"
+    if [ -z "${ANDROID_NDK_HOME:-}" ] && [ -d "$ANDROID_SDK_ROOT/ndk-bundle" ]; then
+      export ANDROID_NDK_HOME="$ANDROID_SDK_ROOT/ndk-bundle"; info "Found NDK at $ANDROID_NDK_HOME"
     fi
   fi
-  if [ -z "$ANDROID_NDK_HOME" ]; then
+  if [ -z "${ANDROID_NDK_HOME:-}" ]; then
     if [ -d "$HOME/Library/Android/sdk/ndk" ]; then
-      LATEST_NDK=$(find "$HOME/Library/Android/sdk/ndk" -maxdepth 1 -type d -name "[0-9]*" | sort -Vr | head -n 1)
-      if [ -n "$LATEST_NDK" ]; then
-        export ANDROID_NDK_HOME="$LATEST_NDK"
-        info "Found NDK at $ANDROID_NDK_HOME"
-      fi
+      LATEST_NDK="$(find "$HOME/Library/Android/sdk/ndk" -maxdepth 1 -type d -name "[0-9]*" | sort -Vr | head -n 1 || true)"
+      if [ -n "$LATEST_NDK" ]; then export ANDROID_NDK_HOME="$LATEST_NDK"; info "Found NDK at $ANDROID_NDK_HOME"; fi
     elif [ -d "$HOME/Library/Android/sdk/ndk-bundle" ]; then
-      export ANDROID_NDK_HOME="$HOME/Library/Android/sdk/ndk-bundle"
-      info "Found NDK at $ANDROID_NDK_HOME"
+      export ANDROID_NDK_HOME="$HOME/Library/Android/sdk/ndk-bundle"; info "Found NDK at $ANDROID_NDK_HOME"
     else
-      echo "Error: ANDROID_NDK_HOME is not set and NDK could not be found automatically."
+      echo "Error: ANDROID_NDK_HOME is not set and NDK could not be found automatically." >&2
       exit 1
     fi
   fi
 fi
 
-# ==== Print NDK version ====
+# ========= NDK-Version loggen =========
 info "Using Android NDK at: $ANDROID_NDK_HOME"
-NDK_VERSION=$(basename "$ANDROID_NDK_HOME")
+NDK_VERSION="$(basename "$ANDROID_NDK_HOME")"
 RECOMMENDED_VERSION="27.3.13750724"
 info "Detected NDK version: $NDK_VERSION"
 if [[ "$NDK_VERSION" != "$RECOMMENDED_VERSION" ]]; then
   info "NDK version $NDK_VERSION differs from recommended $RECOMMENDED_VERSION."
 fi
 
-# ==== Validate OpenCV source directory ====
+# ===== validate sources =====
 info "OpenCV source directory: $OPENCV_DIR"
 if [ ! -d "$OPENCV_DIR" ]; then
-  echo "Error: OpenCV source not found at $OPENCV_DIR"
+  echo "Error: OpenCV source not found at $OPENCV_DIR" >&2
   exit 1
 fi
 
-# ==== Prepare build directory ====
+# ===== prepare build dir =====
 rm -rf "$BUILD_DIR"
 mkdir -p "$BUILD_DIR/lib"
 
-# ==== Find Android SDK if not already set ====
-if [ -z "$ANDROID_SDK_ROOT" ]; then
+# ===== locate SDK (optional) =====
+if [ -z "${ANDROID_SDK_ROOT:-}" ]; then
   info "ANDROID_SDK_ROOT is not set. Trying to find it automatically..."
   if [ -d "$HOME/Library/Android/sdk" ]; then
-    export ANDROID_SDK_ROOT="$HOME/Library/Android/sdk"
-    info "Found Android SDK at $ANDROID_SDK_ROOT"
+    export ANDROID_SDK_ROOT="$HOME/Library/Android/sdk"; info "Found Android SDK at $ANDROID_SDK_ROOT"
   elif [ -d "$HOME/Android/Sdk" ]; then
-    export ANDROID_SDK_ROOT="$HOME/Android/Sdk"
-    info "Found Android SDK at $ANDROID_SDK_ROOT"
+    export ANDROID_SDK_ROOT="$HOME/Android/Sdk"; info "Found Android SDK at $ANDROID_SDK_ROOT"
   fi
 fi
 
-# ==== Pick CMake for OpenCV (pin via OPENCV_CMAKE; optional version guard) ====
+# ===== pick CMake =====
 if [ -z "${OPENCV_CMAKE:-}" ]; then
-  if [ -n "$ANDROID_SDK_ROOT" ] && [ -d "$ANDROID_SDK_ROOT/cmake" ]; then
-    LATEST_CMAKE_DIR=$(find "$ANDROID_SDK_ROOT/cmake" -maxdepth 1 -type d -name "[0-9]*" | sort -Vr | head -n 1)
+  if [ -n "${ANDROID_SDK_ROOT:-}" ] && [ -d "$ANDROID_SDK_ROOT/cmake" ]; then
+    LATEST_CMAKE_DIR="$(find "$ANDROID_SDK_ROOT/cmake" -maxdepth 1 -type d -name "[0-9]*" | sort -Vr | head -n 1 || true)"
     if [ -n "$LATEST_CMAKE_DIR" ] && [ -x "$LATEST_CMAKE_DIR/bin/cmake" ]; then
-      OPENCV_CMAKE="$LATEST_CMAKE_DIR/bin/cmake"
-      info "Found SDK CMake for OpenCV at $OPENCV_CMAKE"
+      OPENCV_CMAKE="$LATEST_CMAKE_DIR/bin/cmake"; info "Found SDK CMake for OpenCV at $OPENCV_CMAKE"
     fi
   fi
 fi
@@ -159,7 +180,6 @@ if [ -z "${OPENCV_CMAKE:-}" ] || [ ! -x "$OPENCV_CMAKE" ]; then
   echo "ERROR: CMake for OpenCV not found. Please set OPENCV_CMAKE." >&2
   exit 1
 fi
-
 OPENCV_CMAKE_VER="$("$OPENCV_CMAKE" --version | awk '/version/{print $3; exit}')"
 info "OpenCV CMake: $OPENCV_CMAKE (version $OPENCV_CMAKE_VER)"
 if [ -n "${OPENCV_CMAKE_REQ:-}" ] && [ "$OPENCV_CMAKE_VER" != "$OPENCV_CMAKE_REQ" ]; then
@@ -167,9 +187,8 @@ if [ -n "${OPENCV_CMAKE_REQ:-}" ] && [ "$OPENCV_CMAKE_VER" != "$OPENCV_CMAKE_REQ
   exit 1
 fi
 
-# ==== Robust toolchain dir detection (darwin-aarch64, darwin-x86_64, linux-x86_64) ====
+# ===== toolchain dir detect =====
 PREBUILT_BASE="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt"
-
 detect_toolchain_dir() {
   local host_os host_arch
   case "$(uname -s)" in
@@ -188,21 +207,15 @@ detect_toolchain_dir() {
       "$PREBUILT_BASE/${host_os}-arm64" \
       "$PREBUILT_BASE/${host_os}-x86_64"
   do
-    if [ -x "$cand/bin/llvm-ar" ]; then
-      echo "$cand"
-      return 0
-    fi
+    if [ -x "$cand/bin/llvm-ar" ]; then echo "$cand"; return 0; fi
   done
   local any
   any="$(find "$PREBUILT_BASE" -maxdepth 1 -type d -name "${host_os}-*" 2>/dev/null | while read -r d; do
     [ -x "$d/bin/llvm-ar" ] && echo "$d" && break
   done)"
-  if [ -n "$any" ]; then
-    echo "$any"; return 0
-  fi
+  if [ -n "$any" ]; then echo "$any"; return 0; fi
   return 1
 }
-
 TOOLCHAIN_DIR="$(detect_toolchain_dir || true)"
 if [ -z "$TOOLCHAIN_DIR" ]; then
   echo "ERROR: Could not locate NDK toolchain dir with llvm-ar under $PREBUILT_BASE" >&2
@@ -210,15 +223,15 @@ if [ -z "$TOOLCHAIN_DIR" ]; then
 fi
 info "Using NDK toolchain: $TOOLCHAIN_DIR"
 
-# ==== Set log file for the build ====
+# ========= Build-Log =========
 BUILD_LOG="$BUILD_DIR/opencv_build.log"
 info "Build log: $BUILD_LOG"
 echo "$(date): Starting OpenCV build" > "$BUILD_LOG"
 echo "NDK version: $NDK_VERSION" >> "$BUILD_LOG"
 
-# ==== Per-ABI build function ====
+# ===== per-ABI build =====
 build_for_arch() {
-  local arch=$1
+  local arch="$1"
   local arch_build_dir="${BUILD_DIR}_${arch}"
   rm -rf "$arch_build_dir"
   mkdir -p "$arch_build_dir"
@@ -228,7 +241,7 @@ build_for_arch() {
   echo "$(date): Starting OpenCV build for $arch" > "$arch_log"
 
   export ZERO_AR_DATE=1
-  PY3_BIN="${PY3_BIN:-$(command -v python3)}"
+  local PY3_BIN="${PY3_BIN:-$(command -v python3)}"
   info "Python: $($PY3_BIN --version 2>&1)"
   info "Configuring CMake for $arch..."
 
@@ -239,7 +252,6 @@ build_for_arch() {
     exit 1
   fi
 
-  # Ensure library target dirs exist
   mkdir -p "$arch_build_dir/3rdparty/lib/$arch" "$arch_build_dir/lib/$arch"
 
   "$OPENCV_CMAKE" -G "Unix Makefiles" \
@@ -299,7 +311,7 @@ build_for_arch() {
     log_error "CMake configuration for $arch failed. See $arch_log for details."
   fi
 
-  # Gradle Kotlin jvmTarget safety
+  # Gradle Kotlin jvmTarget safety (falls Gradle doch angerufen wird)
   echo "
   tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
       kotlinOptions { jvmTarget = '17' }
@@ -314,11 +326,11 @@ build_for_arch() {
     return 1
   fi
 
-  # -------- Deterministisches Staging der .so-Dateien --------
+  # ----- Deterministisches Staging -----
   local SRC_LIB_DIR="$arch_build_dir/lib/$arch"
   mkdir -p "$SRC_LIB_DIR"
 
-  # libopencv_java4.so kommt aus dem JNI-Output → gezielt übernehmen
+  # libopencv_java4.so aus dem JNI-Output holen
   local JNI_SO="$arch_build_dir/jni/$arch/libopencv_java4.so"
   if [ -f "$JNI_SO" ]; then
     cp -f "$JNI_SO" "$SRC_LIB_DIR/"
@@ -327,7 +339,6 @@ build_for_arch() {
     info "WARN: libopencv_java4.so not found under $arch_build_dir/jni/$arch (continuing)"
   fi
 
-  # Zielordner vorbereiten und ausschließlich aus SRC_LIB_DIR befüllen
   local OUT_DIR="$BUILD_DIR/lib/$arch"
   rm -rf "$OUT_DIR"
   mkdir -p "$OUT_DIR"
@@ -335,7 +346,6 @@ build_for_arch() {
   cp -f "$SRC_LIB_DIR"/*.so "$OUT_DIR/" 2>/dev/null || true
   shopt -u nullglob
 
-  # Prüfen, ob wir überhaupt Artefakte haben
   if ! ls -1 "$OUT_DIR"/*.so >/dev/null 2>&1; then
     echo "ERROR: No .so artifacts staged for $arch (expected in $SRC_LIB_DIR)" >&2
     tail -n 50 "$arch_log" >&2
@@ -343,17 +353,21 @@ build_for_arch() {
     return 1
   fi
 
-  # Timestamps vereinheitlichen (hilft Reproducibility)
-  find "$OUT_DIR" -type f -name "*.so" -exec touch -h -d "@$SOURCE_DATE_EPOCH" {} +
+  # Optionale Timestamps (nur GNU touch unterstützt -d)
+  if touch -d "@$SOURCE_DATE_EPOCH" / >/dev/null 2>&1; then
+    find "$OUT_DIR" -type f -name "*.so" -exec touch -d "@$SOURCE_DATE_EPOCH" {} +
+  else
+    info "Non-GNU touch detected, skipping timestamp normalization."
+  fi
 
-  # Optional: Hashes loggen (hilfreich für Diff-Analysen)
+  # Hashes loggen
   if command -v shasum >/dev/null 2>&1; then
     ( cd "$OUT_DIR" && shasum -a 256 *.so ) >> "$arch_log" 2>&1 || true
   elif command -v sha256sum >/dev/null 2>&1; then
     ( cd "$OUT_DIR" && sha256sum *.so ) >> "$arch_log" 2>&1 || true
   fi
 
-  # Strippen – nur das, was im OUT_DIR liegt
+  # einziges Strip: unser llvm-strip
   local STRIP="$TOOLCHAIN_DIR/bin/llvm-strip"
   if [ -x "$STRIP" ]; then
     info "Stripping debug and metadata sections from $arch libraries..."
@@ -367,19 +381,18 @@ build_for_arch() {
       {} \;
     info "Stripped and cleaned $arch libraries for reproducibility."
   else
-    echo "⚠️ Warning: Strip tool not found at $STRIP. Skipping stripping for $arch."
+    echo "⚠️  Warning: Strip tool not found at $STRIP. Skipping stripping for $arch."
   fi
-  # -------- Ende deterministisches Staging --------
+  # ----- Ende Staging -----
 
   cd "$SCRIPT_DIR"
   info "OpenCV for $arch built successfully."
   return 0
 }
 
-# ==== Build loop for all target ABIs ====
+# ========= Build loop =========
 info "Building OpenCV for all target ABIs..."
 BUILD_FAILED=0
-
 for ARCH in $ABIS; do
   build_for_arch "$ARCH" || BUILD_FAILED=1
 done

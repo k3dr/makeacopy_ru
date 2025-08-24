@@ -287,7 +287,7 @@ build_for_arch() {
 
   mkdir -p "$arch_build_dir/3rdparty/lib/$arch" "$arch_build_dir/lib/$arch"
 
-  "$OPENCV_CMAKE" -G "Unix Makefiles" \
+  "$OPENCV_CMAKE" -G Ninja \
     -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake" \
     -DANDROID_ABI="$arch" \
     -DANDROID_NATIVE_API_LEVEL=21 \
@@ -352,7 +352,7 @@ build_for_arch() {
   " | tee -a "$arch_build_dir/opencv_android/opencv/build.gradle" >/dev/null
 
   info "Building OpenCV for $arch (single-threaded)..."
-  if ! make -j1 >> "$arch_log" 2>&1; then
+  if ! ninja -j1 >> "$arch_log" 2>&1; then
     echo "Build failed for $arch" >&2
     tail -n 50 "$arch_log" >&2
     cd "$SCRIPT_DIR"

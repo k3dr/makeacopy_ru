@@ -100,6 +100,39 @@ if grep -qE 'add_custom_target\(.+_android[[:space:]]+ALL' "$ANDROID_SDK_CMAKE";
 fi
 info "Gradle AAR target no longer built by default."
 
+# ========= Patch 4: deterministische Reihenfolge für Java/JNI-Quellen =========
+JAVA_TOP="$OPENCV_DIR/modules/java/CMakeLists.txt"
+JNI_TOP="$OPENCV_DIR/modules/java/jni/CMakeLists.txt"
+
+info "Patching deterministic ordering in $JAVA_TOP and $JNI_TOP ..."
+cp -f "$JAVA_TOP" "$JAVA_TOP.bak" || true
+cp -f "$JNI_TOP" "$JNI_TOP.bak" || true
+
+# (A) modules/java/CMakeLists.txt
+# A1: Nach jedem file(GLOB _result ...) die Ergebnisse sortieren
+perl -0777 -pe 's/(file\(GLOB _result[^\n]*\n)/$1  list(SORT _result)\n/s' -i "$JAVA_TOP"
+
+# (B) modules/java/jni/CMakeLists.txt
+# B1: Modulliste sortieren, bevor darüber iteriert wird
+awk '
+  $0 ~ /^foreach\(m \${OPENCV_MODULES_BUILD}\)/ && !done {
+    print "set(__mods ${OPENCV_MODULES_BUILD})";
+    print "list(SORT __mods)";
+    print "foreach(m ${__mods})";
+    done=1; next
+  }
+  { print }
+' "$JNI_TOP" > "${JNI_TOP}.tmp" && mv "${JNI_TOP}.tmp" "$JNI_TOP"
+
+# B2: Auch hier: GLOB-Ergebnisse sortieren
+perl -0777 -pe 's/(file\(GLOB _result[^\n]*\n)/$1    list(SORT _result)\n/s' -i "$JNI_TOP"
+
+# B3: Direkt vor dem JNI-Target die gesammelten Listen (falls vorhanden) sortieren
+perl -0777 -pe 's~(\n\s*ocv_add_library\(\$\{the_module\}.*\n)~\n# Repro: stabile Reihenfolge aller Quelllisten erzwingen\nforeach(v handwritten_h_sources handwritten_cpp_sources generated_cpp_sources jni_sources java_sources srcs sources __srcs)\n  if(DEFINED \${v})\n    list(SORT \${v})\n  endif()\nendforeach()\n\1~s' -i "$JNI_TOP"
+
+info "Deterministic ordering patches applied."
+
+
 # ========= Error-Handler =========
 log_error() {
   echo "ERROR: $1"

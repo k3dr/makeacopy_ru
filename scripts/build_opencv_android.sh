@@ -432,9 +432,19 @@ def main():
         return 0
     header = parts[0]
     funcs = parts[1:]
-    # Sort by first line (function signature)
-    def key_of(ch: str) -> str:
+    # Deterministic order with FDroid preference:
+    #  0) createBackgroundSubtractorMOG2*, 1) createBackgroundSubtractorKNN*, 2) others
+    def first_line(ch: str) -> str:
         return ch.splitlines(True)[0].strip() if ch else ""
+    def pri(sig: str) -> int:
+        if "Java_org_opencv_video_Video_createBackgroundSubtractorMOG2" in sig:
+            return 0
+        if "Java_org_opencv_video_Video_createBackgroundSubtractorKNN" in sig:
+            return 1
+        return 2
+    def key_of(ch: str):
+        sig = first_line(ch)
+        return (pri(sig), sig.lower())
     order = sorted(range(len(funcs)), key=lambda i: key_of(funcs[i]))
     new_txt = header + "".join(funcs[i] for i in order)
     if new_txt != txt:

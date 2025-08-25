@@ -65,7 +65,7 @@ jobs:
       - name: Build OpenCV native libraries
         run: |
           chmod +x scripts/build_opencv_android.sh
-          ./scripts/build_opencv_android.sh
+          VERBOSE=1 DEBUG=1 ./scripts/build_opencv_android.sh
 
       - name: Prepare OpenCV for app
         run: |

@@ -138,30 +138,48 @@ perl -0777 -pe 's~(\n\s*ocv_add_library\(\$\{the_module\}.*\n)~\n# Repro: stabil
 info "Deterministic ordering patches applied."
 
 # ========= Patch 5:  =========
-PATCH5_BLOCK="# ---- Debug dump + deterministic generator post-process (Patch 5 v5) ----\nset(_abi \"\\${CMAKE_ANDROID_ARCH_ABI}\")\nif(NOT _abi)\n  set(_abi \"\\${ANDROID_NDK_ABI_NAME}\")\nendif()\nset(_dump \"\\${CMAKE_CURRENT_BINARY_DIR}/jni_state_\\${_abi}.txt\")\nset(_map  \"\\${CMAKE_CURRENT_BINARY_DIR}/libopencv_java4_\\${_abi}.map\")\nfile(WRITE \"\\${_dump}\" \"Generator=\\${CMAKE_GENERATOR}\\nCXX=\\${CMAKE_CXX_COMPILER}\\nLinker=\\${CMAKE_LINKER}\\n\")\nforeach(v handwritten_h_sources handwritten_cpp_sources generated_cpp_sources jni_sources java_sources srcs sources __srcs)\n  if(DEFINED \\${v})\n    list(SORT \\${v})\n    file(APPEND \"\\${_dump}\" \"\\${v}=\\n\")\n    foreach(x IN LISTS \\${v})\n      file(APPEND \"\\${_dump}\" \"  \\${x}\\n\")\n    endforeach()\n  endif()\nendforeach()\nget_target_property(_tgt_sources \\${the_module} SOURCES)\nif(_tgt_sources)\n  list(SORT _tgt_sources)\n  file(APPEND \"\\${_dump}\" \"TARGET_SOURCES=\\n\")\n  foreach(x IN LISTS _tgt_sources)\n    file(APPEND \"\\${_dump}\" \"  \\${x}\\n\")\n  endforeach()\nendif()\n\n# Create deterministic post-processing target to alphabetize JNI functions in generated opencv_java.cpp\nset(_gen_cpp \"\\${CMAKE_CURRENT_BINARY_DIR}/../generator/src/cpp/opencv_java.cpp\")\nadd_custom_target(repro_sort_gen\n  COMMAND \"\\${Python3_EXECUTABLE}\" \"\\${CMAKE_CURRENT_BINARY_DIR}/repro_sort_jni.py\" \"\\${_gen_cpp}\"\n  DEPENDS gen_opencv_java_source\n  BYPRODUCTS \"\\${_gen_cpp}\"\n  VERBATIM\n)\nadd_dependencies(\\${the_module} repro_sort_gen)\n\nif(CMAKE_CXX_COMPILER_ID MATCHES \"Clang|GNU\")\n  target_link_options(\\${the_module} PRIVATE -Wl,-Map,\\${_map})\nendif()\n# ---- End Patch 5 v5 ----\n"
+perl -0777 -pe 's~(add_dependencies\(\$\{the_module\}\s+gen_opencv_java_source\)\s*\n)~$1# ---- Debug dump + deterministic generator post-process (Patch 5 v5) ----
+set(_abi "\$\{CMAKE_ANDROID_ARCH_ABI\}")
+if(NOT _abi)
+  set(_abi "\$\{ANDROID_NDK_ABI_NAME\}")
+endif()
+set(_dump "\$\{CMAKE_CURRENT_BINARY_DIR\}/jni_state_\$\{_abi\}.txt")
+set(_map  "\$\{CMAKE_CURRENT_BINARY_DIR\}/libopencv_java4_\$\{_abi\}.map")
+file(WRITE "\$\{_dump\}" "Generator=\$\{CMAKE_GENERATOR\}\nCXX=\$\{CMAKE_CXX_COMPILER\}\nLinker=\$\{CMAKE_LINKER\}\n")
+foreach(v handwritten_h_sources handwritten_cpp_sources generated_cpp_sources jni_sources java_sources srcs sources __srcs)
+  if(DEFINED \$\{v\})
+    list(SORT \$\{v\})
+    file(APPEND "\$\{_dump\}" "\$\{v\}=\n")
+    foreach(x IN LISTS \$\{v\})
+      file(APPEND "\$\{_dump\}" "  \$\{x\}\n")
+    endforeach()
+  endif()
+endforeach()
+get_target_property(_tgt_sources \$\{the_module\} SOURCES)
+if(_tgt_sources)
+  list(SORT _tgt_sources)
+  file(APPEND "\$\{_dump\}" "TARGET_SOURCES=\n")
+  foreach(x IN LISTS _tgt_sources)
+    file(APPEND "\$\{_dump\}" "  \$\{x\}\n")
+  endforeach()
+endif()
 
-if command -v perl >/dev/null 2>&1; then
-  perl -0777 -pe "s~(add_dependencies(\\$\\{the_module\\}\\s+gen_opencv_java_source)\\s*\\n)~\\$1${PATCH5_BLOCK}\n~s" -i "$JNI_TOP"
-else
-  # Fallback without perl: insert after the first occurrence of the dependency line
-  awk -v blk="$PATCH5_BLOCK" '
-    BEGIN{ins=0}
-    {
-      print $0
-      if(!ins && $0 ~ /^\s*add_dependencies\(\$\{the_module\}\s+gen_opencv_java_source\)\s*$/){
-        print blk
-        ins=1
-      }
-    }
-  ' "$JNI_TOP" > "${JNI_TOP}.tmp" && mv "${JNI_TOP}.tmp" "$JNI_TOP"
-fi
+# Create deterministic post-processing target to alphabetize JNI functions in generated opencv_java.cpp
+set(_gen_cpp "\$\{CMAKE_CURRENT_BINARY_DIR\}/../generator/src/cpp/opencv_java.cpp")
+add_custom_target(repro_sort_gen
+  COMMAND "\$\{Python3_EXECUTABLE\}" "\$\{CMAKE_CURRENT_BINARY_DIR\}/repro_sort_jni.py" "\$\{_gen_cpp\}"
+  DEPENDS gen_opencv_java_source
+  BYPRODUCTS "\$\{_gen_cpp\}"
+  VERBATIM
+)
+add_dependencies(\$\{the_module\} repro_sort_gen)
 
-# Verify Patch 5 insertion
-if grep -q "repro_sort_gen" "$JNI_TOP"; then
-  info "Patch 5 v5 injected into $JNI_TOP (repro_sort_gen present)."
-else
-  info "WARN: Patch 5 v5 might not have been injected into $JNI_TOP (repro_sort_gen not found)."
-fi
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
+  target_link_options(\$\{the_module\} PRIVATE -Wl,-Map,\$\{_map\})
+endif()
+# ---- End Patch 5 v5 ----
+~s' -i "$JNI_TOP"
+
 
 # ========= Error-Handler =========
 log_error() {
@@ -505,7 +523,7 @@ PY
 
     if [ -n "$MAP_DUMP" ]; then
       echo "===== DUMP: $MAP_DUMP ====="
-      grep -nE 'CamShift|meanShift|OpticalFlow|BackgroundSubtractor(MOG2|KNN)' "$MAP_DUMP" | head -n 120 || true
+      grep -nE 'CamShift|meanShift|OpticalFlow|BackgroundSubtractor(MOG2|KNN)' "$MAP_DUMP" | head -n 400 || true
       echo "===== END $MAP_DUMP ====="
     else
       info "No map file found in $JNI_DIR"
@@ -574,6 +592,8 @@ PY
       --remove-section=.note.gnu.build-id \
       --remove-section=.note.gnu.property \
       --remove-section=.note.ABI-tag \
+      --remove-section=.eh_frame_hdr \
+      --remove-section=.eh_frame \
       {} \;
     info "Stripped and cleaned $arch libraries for reproducibility."
   else
@@ -608,7 +628,7 @@ for ARCH in $ABIS; do
       echo "===== DUMP: $F ====="
       # kurz & fokussiert:
       if [[ "$F" == *".map" ]]; then
-        grep -nE 'CamShift|meanShift|OpticalFlow|BackgroundSubtractor(MOG2|KNN)' "$F" | head -n 80 || true
+        grep -nE 'CamShift|meanShift|OpticalFlow|BackgroundSubtractor(MOG2|KNN)' "$F" | head -n 400 || true
       else
         sed -n '1,160p' "$F"
       fi
@@ -616,6 +636,20 @@ for ARCH in $ABIS; do
     fi
   done
 done
+
+# Print concise SHA256 summary to stdout for CI logs
+if command -v sha256sum >/dev/null 2>&1; then H="sha256sum"; else H="shasum -a 256"; fi
+echo "===== SHA256 summary (libopencv_java4.so) ====="
+for ARCH in $ABIS; do
+  OUT_DIR="$BUILD_DIR/lib/$ARCH"
+  if [ -f "$OUT_DIR/libopencv_java4.so" ]; then
+    $H "$OUT_DIR/libopencv_java4.so" || true
+  else
+    echo "$ARCH: libopencv_java4.so not found"
+  fi
+
+done
+echo "===== END SHA256 summary ====="
 
 info "Build log: $BUILD_LOG"
 exit 0

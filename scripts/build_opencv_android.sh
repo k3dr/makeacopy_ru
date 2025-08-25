@@ -2,6 +2,11 @@
 set -Eeuo pipefail
 umask 022
 
+# Enable shell tracing when DEBUG/TRACE is set
+if [ "${DEBUG:-0}" = "1" ] || [ "${TRACE:-0}" = "1" ]; then
+  set -x
+fi
+
 # ========= Logging =========
 VERBOSE="${VERBOSE:-0}"
 info() {
@@ -133,7 +138,7 @@ perl -0777 -pe 's~(\n\s*ocv_add_library\(\$\{the_module\}.*\n)~\n# Repro: stabil
 info "Deterministic ordering patches applied."
 
 # ========= Patch 5:  =========
-perl -0777 -pe 's~(add_dependencies\(\$\{the_module\}\s+gen_opencv_java_source\)\s*\n)~$1# ---- Debug dump (Patch 5 v4) ----
+perl -0777 -pe 's~(add_dependencies\(\$\{the_module\}\s+gen_opencv_java_source\)\s*\n)~$1# ---- Debug dump + deterministic generator post-process (Patch 5 v5) ----
 set(_abi "\$\{CMAKE_ANDROID_ARCH_ABI\}")
 if(NOT _abi)
   set(_abi "\$\{ANDROID_NDK_ABI_NAME\}")
@@ -158,10 +163,21 @@ if(_tgt_sources)
     file(APPEND "\$\{_dump\}" "  \$\{x\}\n")
   endforeach()
 endif()
+
+# Create deterministic post-processing target to alphabetize JNI functions in generated opencv_java.cpp
+set(_gen_cpp "\$\{CMAKE_CURRENT_BINARY_DIR\}/../generator/src/cpp/opencv_java.cpp")
+add_custom_target(repro_sort_gen
+  COMMAND "\$\{Python3_EXECUTABLE\}" "\$\{CMAKE_CURRENT_BINARY_DIR\}/repro_sort_jni.py" "\$\{_gen_cpp\}"
+  DEPENDS gen_opencv_java_source
+  BYPRODUCTS "\$\{_gen_cpp\}"
+  VERBATIM
+)
+add_dependencies(\$\{the_module\} repro_sort_gen)
+
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
   target_link_options(\$\{the_module\} PRIVATE -Wl,-Map,\$\{_map\})
 endif()
-# ---- End Patch 5 v4 ----
+# ---- End Patch 5 v5 ----
 ~s' -i "$JNI_TOP"
 
 
@@ -251,6 +267,14 @@ if [ -n "${OPENCV_CMAKE_REQ:-}" ] && [ "$OPENCV_CMAKE_VER" != "$OPENCV_CMAKE_REQ
   echo "ERROR: OpenCV CMake $OPENCV_CMAKE_VER != required $OPENCV_CMAKE_REQ" >&2
   exit 1
 fi
+
+# ===== Environment summary =====
+info "ENV SUMMARY:"
+info "  Host: $(uname -a)"
+info "  TZ=$TZ LC_ALL=$LC_ALL LANG=${LANG:-} PYTHONHASHSEED=$PYTHONHASHSEED SOURCE_DATE_EPOCH=$SOURCE_DATE_EPOCH"
+info "  ANDROID_SDK_ROOT=${ANDROID_SDK_ROOT:-unset} ANDROID_NDK_HOME=${ANDROID_NDK_HOME:-unset}"
+info "  OPENCV_CMAKE=$OPENCV_CMAKE (v $OPENCV_CMAKE_VER) PY3_BIN=${PY3_BIN:-$(command -v python3 || echo unknown)}"
+info "  BUILD_GENERATOR=${BUILD_GENERATOR:-Unix Makefiles} ABIS=[$ABIS]"
 
 # ===== toolchain dir detect =====
 PREBUILT_BASE="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt"
@@ -377,6 +401,51 @@ build_for_arch() {
   if [ $? -ne 0 ]; then
     log_error "CMake configuration for $arch failed. See $arch_log for details."
   fi
+
+  # After configure: dump key CMakeCache entries to help debug differences
+  if [ -f "$arch_build_dir/CMakeCache.txt" ]; then
+    {
+      echo "===== CMakeCache ($arch): key entries =====";
+      grep -E '^(CMAKE_(GENERATOR|BUILD_TYPE|CXX_COMPILER|C_COMPILER)|ANDROID_|OPENCV_|Python3_EXECUTABLE):' "$arch_build_dir/CMakeCache.txt" | sed -n '1,120p';
+      echo "===== END CMakeCache ($arch) =====";
+    } >> "$arch_log" 2>&1 || true
+  fi
+
+  # Provide the Python sorter used by the CMake custom target to stabilize JNI function order
+  SORTER_PATH="$arch_build_dir/modules/java/jni/repro_sort_jni.py"
+  cat > "$SORTER_PATH" << 'PY'
+#!/usr/bin/env python3
+import io, os, re, sys
+
+def main():
+    if len(sys.argv) < 2:
+        return 0
+    path = sys.argv[1]
+    try:
+        with io.open(path, "r", encoding="utf-8") as f:
+            txt = f.read()
+    except FileNotFoundError:
+        return 0
+    # Split header and JNI functions (start of line: JNIEXPORT)
+    parts = re.split(r"^(?=JNIEXPORT\b)", txt, flags=re.M)
+    if len(parts) <= 1:
+        return 0
+    header = parts[0]
+    funcs = parts[1:]
+    # Sort by first line (function signature)
+    def key_of(ch: str) -> str:
+        return ch.splitlines(True)[0].strip() if ch else ""
+    order = sorted(range(len(funcs)), key=lambda i: key_of(funcs[i]))
+    new_txt = header + "".join(funcs[i] for i in order)
+    if new_txt != txt:
+        with io.open(path, "w", encoding="utf-8", newline="\n") as f:
+            f.write(new_txt)
+    return 0
+
+if __name__ == "__main__":
+    sys.exit(main())
+PY
+  chmod +x "$SORTER_PATH"
 
   # Gradle Kotlin jvmTarget safety (falls Gradle doch angerufen wird)
   echo "

@@ -447,6 +447,26 @@ if __name__ == "__main__":
 PY
   chmod +x "$SORTER_PATH"
 
+  # Pre-generate and sort JNI wrapper to enforce deterministic order across environments
+  info "Generating OpenCV Java sources (gen_opencv_java_source) for $arch..."
+  if ! "$OPENCV_CMAKE" --build . --target gen_opencv_java_source >> "$arch_log" 2>&1; then
+    echo "ERROR: gen_opencv_java_source failed for $arch" >&2
+    tail -n 80 "$arch_log" >&2 || true
+    cd "$SCRIPT_DIR"; return 1
+  fi
+  GEN_CPP_REL="../generator/src/cpp/opencv_java.cpp"
+  GEN_CPP_PATH="$arch_build_dir/modules/java/jni/$GEN_CPP_REL"
+  if [ -f "$GEN_CPP_PATH" ]; then
+    info "Applying deterministic sort to $GEN_CPP_PATH"
+    "$SORTER_PATH" "$GEN_CPP_PATH" || true
+    # Show first few JNI signatures for verification
+    { echo "===== HEAD of sorted opencv_java.cpp ($arch) ====="; \
+      sed -n '1,120p' "$GEN_CPP_PATH" | grep -E "^JNIEXPORT" | sed -n '1,16p'; \
+      echo "===== END head ($arch) ====="; } >> "$arch_log" 2>&1 || true
+  else
+    info "WARN: Generated opencv_java.cpp not found at $GEN_CPP_PATH"
+  fi
+
   # Gradle Kotlin jvmTarget safety (falls Gradle doch angerufen wird)
   echo "
   tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {

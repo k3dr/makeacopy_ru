@@ -55,6 +55,14 @@ jobs:
           cmake --version
           python3 --version
 
+      - name: Set deterministic environment
+        run: |
+          echo "SOURCE_DATE_EPOCH=1700000000" >> $GITHUB_ENV
+          echo "TZ=UTC" >> $GITHUB_ENV
+          echo "LC_ALL=C" >> $GITHUB_ENV
+          echo "LANG=C" >> $GITHUB_ENV
+          echo "PYTHONHASHSEED=0" >> $GITHUB_ENV
+
       - name: Check installed NDK
         run: ls -l $ANDROID_NDK_HOME
 
@@ -66,6 +74,19 @@ jobs:
         run: |
           chmod +x scripts/build_opencv_android.sh
           VERBOSE=1 DEBUG=1 ./scripts/build_opencv_android.sh
+
+      - name: Collect reproducibility evidence (native)
+        run: |
+          chmod +x scripts/collect_repro_evidence.sh
+          ./scripts/collect_repro_evidence.sh
+
+      - name: Upload native reproducibility evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-repro-evidence
+          path: |
+            scripts/repro_out/**
+            scripts/repro_out.tgz
 
       - name: Prepare OpenCV for app
         run: |

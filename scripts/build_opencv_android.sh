@@ -474,7 +474,7 @@ PY
       sed -n '1,120p' "$GEN_CPP_PATH" | grep -E "^JNIEXPORT" | sed -n '1,16p'; \
       echo "===== END head ($arch) ====="; } >> "$arch_log" 2>&1 || true
   else
-    info "WARN: Generated opencv_java.cpp not found at $GEN_CPP_PATH"
+    info "Note: Generated opencv_java.cpp not present yet at $GEN_CPP_PATH (it will be created during the main build via CMake target)."
   fi
 
   # Gradle Kotlin jvmTarget safety (falls Gradle doch angerufen wird)

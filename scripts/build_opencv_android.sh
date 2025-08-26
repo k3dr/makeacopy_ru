@@ -138,7 +138,7 @@ perl -0777 -pe 's~(\n\s*ocv_add_library\(\$\{the_module\}.*\n)~\n# Repro: stabil
 info "Deterministic ordering patches applied."
 
 # ========= Patch 5:  =========
-perl -0777 -pe 's~(add_dependencies\(\$\{the_module\}\s+gen_opencv_java_source\)\s*\n)~$1# ---- Debug dump + deterministic generator post-process (Patch 5 v5) ----
+perl -0777 -pe 's~(add_dependencies\(\$\{the_module\}\s+gen_opencv_java_source\)\s*\n)~$1# ---- Debug dump + deterministic generator post-process (Patch 5 v6) ----
 set(_abi "\$\{CMAKE_ANDROID_ARCH_ABI\}")
 if(NOT _abi)
   set(_abi "\$\{ANDROID_NDK_ABI_NAME\}")
@@ -165,7 +165,8 @@ if(_tgt_sources)
 endif()
 
 # Create deterministic post-processing target to alphabetize JNI functions in generated opencv_java.cpp
-set(_gen_cpp "\$\{CMAKE_CURRENT_BINARY_DIR\}/../generator/src/cpp/opencv_java.cpp")
+# Important: The generator writes into the source tree, not the build tree → use CMAKE_CURRENT_SOURCE_DIR
+set(_gen_cpp "\$\{CMAKE_CURRENT_SOURCE_DIR\}/../generator/src/cpp/opencv_java.cpp")
 add_custom_target(repro_sort_gen
   COMMAND "\$\{Python3_EXECUTABLE\}" "\$\{CMAKE_CURRENT_BINARY_DIR\}/repro_sort_jni.py" "\$\{_gen_cpp\}"
   DEPENDS gen_opencv_java_source
@@ -177,7 +178,7 @@ add_dependencies(\$\{the_module\} repro_sort_gen)
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
   target_link_options(\$\{the_module\} PRIVATE -Wl,-Map,\$\{_map\})
 endif()
-# ---- End Patch 5 v5 ----
+# ---- End Patch 5 v6 ----
 ~s' -i "$JNI_TOP"
 
 

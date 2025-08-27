@@ -263,9 +263,10 @@ build_for_arch(){
   if [ -x "$STRIP" ]; then
     info "Strip $arch libs"
     find "$OUT_DIR" -name "*.so" -exec "$STRIP" --strip-unneeded \
-      --remove-section=.comment --remove-section=.note --remove-section=.note.gnu.build-id \
-      --remove-section=.note.gnu.property --remove-section=.note.ABI-tag \
-      --remove-section=.eh_frame_hdr --remove-section=.eh_frame {} \;
+      --remove-section=.comment \
+      --remove-section=.note \
+      --remove-section=.note.gnu.build-id \
+      --remove-section=.note.ABI-tag {} \;
   fi
 
   # Summary (per-arch)

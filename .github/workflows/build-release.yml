@@ -67,8 +67,8 @@ jobs:
         run: ls -l $ANDROID_NDK_HOME
 
       # (optional) Nur arm64-v8a auf CI bauen – auskommentiert lassen, wenn alle ABIs gewünscht
-      #- name: Limit ABIs to arm64-v8a
-      #   run: echo "ABIS=arm64-v8a" >> $GITHUB_ENV
+      - name: Limit ABIs to arm64-v8a armeabi-v7a x86 x86_64
+        run: echo "ABIS=arm64-v8a armeabi-v7a x86 x86_64" >> $GITHUB_ENV
 
       - name: Build OpenCV native libraries
         run: |

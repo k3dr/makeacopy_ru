@@ -2,34 +2,53 @@
 set -Eeuo pipefail
 umask 022
 
-# Enable tracing via DEBUG/TRACE=1
-if [ "${DEBUG:-0}" = "1" ] || [ "${TRACE:-0}" = "1" ]; then set -x; fi
-
-# ===== Logging =====
+# ===== User knobs =====
+ABIS="${ABIS:-arm64-v8a}"  # ggf. wieder auf: "arm64-v8a armeabi-v7a x86 x86_64"
 VERBOSE="${VERBOSE:-0}"
-info(){ if [ "$VERBOSE" = "1" ]; then echo "$@"; else >&2 echo "$@"; fi }
-
-# ===== Config =====
-ABIS="${ABIS:-arm64-v8a armeabi-v7a x86 x86_64}"
 export SOURCE_DATE_EPOCH="${SOURCE_DATE_EPOCH:-1700000000}"
 export TZ=UTC LC_ALL=C LANG=C PYTHONHASHSEED=0
 
+info(){ if [ "$VERBOSE" = "1" ]; then echo "$@"; else >&2 echo "$@"; fi }
+
+# Paths
 SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 OPENCV_DIR_ORIG="$SCRIPT_DIR/external/opencv"
+PINNED_JNI_DIR="${PINNED_JNI_DIR:-$SCRIPT_DIR/external/opencv_pinned_jni}"  # hier liegen die gepinnten Dateien
+export PINNED_JNI_DIR
+export REQUIRE_PINNED_JNI="${REQUIRE_PINNED_JNI:-1}"  # CI bricht ab, wenn gepinnte fehlen (unset/0 auf eigene Gefahr)
 BUILD_DIR="/tmp/opencv-build"
 OPENCV_DIR="/tmp/opencv-src"
 
-# ===== Clean + Copy =====
+# ===== Helpers =====
+sedi(){ if sed --version >/dev/null 2>&1; then sed -i "$@"; else sed -i '' "$@"; fi }
+
+# ===== Quick Pin-Check (ohne Build) =====
+if [ "${QUICK_PATCH5_CHECK:-0}" = "1" ]; then
+  info "Running QUICK_PATCH5_CHECK: validating pinned JNI files in PINNED_JNI_DIR='$PINNED_JNI_DIR'"
+  COPIED=0; MISSING=()
+  for f in core.inl.hpp imgcodecs.inl.hpp imgproc.inl.hpp video.inl.hpp videoio.inl.hpp; do
+    if [ -f "$PINNED_JNI_DIR/$f" ]; then
+      echo "[pinned-jni] would copy $f -> gen/cpp"; COPIED=$((COPIED+1))
+    else MISSING+=("$f"); fi
+  done
+  if [ -f "$PINNED_JNI_DIR/opencv_jni.hpp" ]; then
+    echo "[pinned-jni] would copy opencv_jni.hpp -> gen/cpp"; COPIED=$((COPIED+1))
+  else MISSING+=("opencv_jni.hpp"); fi
+  if [ ${#MISSING[@]} -gt 0 ]; then IFS=","; echo "[pinned-jni] missing (not fatal): ${MISSING[*]}"; IFS=$' \t\n'; fi
+  echo "Pin quick summary: REQUIRE_PINNED_JNI=${REQUIRE_PINNED_JNI:-unset}, PINNED_JNI_DIR=${PINNED_JNI_DIR:-unset}, present=$COPIED"
+  if [ "${REQUIRE_PINNED_JNI:-0}" = "1" ] && [ "$COPIED" -eq 0 ]; then
+    echo "[pinned-jni] No pinned files present in '$PINNED_JNI_DIR'." >&2; exit 1
+  fi
+  exit 0
+fi
+
+# ===== Clean + Copy OpenCV =====
 cd "$OPENCV_DIR_ORIG"
 git clean -xfd
 git checkout .
-
 info "Copying OpenCV sources to $OPENCV_DIR..."
 rm -rf "$OPENCV_DIR"; mkdir -p "$OPENCV_DIR"
 cp -a "$OPENCV_DIR_ORIG/." "$OPENCV_DIR"
-
-# ===== sed helper (GNU/macOS) =====
-sedi(){ if sed --version >/dev/null 2>&1; then sed -i "$@"; else sed -i '' "$@"; fi }
 
 # ===== Patch 1: deterministic ocv_output_status() =====
 OPENCV_UTILS="$OPENCV_DIR/cmake/OpenCVUtils.cmake"
@@ -44,7 +63,7 @@ function(ocv_output_status msg)
 endfunction()
 EOF
 
-# ========= Patch 2: disable internal POST_BUILD strip (idempotent) =========
+# ===== Patch 2: disable internal POST_BUILD strip (idempotent) =====
 JNI_CMAKELISTS="$OPENCV_DIR/modules/java/jni/CMakeLists.txt"
 info "Neutralize internal strip in $JNI_CMAKELISTS..."
 cp "$JNI_CMAKELISTS" "$JNI_CMAKELISTS.bak" || true
@@ -60,7 +79,7 @@ info "Remove ALL from android_sdk target in $ANDROID_SDK_CMAKE"
 cp "$ANDROID_SDK_CMAKE" "$ANDROID_SDK_CMAKE.bak" || true
 perl -0777 -pe 's/add_custom_target\(([^)]*_android)\s+ALL/add_custom_target($1/g' -i "$ANDROID_SDK_CMAKE"
 
-# ===== Patch 4: deterministic source ordering =====
+# ===== Patch 4: deterministic source ordering (harmlos) =====
 JAVA_TOP="$OPENCV_DIR/modules/java/CMakeLists.txt"
 JNI_TOP="$OPENCV_DIR/modules/java/jni/CMakeLists.txt"
 info "Sort glob results & source lists"
@@ -79,56 +98,7 @@ awk '
 perl -0777 -pe 's/(file\(GLOB _result[^\n]*\n)/$1    list(SORT _result)\n/s' -i "$JNI_TOP"
 perl -0777 -pe 's~(\n\s*ocv_add_library\(\$\{the_module\}.*\n)~\n# Repro: stable order of all source lists\nforeach(v handwritten_h_sources handwritten_cpp_sources generated_cpp_sources jni_sources java_sources srcs sources __srcs)\n  if(DEFINED \${v})\n    list(SORT \${v})\n  endif()\nendforeach()\n\1~s' -i "$JNI_TOP"
 
-# ===== Patch 5: hook sorter + link map =====
-info "Inject target to sort generated JNI (hpp primary, cpp fallback)"
-perl -0777 -pe 's~(add_dependencies\(\$\{the_module\}\s+gen_opencv_java_source\)\s*\n)~$1# ---- Repro Patch 5 ----
-set(_abi "\$\{CMAKE_ANDROID_ARCH_ABI\}")
-if(NOT _abi)
-  set(_abi "\$\{ANDROID_NDK_ABI_NAME\}")
-endif()
-set(_dump "\$\{CMAKE_CURRENT_BINARY_DIR\}/jni_state_\$\{_abi\}.txt")
-set(_map  "\$\{CMAKE_CURRENT_BINARY_DIR\}/libopencv_java4_\$\{_abi\}.map")
-file(WRITE "\$\{_dump\}" "Generator=\$\{CMAKE_GENERATOR\}\nCXX=\$\{CMAKE_CXX_COMPILER\}\nLinker=\$\{CMAKE_LINKER\}\n")
-foreach(v handwritten_h_sources handwritten_cpp_sources generated_cpp_sources jni_sources java_sources srcs sources __srcs)
-  if(DEFINED \$\{v\})
-    list(SORT \$\{v\})
-    file(APPEND "\$\{_dump\}" "\$\{v\}=\n")
-    foreach(x IN LISTS \$\{v\})
-      file(APPEND "\$\{_dump\}" "  \$\{x\}\n")
-    endforeach()
-  endif()
-endforeach()
-get_target_property(_tgt_sources \$\{the_module\} SOURCES)
-if(_tgt_sources)
-  list(SORT _tgt_sources)
-  file(APPEND "\$\{_dump\}" "TARGET_SOURCES=\n")
-  foreach(x IN LISTS _tgt_sources)
-    file(APPEND "\$\{_dump\}" "  \$\{x\}\n")
-  endforeach()
-endif()
-
-set(_gen_hpp "\$\{CMAKE_CURRENT_SOURCE_DIR\}/../generator/src/cpp/opencv_jni.hpp")
-set(_gen_cpp "\$\{CMAKE_CURRENT_SOURCE_DIR\}/../generator/src/cpp/opencv_java.cpp")
-
-add_custom_target(repro_sort_gen
-  COMMAND "\$\{Python3_EXECUTABLE\}" "\$\{CMAKE_CURRENT_BINARY_DIR\}/repro_sort_jni.py" "\$\{_gen_hpp\}" "\$\{_gen_cpp\}"
-  DEPENDS gen_opencv_java_source
-  BYPRODUCTS "\$\{_gen_hpp\}"
-  VERBATIM
-)
-add_dependencies(\$\{the_module\} repro_sort_gen)
-
-if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
-  target_link_options(\$\{the_module\} PRIVATE -Wl,-Map,\$\{_map\})
-endif()
-# ---- End Repro Patch 5 ----
-~s' -i "$JNI_TOP"
-
-# ===== Error handler =====
-log_error(){ echo "ERROR: $1"; echo "Check logs. Try NDK 27.3.13750724 if needed."; exit 1; }
-trap 'log_error "Build failed at line $LINENO"' ERR
-
-# ===== locate NDK =====
+# ===== locate NDK (optional heuristics) =====
 if [ -z "${ANDROID_NDK_HOME:-}" ]; then
   if [ -n "${ANDROID_SDK_ROOT:-}" ]; then
     if [ -d "$ANDROID_SDK_ROOT/ndk" ]; then
@@ -151,30 +121,7 @@ if [ -z "${ANDROID_NDK_HOME:-}" ]; then
   fi
 fi
 
-# ===== NDK/CMake info =====
-info "Using Android NDK: $ANDROID_NDK_HOME"
-NDK_VERSION="$(basename "$ANDROID_NDK_HOME")"
-RECOMMENDED_VERSION="27.3.13750724"
-info "Detected NDK: $NDK_VERSION"
-[ "$NDK_VERSION" != "$RECOMMENDED_VERSION" ] && info "NDK differs from recommended $RECOMMENDED_VERSION."
-
-# ===== validate sources =====
-[ -d "$OPENCV_DIR" ] || { echo "Error: $OPENCV_DIR not found"; exit 1; }
-
-# ===== prepare build dir =====
-rm -rf "$BUILD_DIR"; mkdir -p "$BUILD_DIR/lib"
-
-# ===== locate SDK (optional) =====
-if [ -z "${ANDROID_SDK_ROOT:-}" ]; then
-  if [ -d "$HOME/Library/Android/sdk" ]; then
-    export ANDROID_SDK_ROOT="$HOME/Library/Android/sdk"
-  elif [ -d "$HOME/Android/Sdk" ]; then
-    export ANDROID_SDK_ROOT="$HOME/Android/Sdk"
-  fi
-  [ -n "${ANDROID_SDK_ROOT:-}" ] && info "Found Android SDK at $ANDROID_SDK_ROOT"
-fi
-
-# ===== pick CMake =====
+# ===== CMake pick =====
 if [ -z "${OPENCV_CMAKE:-}" ]; then
   if [ -n "${ANDROID_SDK_ROOT:-}" ] && [ -d "$ANDROID_SDK_ROOT/cmake" ]; then
     LATEST_CMAKE_DIR="$(find "$ANDROID_SDK_ROOT/cmake" -maxdepth 1 -type d -name "[0-9]*" | sort -Vr | head -n1 || true)"
@@ -187,9 +134,6 @@ fi
 [ -n "${OPENCV_CMAKE:-}" ] || { echo "ERROR: CMake not found (set OPENCV_CMAKE)"; exit 1; }
 OPENCV_CMAKE_VER="$("$OPENCV_CMAKE" --version | awk '/version/{print $3; exit}')"
 info "OpenCV CMake: $OPENCV_CMAKE (v $OPENCV_CMAKE_VER)"
-if [ -n "${OPENCV_CMAKE_REQ:-}" ] && [ "$OPENCV_CMAKE_VER" != "$OPENCV_CMAKE_REQ" ]; then
-  echo "ERROR: CMake $OPENCV_CMAKE_VER != required $OPENCV_CMAKE_REQ" >&2; exit 1
-fi
 
 # ===== toolchain dir detect =====
 PREBUILT_BASE="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt"
@@ -207,12 +151,13 @@ TOOLCHAIN_DIR="$(detect_toolchain_dir || true)"
 [ -n "$TOOLCHAIN_DIR" ] || { echo "ERROR: llvm toolchain dir not found under $PREBUILT_BASE"; exit 1; }
 info "Using NDK toolchain: $TOOLCHAIN_DIR"
 
-# ===== Build-Log =====
+# ===== prep build root =====
+rm -rf "$BUILD_DIR"; mkdir -p "$BUILD_DIR/lib"
 BUILD_LOG="$BUILD_DIR/opencv_build.log"
 info "Build log: $BUILD_LOG"
-echo "$(date): Starting OpenCV build (NDK $NDK_VERSION)" > "$BUILD_LOG"
+echo "$(date): Starting OpenCV build" > "$BUILD_LOG"
 
-# ===== per-ABI build =====
+# ===== build per ABI =====
 build_for_arch(){
   local arch="$1"
   local arch_build_dir="${BUILD_DIR}_${arch}"
@@ -229,7 +174,6 @@ build_for_arch(){
 
   local AR_BIN="$TOOLCHAIN_DIR/bin/llvm-ar"
   local RANLIB_BIN="$TOOLCHAIN_DIR/bin/llvm-ranlib"
-  [ -x "$AR_BIN" ] && [ -x "$RANLIB_BIN" ] || { echo "ERROR: missing llvm-ar/ranlib"; exit 1; }
 
   local BUILD_GENERATOR="${BUILD_GENERATOR:-Unix Makefiles}"
   info "Configure CMake ($BUILD_GENERATOR) for $arch"
@@ -258,190 +202,44 @@ build_for_arch(){
     -DBUILD_opencv_photo=OFF -DBUILD_opencv_stitching=OFF \
     -DWITH_OPENCL=OFF -DWITH_IPP=OFF \
     -DCMAKE_CXX_STANDARD=11 -DCMAKE_CXX_STANDARD_REQUIRED=ON \
-    -DCMAKE_C_ARCHIVE_CREATE="<CMAKE_AR> qcD <TARGET> <LINK_FLAGS> <OBJECTS>" \
-    -DCMAKE_C_ARCHIVE_FINISH=":" \
-    -DCMAKE_CXX_ARCHIVE_CREATE="<CMAKE_AR> qcD <TARGET> <LINK_FLAGS> <OBJECTS>" \
-    -DCMAKE_CXX_ARCHIVE_FINISH=":" \
-    -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
-    "$OPENCV_DIR" >> "$arch_log" 2>&1 || log_error "CMake config for $arch failed ($arch_log)"
+    "$OPENCV_DIR" >> "$arch_log" 2>&1 || { echo "ERROR: CMake config for $arch failed ($arch_log)"; return 1; }
 
-  # CMakeCache snippet
-  if [ -f "$arch_build_dir/CMakeCache.txt" ]; then
-    { echo "===== CMakeCache ($arch): key entries =====";
-      grep -E '^(CMAKE_(GENERATOR|BUILD_TYPE|CXX_COMPILER|C_COMPILER)|ANDROID_|OPENCV_|Python3_EXECUTABLE):' "$arch_build_dir/CMakeCache.txt" | sed -n '1,120p';
-      echo "===== END CMakeCache ($arch) ====="; } >> "$arch_log" 2>&1 || true
+  # ---- 1) Zuerst nur den Java-Generator bauen
+  info "Build gen_opencv_java_source for $arch (-j1)"
+  if [ "$BUILD_GENERATOR" = "Ninja" ]; then
+    ninja -j1 gen_opencv_java_source >> "$arch_log" 2>&1 || { echo "Build (generator) failed ($arch)"; tail -n 120 "$arch_log" >&2; cd "$SCRIPT_DIR"; return 1; }
+  else
+    make -j1 gen_opencv_java_source >> "$arch_log" 2>&1 || { echo "Build (generator) failed ($arch)"; tail -n 120 "$arch_log" >&2; cd "$SCRIPT_DIR"; return 1; }
   fi
 
-  # Python sorter (robust to wrapped lines; prototype before impl)
-  SORTER_PATH="$arch_build_dir/modules/java/jni/repro_sort_jni_inl.py"
-  cat > "$SORTER_PATH" << 'PY'
-#!/usr/bin/env python3
-import io, os, re, sys, glob
+  # ---- 2) Gepinnte Header drüberkopieren (direkt in den Generator-Output)
+  local GEN_CPP_DIR="$arch_build_dir/modules/java_bindings_generator/gen/cpp"
+  mkdir -p "$GEN_CPP_DIR"
+  local COPIED=0
+  if [ -d "$PINNED_JNI_DIR" ]; then
+    for f in core.inl.hpp imgcodecs.inl.hpp imgproc.inl.hpp video.inl.hpp videoio.inl.hpp opencv_jni.hpp; do
+      if [ -f "$PINNED_JNI_DIR/$f" ]; then
+        cp -f "$PINNED_JNI_DIR/$f" "$GEN_CPP_DIR/" && info "[pinned-jni] copied $f"
+        COPIED=$((COPIED+1))
+      else
+        info "[pinned-jni] missing (not fatal): $f"
+      fi
+    done
+  else
+    info "[pinned-jni] PINNED_JNI_DIR does not exist: $PINNED_JNI_DIR"
+  fi
 
-# Allow up to ~256 chars (with newlines) between JNIEXPORT and JNICALL, then capture Java_* symbol
-jni_name = re.compile(r'^JNIEXPORT[\s\S]{0,256}?JNICALL\s+(Java_[A-Za-z0-9_]+)', re.M)
+  if [ "${REQUIRE_PINNED_JNI:-0}" = "1" ] && [ "$COPIED" -eq 0 ]; then
+    echo "[pinned-jni] No pinned files copied from '$PINNED_JNI_DIR' -> abort." >&2
+    exit 1
+  fi
 
-def read(p):
-    with io.open(p, 'r', encoding='utf-8', errors='ignore') as f:
-        return f.read()
-
-def write(p, s):
-    with io.open(p, 'w', encoding='utf-8', newline='\n') as f:
-        f.write(s)
-
-def split_blocks(txt):
-    parts = re.split(r'^(?=JNIEXPORT\b)', txt, flags=re.M)
-    return parts[0], parts[1:]  # header, blocks
-
-def key_of(block: str):
-    # Use robust name extraction across wrapped lines
-    m = jni_name.search(block)
-    base = (m.group(1).lower() if m else block.splitlines(True)[0].strip().lower())
-    # Prototype if first ';' precedes first '{'
-    semi = block.find(';')
-    brace = block.find('{')
-    is_proto = (semi != -1 and (brace == -1 or semi < brace))
-    # Stable tiebreaker
-    first = block.splitlines(True)[0]
-    return (base, 0 if is_proto else 1, first.lower())
-
-def sort_inl(p):
-    txt = read(p)
-    if 'JNIEXPORT' not in txt:
-        return False
-    head, blocks = split_blocks(txt)
-    if len(blocks) <= 1:
-        return False
-    order = sorted(range(len(blocks)), key=lambda i: key_of(blocks[i]))
-    out = head + ''.join(blocks[i] for i in order)
-    if out != txt:
-        write(p, out)
-        return True
-    return False
-
-def main():
-    base = sys.argv[1] if len(sys.argv) > 1 else "."
-    changed = 0
-    for p in sorted(glob.glob(os.path.join(base, "*.inl.hpp"))):
-        try:
-            if sort_inl(p):
-                changed += 1
-                print(f"sorted: {os.path.basename(p)}")
-        except Exception:
-            pass
-    print(f"Done. Files changed: {changed}")
-    return 0
-
-if __name__ == "__main__":
-    sys.exit(main())
-PY
-  chmod +x "$SORTER_PATH"
-
-  # Shim expected by CMake target repro_sort_gen
-  SHIM_PATH="$arch_build_dir/modules/java/jni/repro_sort_jni.py"
-  cat > "$SHIM_PATH" << 'PY'
-#!/usr/bin/env python3
-import io, os, re, sys, glob
-
-jni_name = re.compile(r'^JNIEXPORT[\s\S]{0,256}?JNICALL\s+(Java_[A-Za-z0-9_]+)', re.M)
-
-def read(p):
-    with io.open(p, 'r', encoding='utf-8', errors='ignore') as f:
-        return f.read()
-
-def write(p, s):
-    with io.open(p, 'w', encoding='utf-8', newline='\n') as f:
-        f.write(s)
-
-def split_blocks(txt):
-    parts = re.split(r'^(?=JNIEXPORT\b)', txt, flags=re.M)
-    return parts[0], parts[1:]
-
-def key_of(block: str):
-    m = jni_name.search(block)
-    base = (m.group(1).lower() if m else block.splitlines(True)[0].strip().lower())
-    semi = block.find(';'); brace = block.find('{')
-    is_proto = (semi != -1 and (brace == -1 or semi < brace))
-    first = block.splitlines(True)[0]
-    return (base, 0 if is_proto else 1, first.lower())
-
-def sort_blocks_file(p):
-    txt = read(p)
-    if 'JNIEXPORT' not in txt:
-        return False
-    head, blocks = split_blocks(txt)
-    if len(blocks) <= 1:
-        return False
-    order = sorted(range(len(blocks)), key=lambda i: key_of(blocks[i]))
-    out = head + ''.join(blocks[i] for i in order)
-    if out != txt:
-        write(p, out)
-        return True
-    return False
-
-def main():
-    # 1) Try explicit args first (e.g., opencv_jni.hpp / opencv_java.cpp)
-    for p in sys.argv[1:]:
-        try:
-            if os.path.exists(p) and 'JNIEXPORT' in read(p):
-                sort_blocks_file(p)
-        except Exception:
-            pass
-    # 2) Always sort the generated *.inl.hpp in build tree
-    here = os.path.dirname(os.path.abspath(__file__))
-    inl_dir = os.path.normpath(os.path.join(here, "..", "..", "java_bindings_generator", "gen", "cpp"))
-    changed = 0
-    for p in sorted(glob.glob(os.path.join(inl_dir, "*.inl.hpp"))):
-        try:
-            if sort_blocks_file(p):
-                changed += 1
-                print(f"sorted: {os.path.basename(p)}")
-        except Exception:
-            pass
-    print(f"Done. Files changed: {changed}")
-    return 0
-
-if __name__ == "__main__":
-    sys.exit(main())
-PY
-  chmod +x "$SHIM_PATH"
-  # --- End shim ---
-
-  # Generate sources
-  info "Run gen_opencv_java_source for $arch"
-  "$OPENCV_CMAKE" --build . --target gen_opencv_java_source >> "$arch_log" 2>&1 || {
-    echo "ERROR: gen_opencv_java_source failed ($arch)"; tail -n 80 "$arch_log" >&2 || true; cd "$SCRIPT_DIR"; return 1; }
-
-  # Sort all *.inl.hpp in build tree + short log
-  INL_DIR="$arch_build_dir/modules/java_bindings_generator/gen/cpp"
-  info "Sort JNIEXPORT in *.inl.hpp ($INL_DIR)"
-  "$SORTER_PATH" "$INL_DIR" >> "$arch_log" 2>&1 || true
-
-  # Quick dump
-  one_inl="$(ls -1 "$INL_DIR"/*.inl.hpp 2>/dev/null | head -n1 || true)"
-  { echo "===== HEAD JNIEXPORT ($arch) from $(basename "$one_inl") ====="
-    [ -n "$one_inl" ] && grep -n '^JNIEXPORT' "$one_inl" | sed -n '1,20p' || true
-    echo "===== END JNIEXPORT ====="; } >> "$arch_log" 2>&1 || true
-
-  # Build (single-threaded for reproducibility)
+  # ---- 3) Jetzt den Rest bauen (nutzt die überschriebenen Dateien)
   info "Build OpenCV for $arch (-j1)"
   if [ "$BUILD_GENERATOR" = "Ninja" ]; then
-    ninja -j1 >> "$arch_log" 2>&1 || { echo "Build failed ($arch)"; tail -n 80 "$arch_log" >&2; cd "$SCRIPT_DIR"; return 1; }
+    ninja -j1 >> "$arch_log" 2>&1 || { echo "Build failed ($arch)"; tail -n 120 "$arch_log" >&2; cd "$SCRIPT_DIR"; return 1; }
   else
-    make -j1 >> "$arch_log" 2>&1 || { echo "Build failed ($arch)"; tail -n 80 "$arch_log" >&2; cd "$SCRIPT_DIR"; return 1; }
-  fi
-
-  # Map + dumps
-  local JNI_DIR="$arch_build_dir/modules/java/jni"
-  local STATE_DUMP="$(ls "$JNI_DIR"/jni_state_*.txt 2>/dev/null | head -n1 || true)"
-  local MAP_DUMP="$(ls "$JNI_DIR"/libopencv_java4_*.map 2>/dev/null | head -n1 || true)"
-  if [ -n "$STATE_DUMP" ]; then
-    echo "===== DUMP: $STATE_DUMP ====="; sed -n '1,160p' "$STATE_DUMP" || true; echo "===== END ====="
-  fi
-  if [ -n "$MAP_DUMP" ]; then
-    echo "===== DUMP: $MAP_DUMP ====="
-    grep -nE 'CamShift|meanShift|OpticalFlow|BackgroundSubtractor(MOG2|KNN)' "$MAP_DUMP" | head -n 400 || true
-    echo "===== END ====="
+    make -j1 >> "$arch_log" 2>&1 || { echo "Build failed ($arch)"; tail -n 120 "$arch_log" >&2; cd "$SCRIPT_DIR"; return 1; }
   fi
 
   # Stage libopencv_java4.so
@@ -454,30 +252,24 @@ PY
   shopt -s nullglob; cp -f "$SRC_LIB_DIR"/*.so "$OUT_DIR/" 2>/dev/null || true; shopt -u nullglob
   ls -1 "$OUT_DIR"/*.so >/dev/null 2>&1 || { echo "ERROR: no .so staged ($arch)"; tail -n 50 "$arch_log" >&2; cd "$SCRIPT_DIR"; return 1; }
 
-  # Normalize timestamps
+  # Normalize timestamps + hashes + strip unneeded
   if touch -d "@$SOURCE_DATE_EPOCH" / >/dev/null 2>&1; then
     find "$OUT_DIR" -type f -name "*.so" -exec touch -d "@$SOURCE_DATE_EPOCH" {} +
   fi
-
-  # Hashes
   if command -v shasum >/dev/null 2>&1; then (cd "$OUT_DIR" && shasum -a 256 *.so) >> "$arch_log" 2>&1 || true
   elif command -v sha256sum >/dev/null 2>&1; then (cd "$OUT_DIR" && sha256sum *.so) >> "$arch_log" 2>&1 || true; fi
 
-  # Strip (safe: unneeded) + remove noisy sections
   local STRIP="$TOOLCHAIN_DIR/bin/llvm-strip"
   if [ -x "$STRIP" ]; then
     info "Strip $arch libs"
-    find "$OUT_DIR" -name "*.so" -exec "$STRIP" \
-      --strip-unneeded \
-      --remove-section=.comment \
-      --remove-section=.note \
-      --remove-section=.note.gnu.build-id \
-      --remove-section=.note.gnu.property \
-      --remove-section=.note.ABI-tag \
-      --remove-section=.eh_frame_hdr \
-      --remove-section=.eh_frame \
-      {} \;
+    find "$OUT_DIR" -name "*.so" -exec "$STRIP" --strip-unneeded \
+      --remove-section=.comment --remove-section=.note --remove-section=.note.gnu.build-id \
+      --remove-section=.note.gnu.property --remove-section=.note.ABI-tag \
+      --remove-section=.eh_frame_hdr --remove-section=.eh_frame {} \;
   fi
+
+  # Summary (per-arch)
+  info "Pin summary ($arch): REQUIRE_PINNED_JNI=${REQUIRE_PINNED_JNI:-unset}, PINNED_JNI_DIR=${PINNED_JNI_DIR:-unset}, copied=${COPIED:-0}"
 
   cd "$SCRIPT_DIR"
   info "Done $arch"
@@ -488,8 +280,7 @@ PY
 info "Building OpenCV for ABIs: [$ABIS]"
 BUILD_FAILED=0
 for ARCH in $ABIS; do build_for_arch "$ARCH" || BUILD_FAILED=1; done
-
-if [ $BUILD_FAILED -ne 0 ]; then echo "❌ Error: some builds failed"; exit 1; fi
+[ $BUILD_FAILED -ne 0 ] && { echo "❌ Error: some builds failed"; exit 1; }
 info "✅ OpenCV for Android built successfully."
 
 # ===== Summary =====
@@ -501,18 +292,3 @@ for ARCH in $ABIS; do
   else echo "$ARCH: libopencv_java4.so not found"; fi
 done
 echo "===== END SHA256 summary ====="
-
-# Final head (source-tree) — usually empty for .hpp now; harmless if missing
-GEN_DIR_SRC="$OPENCV_DIR/modules/java/generator/src/cpp"
-GEN_HPP_PATH="$GEN_DIR_SRC/opencv_jni.hpp"
-GEN_CPP_PATH="$GEN_DIR_SRC/opencv_java.cpp"
-echo "===== HEAD of final sorted JNIEXPORT (source tree) ====="
-[ -f "$GEN_HPP_PATH" ] && grep -n "^JNIEXPORT" "$GEN_HPP_PATH" | sed -n '1,20p' || true
-if [ -f "$GEN_CPP_PATH" ]; then
-  echo "--- (cpp fallback) ---"
-  grep -n "^JNIEXPORT" "$GEN_CPP_PATH" | sed -n '1,10p' || true
-fi
-echo "===== END ====="
-
-info "Build log: $BUILD_LOG"
-exit 0

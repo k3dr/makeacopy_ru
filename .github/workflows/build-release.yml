@@ -73,7 +73,7 @@ jobs:
       - name: Build OpenCV native libraries
         run: |
           chmod +x scripts/build_opencv_android.sh
-          VERBOSE=1 DEBUG=1 ./scripts/build_opencv_android.sh
+          REQUIRE_PINNED_JNI=1 VERBOSE=1 DEBUG=1 ./scripts/build_opencv_android.sh
 
       - name: Collect reproducibility evidence (native)
         run: |

@@ -49,6 +49,7 @@
 
     <!-- Export options -->
     <string name="convert_to_grayscale">Convertir a escala de grises</string>
+    <string name="export_as_jpeg">Exportar como JPEG</string>
 
     <!-- Flashlight options -->
     <string name="toggle_flashlight">Activar/desactivar linterna</string>
@@ -56,4 +57,9 @@
     <string name="flashlight_off">Linterna apagada</string>
     <string name="flashlight_not_available">Linterna no disponible en este dispositivo</string>
     <string name="low_light_detected">Baja luz detectada. ¿Encender la linterna?</string>
+
+    <!-- JPEG mode labels -->
+    <string name="jpeg_mode_none">Sin mejora (JPEG)</string>
+    <string name="jpeg_mode_auto">Mejora automática (JPEG)</string>
+    <string name="jpeg_mode_bw_text">Blanco y negro (texto) (JPEG)</string>
 </resources>

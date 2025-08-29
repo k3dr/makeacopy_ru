@@ -49,6 +49,7 @@
 
     <!-- Export options -->
     <string name="convert_to_grayscale">Converti in scala di grigi</string>
+    <string name="export_as_jpeg">Esporta come JPEG</string>
 
     <!-- Flashlight options -->
     <string name="toggle_flashlight">Attiva/disattiva torcia</string>
@@ -56,4 +57,9 @@
     <string name="flashlight_off">Torcia spenta</string>
     <string name="flashlight_not_available">Torcia non disponibile su questo dispositivo</string>
     <string name="low_light_detected">Scarsa luminosità rilevata. Accendere la torcia?</string>
+
+    <!-- JPEG mode labels -->
+    <string name="jpeg_mode_none">Nessun miglioramento (JPEG)</string>
+    <string name="jpeg_mode_auto">Miglioramento automatico (JPEG)</string>
+    <string name="jpeg_mode_bw_text">Bianco e nero (testo) (JPEG)</string>
 </resources>

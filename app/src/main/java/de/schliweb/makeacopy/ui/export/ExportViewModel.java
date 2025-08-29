@@ -98,8 +98,11 @@ public class ExportViewModel extends ViewModel {
     }
 
     public void setExportFormat(String format) {
-        // Always use PDF format regardless of what is passed in
-        mExportFormat.setValue("PDF");
+        String fmt = (format == null) ? "PDF" : format.trim().toUpperCase();
+        if (!"PDF".equals(fmt) && !"JPEG".equals(fmt)) {
+            fmt = "PDF";
+        }
+        mExportFormat.setValue(fmt);
     }
 
     public LiveData<Boolean> isIncludeOcr() {

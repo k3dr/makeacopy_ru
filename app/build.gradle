@@ -116,6 +116,7 @@ dependencies {
     implementation libs.lifecycle.viewmodel.ktx
     implementation libs.navigation.fragment
     implementation libs.navigation.ui
+    implementation libs.activity
 
     // Lombok dependency
     compileOnly libs.lombok
@@ -155,4 +156,16 @@ androidComponents {
         // Exclude test PDFs from release APK/AAB packaging
         variant.packaging.resources.excludes.add("assets/test_pdfs/**")
     }
+}
+
+
+// Ensure Java compiler shows deprecation and unchecked warnings in builds
+// This helps us review all deprecated APIs in use during the build
+// and aligns with the task to verify deprecation warnings.
+tasks.withType(JavaCompile).configureEach {
+    options.deprecation = true
+    options.compilerArgs += [
+            '-Xlint:deprecation',
+            '-Xlint:unchecked'
+    ]
 }

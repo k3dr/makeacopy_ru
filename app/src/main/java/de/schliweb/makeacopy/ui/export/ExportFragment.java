@@ -25,10 +25,9 @@ import de.schliweb.makeacopy.databinding.FragmentExportBinding;
 import de.schliweb.makeacopy.ui.camera.CameraViewModel;
 import de.schliweb.makeacopy.ui.crop.CropViewModel;
 import de.schliweb.makeacopy.ui.ocr.OCRViewModel;
-import de.schliweb.makeacopy.utils.FileUtils;
-import de.schliweb.makeacopy.utils.PdfCreator;
-import de.schliweb.makeacopy.utils.RecognizedWord;
-import de.schliweb.makeacopy.utils.UIUtils;
+import de.schliweb.makeacopy.utils.*;
+import de.schliweb.makeacopy.utils.jpeg.JpegExportOptions;
+import de.schliweb.makeacopy.utils.jpeg.JpegExporter;
 
 import java.io.OutputStream;
 import java.text.SimpleDateFormat;
@@ -78,6 +77,7 @@ public class ExportFragment extends Fragment {
 
     private ActivityResultLauncher<String> createDocumentLauncher;
     private ActivityResultLauncher<String> createTxtDocumentLauncher;
+    private ActivityResultLauncher<String> createJpegDocumentLauncher;
 
     // URI of the last exported document for sharing
     private Uri lastExportedDocumentUri;
@@ -107,13 +107,35 @@ public class ExportFragment extends Fragment {
 
         boolean includeOcr = prefs.getBoolean("include_ocr", false);
         boolean convertToGrayscale = prefs.getBoolean("convert_to_grayscale", false);
+        boolean exportAsJpeg = prefs.getBoolean("export_as_jpeg", false);
         binding.checkboxIncludeOcr.setChecked(includeOcr);
         binding.checkboxGrayscale.setChecked(convertToGrayscale);
+        binding.checkboxExportJpeg.setChecked(exportAsJpeg);
+
+        // Initialize JPEG mode checkboxes from saved preference (default AUTO)
+        String savedModeName = prefs.getString("jpeg_mode", JpegExportOptions.Mode.AUTO.name());
+        JpegExportOptions.Mode savedMode;
+        try {
+            savedMode = JpegExportOptions.Mode.valueOf(savedModeName);
+        } catch (IllegalArgumentException ex) {
+            savedMode = JpegExportOptions.Mode.AUTO;
+        }
+        if (binding.checkboxJpegNone != null)
+            binding.checkboxJpegNone.setChecked(savedMode == JpegExportOptions.Mode.NONE);
+        if (binding.checkboxJpegAuto != null)
+            binding.checkboxJpegAuto.setChecked(savedMode == JpegExportOptions.Mode.AUTO);
+        if (binding.checkboxJpegBwText != null)
+            binding.checkboxJpegBwText.setChecked(savedMode == JpegExportOptions.Mode.BW_TEXT);
+
+        // Initial visibility: show JPEG modes only when exporting as JPEG; hide grayscale then.
+        binding.jpegModeGroup.setVisibility(exportAsJpeg ? View.VISIBLE : View.GONE);
+        binding.checkboxGrayscale.setVisibility(exportAsJpeg ? View.GONE : View.VISIBLE);
 
         // ViewModel
         exportViewModel = new ViewModelProvider(this).get(ExportViewModel.class);
         exportViewModel.setIncludeOcr(includeOcr);
         exportViewModel.setConvertToGrayscale(convertToGrayscale);
+        exportViewModel.setExportFormat(exportAsJpeg ? "JPEG" : "PDF");
 
         // Insets
         ViewCompat.setOnApplyWindowInsetsListener(binding.exportOptionsGroup, (v, insets) -> {
@@ -148,6 +170,18 @@ public class ExportFragment extends Fragment {
             }
         });
 
+        createJpegDocumentLauncher = registerForActivityResult(new ActivityResultContracts.CreateDocument("image/jpeg"), uri -> {
+            Log.d(TAG, "createJpegDocumentLauncher: JPEG creation result received");
+            if (uri != null) {
+                String displayName = FileUtils.getDisplayNameFromUri(requireContext(), uri);
+                exportViewModel.setSelectedFileLocation(uri);
+                exportViewModel.setSelectedFileLocationName(displayName);
+                performJpegExport();
+            } else {
+                Log.d(TAG, "createJpegDocumentLauncher: User cancelled JPEG document creation");
+            }
+        });
+
         // Back-Handling
         requireActivity().getOnBackPressedDispatcher().addCallback(getViewLifecycleOwner(), new OnBackPressedCallback(true) {
             @Override
@@ -172,9 +206,47 @@ public class ExportFragment extends Fragment {
             exportViewModel.setConvertToGrayscale(checked);
             prefs.edit().putBoolean("convert_to_grayscale", checked).apply();
         });
-        exportViewModel.setExportFormat("PDF");
+        binding.checkboxExportJpeg.setOnCheckedChangeListener((button, checked) -> {
+            exportViewModel.setExportFormat(checked ? "JPEG" : "PDF");
+            prefs.edit().putBoolean("export_as_jpeg", checked).apply();
+            // Toggle UI groups: JPEG modes vs PDF grayscale
+            binding.jpegModeGroup.setVisibility(checked ? View.VISIBLE : View.GONE);
+            binding.checkboxGrayscale.setVisibility(checked ? View.GONE : View.VISIBLE);
+        });
 
-        binding.buttonExport.setOnClickListener(v -> selectFileLocation());
+        // Enforce mutual exclusivity for JPEG mode checkboxes and persist selection
+        View.OnClickListener jpegModeClick = v -> {
+            if (v == binding.checkboxJpegNone) {
+                binding.checkboxJpegAuto.setChecked(false);
+                binding.checkboxJpegBwText.setChecked(false);
+                prefs.edit().putString("jpeg_mode", JpegExportOptions.Mode.NONE.name()).apply();
+            } else if (v == binding.checkboxJpegAuto) {
+                binding.checkboxJpegNone.setChecked(false);
+                binding.checkboxJpegBwText.setChecked(false);
+                prefs.edit().putString("jpeg_mode", JpegExportOptions.Mode.AUTO.name()).apply();
+            } else if (v == binding.checkboxJpegBwText) {
+                binding.checkboxJpegNone.setChecked(false);
+                binding.checkboxJpegAuto.setChecked(false);
+                prefs.edit().putString("jpeg_mode", JpegExportOptions.Mode.BW_TEXT.name()).apply();
+            }
+            // Ensure at least one is selected; if user unticked all somehow, default to AUTO
+            if (!binding.checkboxJpegNone.isChecked() && !binding.checkboxJpegAuto.isChecked() && !binding.checkboxJpegBwText.isChecked()) {
+                binding.checkboxJpegAuto.setChecked(true);
+                prefs.edit().putString("jpeg_mode", JpegExportOptions.Mode.AUTO.name()).apply();
+            }
+        };
+        binding.checkboxJpegNone.setOnClickListener(jpegModeClick);
+        binding.checkboxJpegAuto.setOnClickListener(jpegModeClick);
+        binding.checkboxJpegBwText.setOnClickListener(jpegModeClick);
+
+        binding.buttonExport.setOnClickListener(v -> {
+            boolean asJpeg = binding.checkboxExportJpeg.isChecked();
+            if (asJpeg) {
+                selectJpegFileLocation();
+            } else {
+                selectFileLocation();
+            }
+        });
         binding.buttonShare.setOnClickListener(v -> shareDocument());
 
         ViewCompat.setOnApplyWindowInsetsListener(root, (v, insets) -> {
@@ -217,13 +289,22 @@ public class ExportFragment extends Fragment {
      * if the document bitmap is not null.
      */
     private void checkDocumentReady() {
-        Bitmap cropped = cropViewModel.getImageBitmap().getValue();
-        if (cropped != null) exportViewModel.setDocumentBitmap(cropped);
+        // Only consider the document ready if the image has been cropped (perspective-corrected)
+        Boolean isCropped = cropViewModel.isImageCropped().getValue();
+        Bitmap maybeBitmap = cropViewModel.getImageBitmap().getValue();
 
+        if (Boolean.TRUE.equals(isCropped) && maybeBitmap != null) {
+            exportViewModel.setDocumentBitmap(maybeBitmap);
+            exportViewModel.setDocumentReady(true);
+        } else {
+            // Prevent exporting the original, un-cropped image
+            exportViewModel.setDocumentBitmap(null);
+            exportViewModel.setDocumentReady(false);
+        }
+
+        // OCR text (if present) can still be shown/prepared independently
         String ocrText = getOcrTextFromState();
         if (ocrText != null) exportViewModel.setOcrText(ocrText);
-
-        exportViewModel.setDocumentReady(exportViewModel.getDocumentBitmap().getValue() != null);
     }
 
     /**
@@ -340,6 +421,103 @@ public class ExportFragment extends Fragment {
     }
 
     /**
+     * Launches SAF CreateDocument for JPEG export with default filename.
+     */
+    private void selectJpegFileLocation() {
+        String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new Date());
+        String defaultFileName = "DOC_" + timeStamp + ".jpg";
+        createJpegDocumentLauncher.launch(defaultFileName);
+    }
+
+    /**
+     * Performs JPEG export using the already perspective-corrected bitmap and JpegExporter.
+     * MVP: uses default options (quality=85, original size, no enhancement).
+     */
+    private void performJpegExport() {
+        // Determine JPEG mode directly from UI checkboxes; fallback to saved preference or AUTO
+        Context context = requireContext();
+        android.content.SharedPreferences prefs = context.getSharedPreferences("export_options", Context.MODE_PRIVATE);
+        JpegExportOptions.Mode mode = null;
+        if (binding.checkboxJpegNone.isChecked()) mode = JpegExportOptions.Mode.NONE;
+        else if (binding.checkboxJpegAuto.isChecked()) mode = JpegExportOptions.Mode.AUTO;
+        else if (binding.checkboxJpegBwText.isChecked()) mode = JpegExportOptions.Mode.BW_TEXT;
+        if (mode == null) {
+            try {
+                mode = JpegExportOptions.Mode.valueOf(prefs.getString("jpeg_mode", JpegExportOptions.Mode.AUTO.name()));
+            } catch (Exception ignored) {
+                mode = JpegExportOptions.Mode.AUTO;
+            }
+        }
+        performJpegExport(mode);
+    }
+
+    /**
+     * Performs JPEG export using a chosen enhancement mode.
+     */
+    private void performJpegExport(JpegExportOptions.Mode chosenMode) {
+        Log.d(TAG, "performJpegExport: Starting JPEG export process with mode=" + chosenMode);
+        final Bitmap documentBitmap = exportViewModel.getDocumentBitmap().getValue();
+        if (documentBitmap == null) {
+            UIUtils.showToast(requireContext(), "No document to export", Toast.LENGTH_SHORT);
+            return;
+        }
+        final Uri selectedLocation = exportViewModel.getSelectedFileLocation().getValue();
+        if (selectedLocation == null) {
+            UIUtils.showToast(requireContext(), "No target selected", Toast.LENGTH_SHORT);
+            return;
+        }
+        final Context appContext = requireContext().getApplicationContext();
+        final boolean includeOcr = Boolean.TRUE.equals(exportViewModel.isIncludeOcr().getValue());
+
+        // Ensure OpenCV is initialized before using JpegExporter (which uses OpenCV APIs)
+        try {
+            if (!OpenCVUtils.isInitialized()) {
+                OpenCVUtils.init(appContext);
+            }
+        } catch (Throwable t) {
+            Log.w(TAG, "performJpegExport: OpenCV init failed or not available", t);
+        }
+
+        // Reset any previously generated TXT URI to avoid sharing stale OCR text
+        exportViewModel.setTxtExportUri(null);
+        exportViewModel.setExporting(true);
+        new Thread(() -> {
+            try {
+                JpegExportOptions options = new JpegExportOptions(); // defaults (quality=85, no resize)
+                options.mode = (chosenMode != null) ? chosenMode : JpegExportOptions.Mode.NONE;
+
+                Uri exportUri = JpegExporter.export(appContext, documentBitmap, options, selectedLocation);
+                requireActivity().runOnUiThread(() -> {
+                    if (exportUri != null) {
+                        lastExportedDocumentUri = exportUri;
+                        String displayName = FileUtils.getDisplayNameFromUri(requireContext(), lastExportedDocumentUri);
+                        lastExportedPdfName = displayName;
+                        binding.buttonShare.setEnabled(true);
+                        UIUtils.showToast(appContext, "Image " + displayName + " exported", Toast.LENGTH_LONG);
+
+                        if (includeOcr) {
+                            launchTxtFileCreation();
+                        }
+                    } else {
+                        lastExportedDocumentUri = null;
+                        binding.buttonShare.setEnabled(false);
+                        UIUtils.showToast(appContext, "Failed to export image", Toast.LENGTH_SHORT);
+                    }
+                });
+            } catch (Exception e) {
+                Log.e(TAG, "Error during JPEG export", e);
+                requireActivity().runOnUiThread(() -> {
+                    lastExportedDocumentUri = null;
+                    binding.buttonShare.setEnabled(false);
+                    UIUtils.showToast(appContext, "Error during JPEG export: " + e.getMessage(), Toast.LENGTH_SHORT);
+                });
+            } finally {
+                requireActivity().runOnUiThread(() -> exportViewModel.setExporting(false));
+            }
+        }).start();
+    }
+
+    /**
      * Launches the process to create a TXT file with a generated name based on the last exported
      * PDF name or a default timestamp.
      * <p>
@@ -356,14 +534,22 @@ public class ExportFragment extends Fragment {
         if (pdfName == null) {
             String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new Date());
             pdfName = "DOC_" + timeStamp;
-        } else if (pdfName.toLowerCase().endsWith(".pdf")) {
-            try {
-                if (pdfName.length() > 4) {
-                    pdfName = pdfName.substring(0, pdfName.length() - 4);
+        } else {
+            String lower = pdfName.toLowerCase();
+            boolean endsWithPdf = lower.endsWith(".pdf");
+            boolean endsWithJpg = lower.endsWith(".jpg");
+            boolean endsWithJpeg = lower.endsWith(".jpeg");
+            if (endsWithPdf || endsWithJpg || endsWithJpeg) {
+                try {
+                    if (endsWithJpeg && pdfName.length() > 5) {
+                        pdfName = pdfName.substring(0, pdfName.length() - 5);
+                    } else if ((endsWithPdf || endsWithJpg) && pdfName.length() > 4) {
+                        pdfName = pdfName.substring(0, pdfName.length() - 4);
+                    }
+                } catch (Exception e) {
+                    String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new Date());
+                    pdfName = "DOC_" + timeStamp;
                 }
-            } catch (Exception e) {
-                String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new Date());
-                pdfName = "DOC_" + timeStamp;
             }
         }
         String txtFileName = pdfName + ".txt";
@@ -437,11 +623,17 @@ public class ExportFragment extends Fragment {
             Uri txtUri = exportViewModel.getTxtExportUri().getValue();
             boolean hasTxtFile = txtUri != null;
 
+            // Detect primary document type (PDF or JPEG) from file name as a robust fallback
+            String lowerName = (fileName != null) ? fileName.toLowerCase() : "";
+            boolean isPdf = lowerName.endsWith(".pdf");
+            boolean isJpeg = lowerName.endsWith(".jpg") || lowerName.endsWith(".jpeg");
+            String primaryMime = isJpeg ? "image/jpeg" : "application/pdf"; // default to PDF if unknown
+
             Intent shareIntent = hasTxtFile
                     ? new Intent(Intent.ACTION_SEND_MULTIPLE)
                     : new Intent(Intent.ACTION_SEND);
 
-            shareIntent.setType(hasTxtFile ? "*/*" : "application/pdf");
+            shareIntent.setType(hasTxtFile ? "*/*" : primaryMime);
 
             Uri contentUri;
             if ("content".equalsIgnoreCase(lastExportedDocumentUri.getScheme())) {
@@ -452,9 +644,11 @@ public class ExportFragment extends Fragment {
                 contentUri = FileProvider.getUriForFile(requireContext(), authority, file);
             }
 
-            shareIntent.putExtra(Intent.EXTRA_TITLE, fileName);
-            shareIntent.putExtra(Intent.EXTRA_SUBJECT, fileName);
-            shareIntent.putExtra(Intent.EXTRA_TEXT, fileName);
+            // Build a clear label to indicate TXT inclusion when applicable
+            String label = hasTxtFile ? (fileName + " + OCR TXT") : fileName;
+            shareIntent.putExtra(Intent.EXTRA_TITLE, label);
+            shareIntent.putExtra(Intent.EXTRA_SUBJECT, label);
+            shareIntent.putExtra(Intent.EXTRA_TEXT, label);
 
             if (hasTxtFile) {
                 Uri txtContentUri;
@@ -471,8 +665,8 @@ public class ExportFragment extends Fragment {
                 uriList.add(txtContentUri);
 
                 android.content.ClipData clipData = new android.content.ClipData(
-                        fileName,
-                        new String[]{"application/pdf", "text/plain"},
+                        label,
+                        new String[]{primaryMime, "text/plain"},
                         new android.content.ClipData.Item(contentUri)
                 );
                 clipData.addItem(new android.content.ClipData.Item(txtContentUri));
@@ -480,13 +674,13 @@ public class ExportFragment extends Fragment {
                 shareIntent.putParcelableArrayListExtra(Intent.EXTRA_STREAM, uriList);
             } else {
                 android.content.ClipData clipData = android.content.ClipData.newUri(
-                        requireContext().getContentResolver(), fileName, contentUri);
+                        requireContext().getContentResolver(), label, contentUri);
                 shareIntent.setClipData(clipData);
                 shareIntent.putExtra(Intent.EXTRA_STREAM, contentUri);
             }
 
             shareIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-            startActivity(Intent.createChooser(shareIntent, "Share " + fileName));
+            startActivity(Intent.createChooser(shareIntent, "Share " + label));
         } catch (Exception e) {
             Log.e(TAG, "Error sharing document", e);
             UIUtils.showToast(requireContext(), "Error sharing document: " + e.getMessage(), Toast.LENGTH_SHORT);

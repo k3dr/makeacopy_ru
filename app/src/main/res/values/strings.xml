@@ -49,6 +49,7 @@
 
     <!-- Export options -->
     <string name="convert_to_grayscale">Convert to grayscale</string>
+    <string name="export_as_jpeg">Export as JPEG</string>
     
     <!-- Flashlight options -->
     <string name="toggle_flashlight">Toggle flashlight</string>
@@ -56,4 +57,8 @@
     <string name="flashlight_off">Flashlight off</string>
     <string name="flashlight_not_available">Flashlight not available on this device</string>
     <string name="low_light_detected">Low light detected. Turn on flashlight?</string>
+    <!-- JPEG mode labels -->
+    <string name="jpeg_mode_none">No enhancement (JPEG)</string>
+    <string name="jpeg_mode_auto">Auto enhance (JPEG)</string>
+    <string name="jpeg_mode_bw_text">Black &amp; White (Text) (JPEG)</string>
 </resources>

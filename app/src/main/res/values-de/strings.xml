@@ -49,6 +49,7 @@
 
     <!-- Export options -->
     <string name="convert_to_grayscale">In Graustufen konvertieren</string>
+    <string name="export_as_jpeg">Als JPEG exportieren</string>
 
     <!-- Flashlight options -->
     <string name="toggle_flashlight">Taschenlampe umschalten</string>
@@ -56,4 +57,8 @@
     <string name="flashlight_off">Taschenlampe aus</string>
     <string name="flashlight_not_available">Taschenlampe auf diesem Gerät nicht verfügbar</string>
     <string name="low_light_detected">Schwaches Licht erkannt. Taschenlampe einschalten?</string>
+    <!-- JPEG mode labels -->
+    <string name="jpeg_mode_none">Keine Verbesserung (JPEG)</string>
+    <string name="jpeg_mode_auto">Automatisch verbessern (JPEG)</string>
+    <string name="jpeg_mode_bw_text">Schwarz-Weiß (Text) (JPEG)</string>
 </resources>

@@ -206,7 +206,7 @@ for ABI in $ABIS; do
   SRC_DIR="$ORT_DIR"
   C_FLAGS="-g0 -fdebug-prefix-map=$SRC_DIR=. -fmacro-prefix-map=$SRC_DIR=. -ffile-prefix-map=$SRC_DIR=."
   CXX_FLAGS="$C_FLAGS"
-  LDFLAGS="-Wl,--build-id=none"
+  LDFLAGS="-Wl,--build-id=none -Wl,-z,max-page-size=16384"
 
   # Common build.py args
   COMMON_ARGS=(

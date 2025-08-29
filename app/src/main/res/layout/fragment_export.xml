@@ -62,6 +62,41 @@
                 android:layout_height="wrap_content"
                 android:text="@string/convert_to_grayscale" />
 
+        <!-- Option: Export as JPEG -->
+        <CheckBox
+                android:id="@+id/checkbox_export_jpeg"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/export_as_jpeg" />
+
+        <!-- JPEG Modes (shown only when Export as JPEG is checked) -->
+        <LinearLayout
+                android:id="@+id/jpeg_mode_group"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:paddingTop="8dp"
+                android:visibility="gone">
+
+            <CheckBox
+                    android:id="@+id/checkbox_jpeg_none"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/jpeg_mode_none" />
+
+            <CheckBox
+                    android:id="@+id/checkbox_jpeg_auto"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/jpeg_mode_auto" />
+
+            <CheckBox
+                    android:id="@+id/checkbox_jpeg_bw_text"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/jpeg_mode_bw_text" />
+        </LinearLayout>
+
         <!-- Button Container for Export and Share -->
         <LinearLayout
                 android:layout_width="match_parent"

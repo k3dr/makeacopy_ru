@@ -1,8 +1,8 @@
 package de.schliweb.makeacopy;
 
 import android.os.Bundle;
+import androidx.activity.EdgeToEdge;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.view.WindowCompat;
 import de.schliweb.makeacopy.databinding.ActivityMainBinding;
 import de.schliweb.makeacopy.services.CacheCleanupService;
 
@@ -24,8 +24,8 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        // Enable edge-to-edge display
-        WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
+        // Enable edge-to-edge display using modern API (Android 15+ compatible)
+        EdgeToEdge.enable(this);
 
         binding = ActivityMainBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
@@ -51,8 +51,8 @@ public class MainActivity extends AppCompatActivity {
     public void onTrimMemory(int level) {
         super.onTrimMemory(level);
 
-        // Trigger cache cleanup for moderate to critical memory pressure
-        if (level >= TRIM_MEMORY_MODERATE || level >= TRIM_MEMORY_RUNNING_MODERATE) {
+        // Trigger cache cleanup when app is in the background and memory is low (non-deprecated level)
+        if (level >= TRIM_MEMORY_BACKGROUND) {
             CacheCleanupService.forceCleanup(this);
         }
     }

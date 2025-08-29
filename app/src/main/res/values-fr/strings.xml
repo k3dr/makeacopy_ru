@@ -49,6 +49,7 @@
 
     <!-- Export options -->
     <string name="convert_to_grayscale">Convertir en niveaux de gris</string>
+    <string name="export_as_jpeg">Exporter en JPEG</string>
 
     <!-- Flashlight options -->
     <string name="toggle_flashlight">Activer/désactiver la lampe</string>
@@ -56,4 +57,8 @@
     <string name="flashlight_off">Lampe éteinte</string>
     <string name="flashlight_not_available">Lampe non disponible sur cet appareil</string>
     <string name="low_light_detected">Faible luminosité détectée. Allumer la lampe ?</string>
+    <!-- JPEG mode labels -->
+    <string name="jpeg_mode_none">Aucune amélioration (JPEG)</string>
+    <string name="jpeg_mode_auto">Amélioration automatique (JPEG)</string>
+    <string name="jpeg_mode_bw_text">Noir et blanc (texte) (JPEG)</string>
 </resources>

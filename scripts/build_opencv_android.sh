@@ -189,8 +189,8 @@ build_for_arch(){
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_C_FLAGS_RELEASE="-g0 -fdebug-prefix-map=$OPENCV_DIR=. -ffile-prefix-map=$OPENCV_DIR=." \
     -DCMAKE_CXX_FLAGS_RELEASE="-g0 -fdebug-prefix-map=$OPENCV_DIR=. -ffile-prefix-map=$OPENCV_DIR=." \
-    -DCMAKE_EXE_LINKER_FLAGS="-Wl,--build-id=none" \
-    -DCMAKE_SHARED_LINKER_FLAGS="-Wl,--build-id=none" \
+    -DCMAKE_EXE_LINKER_FLAGS="-Wl,--build-id=none -Wl,-z,max-page-size=16384" \
+    -DCMAKE_SHARED_LINKER_FLAGS="-Wl,--build-id=none -Wl,-z,max-page-size=16384" \
     -DCMAKE_INSTALL_PREFIX="/__repro" \
     -DBUILD_ANDROID_PROJECTS=ON \
     -DBUILD_SHARED_LIBS=ON -DBUILD_STATIC_LIBS=OFF \

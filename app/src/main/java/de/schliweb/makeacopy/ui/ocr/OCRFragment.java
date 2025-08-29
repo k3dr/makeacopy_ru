@@ -117,6 +117,14 @@ public class OCRFragment extends Fragment {
             return insets;
         });
 
+        // Ensure bottom button bar stays above the navigation bar (e.g., on API 29)
+        // Apply system bottom inset + base margin (12dp) to the button container
+        UIUtils.adjustMarginForSystemInsets(binding.buttonContainer, 12);
+        ViewCompat.setOnApplyWindowInsetsListener(binding.buttonContainer, (v, insets) -> {
+            UIUtils.adjustMarginForSystemInsets(binding.buttonContainer, 12);
+            return insets;
+        });
+
         // select language
         setupLanguageSpinner();
 

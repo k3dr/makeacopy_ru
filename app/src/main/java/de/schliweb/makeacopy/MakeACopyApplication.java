@@ -55,12 +55,12 @@ public class MakeACopyApplication extends Application {
             // Configure service for optimal performance
             // Cleanup every 2 hours, keep max 15 debug files, remove temps after 1 hour, trigger at 75% memory
             CacheCleanupService.updateConfiguration(
-                this,
-                true,  // enabled
-                2,     // cleanup interval hours
-                15,    // max debug files
-                1,     // max temp age hours
-                75     // memory threshold percent
+                    this,
+                    true,  // enabled
+                    2,     // cleanup interval hours
+                    15,    // max debug files
+                    1,     // max temp age hours
+                    75     // memory threshold percent
             );
             Log.d(TAG, "Cache Cleanup Service configured");
 
@@ -102,8 +102,8 @@ public class MakeACopyApplication extends Application {
 
         Log.d(TAG, "Memory trim requested with level: " + level);
 
-        // Trigger cache cleanup for moderate to critical memory pressure
-        if (level >= TRIM_MEMORY_MODERATE || level >= TRIM_MEMORY_RUNNING_MODERATE) {
+        // Trigger cache cleanup when app is in the background and memory is low (non-deprecated level)
+        if (level >= TRIM_MEMORY_BACKGROUND) {
             try {
                 CacheCleanupService.forceCleanup(this);
                 Log.i(TAG, "Cache cleanup triggered by memory trim (level: " + level + ")");

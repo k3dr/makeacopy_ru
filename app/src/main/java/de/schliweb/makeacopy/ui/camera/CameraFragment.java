@@ -893,7 +893,7 @@ public class CameraFragment extends Fragment implements SensorEventListener {
 
         try {
             isLowLightDialogVisible = true;
-            new AlertDialog.Builder(requireContext())
+            AlertDialog dialog = new AlertDialog.Builder(requireContext())
                     .setMessage(R.string.low_light_detected)
                     .setPositiveButton(R.string.flashlight_on, new DialogInterface.OnClickListener() {
                         public void onClick(DialogInterface dialog, int id) {
@@ -902,9 +902,32 @@ public class CameraFragment extends Fragment implements SensorEventListener {
                             }
                         }
                     })
-                    .setNegativeButton(android.R.string.cancel, (dialog, id) -> dialog.dismiss())
-                    .setOnDismissListener(dialog -> isLowLightDialogVisible = false)
-                    .show();
+                    .setNegativeButton(android.R.string.cancel, (dialogInterface, id) -> dialogInterface.dismiss())
+                    .create();
+
+            dialog.setOnDismissListener(d -> isLowLightDialogVisible = false);
+
+            // Improve dark mode contrast for dialog buttons
+            dialog.setOnShowListener(d -> {
+                int nightModeFlags = requireContext().getResources().getConfiguration().uiMode & android.content.res.Configuration.UI_MODE_NIGHT_MASK;
+                if (nightModeFlags == android.content.res.Configuration.UI_MODE_NIGHT_YES) {
+                    try {
+                        int white = androidx.core.content.ContextCompat.getColor(requireContext(), android.R.color.white);
+                        if (dialog.getButton(AlertDialog.BUTTON_POSITIVE) != null) {
+                            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(white);
+                        }
+                        if (dialog.getButton(AlertDialog.BUTTON_NEGATIVE) != null) {
+                            dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setTextColor(white);
+                        }
+                        if (dialog.getButton(AlertDialog.BUTTON_NEUTRAL) != null) {
+                            dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setTextColor(white);
+                        }
+                    } catch (Exception ignored) {
+                    }
+                }
+            });
+
+            dialog.show();
 
             lowLightPromptShown = true;
             lastPromptTime = currentTime;

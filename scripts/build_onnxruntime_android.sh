@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Enable shell tracing when DEBUG/TRACE is set
+if [ "${DEBUG:-0}" = "1" ] || [ "${TRACE:-0}" = "1" ]; then
+  set -x
+fi
+
 # Quiet mode default: reduce console output. Set VERBOSE=1 for detailed logs.
 VERBOSE="${VERBOSE:-0}"
 info() {
@@ -30,6 +35,9 @@ BUILD_ROOT="/tmp/onnxruntime-build"
 # ABIs (extend if needed)
 ABIS="${ABIS:-arm64-v8a armeabi-v7a x86 x86_64}"
 info "ONNX Runtime ABIs: $ABIS"
+info "ENV SUMMARY:"
+info "  Host: $(uname -a)"
+info "  TZ=$TZ SOURCE_DATE_EPOCH=$SOURCE_DATE_EPOCH"
 
 # ===============================
 # Cross-platform CPU jobs
@@ -178,6 +186,9 @@ if ! ver_ge "$cmv" "3.28.0"; then
   echo "       Install SDK cmake >= 3.28 (e.g. ANDROID_SDK_ROOT/cmake/3.31.x) or set ORT_CMAKE=<path>." >&2
   exit 1
 fi
+
+info "SDK: ${ANDROID_SDK_ROOT:-UNKNOWN}"
+info "NDK: $ANDROID_NDK_HOME"
 
 # ===============================
 # Build per ABI (FULL, CPU-only, Java)

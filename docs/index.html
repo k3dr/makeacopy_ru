@@ -104,7 +104,45 @@
     <h3>GitHub Releases</h3>
     
     <p>You can download the latest APK from the <a href="https://github.com/egdels/makeacopy/releases">Releases</a> page.</p>
-    
+
+    <h2>APK Verification</h2>
+
+    <p>
+        To verify the authenticity of MakeACopy releases, compare the signing certificate fingerprint below with the output of
+        <code>apksigner</code> or <code>AppVerifier</code>.
+    </p>
+
+    <h3>SHA-256 (recommended)</h3>
+    <ul>
+        <li><strong>Continuous hex (apksigner):</strong><br>
+            <code>ae322d3fb71afe21df4727e37a5c6803511d5a2fe1fc3135430cee0699fa1b34</code>
+        </li>
+        <li><strong>Colon-separated (AppVerifier):</strong><br>
+            <code>AE:32:2D:3F:B7:1A:FE:21:DF:47:27:E3:7A:5C:68:03:51:1D:5A:2F:E1:FC:31:35:43:0C:EE:06:99:FA:1B:34</code>
+        </li>
+    </ul>
+
+    <h3>SHA-1</h3>
+    <ul>
+        <li><code>f3d4fdfb49d69f5e8e3a8cbecf71e158f886859d</code></li>
+        <li><code>F3:D4:FD:FB:49:D6:9F:5E:8E:3A:8C:BE:CF:71:E1:58:F8:86:85:9D</code></li>
+    </ul>
+
+    <h3>MD5</h3>
+    <ul>
+        <li><code>a874977000331a42bf6cccf5d0ea358c</code></li>
+        <li><code>A8:74:97:70:00:33:1A:42:BF:6C:CC:CF:5D:0E:A3:58</code></li>
+    </ul>
+
+    <h3>Verification Commands</h3>
+    <pre><code class="language-bash">
+# Using apksigner (from Android SDK build-tools)
+apksigner verify --print-certs MakeACopy-vX.Y.Z.apk
+
+# Using AppVerifier (https://github.com/soupslurpr/AppVerifier)
+appverifier verify MakeACopy-vX.Y.Z.apk
+</code></pre>
+
     <h2>License</h2>
     
     <p>MakeACopy is licensed under the <a href="https://www.apache.org/licenses/LICENSE-2.0">Apache License 2.0</a>.</p>

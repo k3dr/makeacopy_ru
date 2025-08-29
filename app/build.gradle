@@ -14,8 +14,8 @@ android {
         applicationId "de.schliweb.makeacopy"
         minSdk 29
         targetSdk 36
-        versionCode 10200
-        versionName "1.2.0"
+        versionCode 10201
+        versionName "1.2.1"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
 
@@ -155,6 +155,28 @@ androidComponents {
     onVariants(selector().withBuildType("release")) { variant ->
         // Exclude test PDFs from release APK/AAB packaging
         variant.packaging.resources.excludes.add("assets/test_pdfs/**")
+    }
+
+    // Assign per-ABI versionCode: baseVersionCode * 10 + abiCode
+    onVariants(selector().all()) { variant ->
+        def baseCode = (project.android.defaultConfig.versionCode ?: 1)
+        def abiCodes = [
+                "armeabi-v7a": 1,
+                "arm64-v8a" : 2,
+                "x86"       : 3,
+                "x86_64"    : 4
+        ]
+        variant.outputs.each { output ->
+            def abiFilter = output.filters.find { it.filterType == com.android.build.api.variant.FilterConfiguration.FilterType.ABI }
+            if (abiFilter != null) {
+                def abi = abiFilter.identifier
+                def code = abiCodes.get(abi, 0)
+                output.versionCode.set(baseCode * 10 + code)
+            } else {
+                // For non-ABI outputs (e.g., no splits) keep deterministic ordering
+                output.versionCode.set(baseCode * 10)
+            }
+        }
     }
 }
 

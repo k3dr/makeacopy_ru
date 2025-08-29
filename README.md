@@ -13,6 +13,15 @@ Or download the latest APK from the [Releases Section](https://github.com/egdels
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
+## APK Verification
+
+All official MakeACopy releases are signed with the following certificate:
+
+**SHA-256:** `ae322d3fb71afe21df4727e37a5c6803511d5a2fe1fc3135430cee0699fa1b34`
+
+You can verify any APK using:
+apksigner verify --print-certs MakeACopy-vX.Y.Z.apk
+
 ## Features
 
 - **Camera Scanning**: Capture documents using the device camera

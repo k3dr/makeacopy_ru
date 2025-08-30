@@ -15,14 +15,14 @@ Or download the latest APK from the [Releases Section](https://github.com/egdels
 
 ## APK Verification
 
-All official MakeACopy releases are signed with the following certificate:
+All official releases of MakeACopy are signed with one of the following certificates:
 
-- **SHA-256 (continuous hex):**
-  `ae322d3fb71afe21df4727e37a5c6803511d5a2fe1fc3135430cee0699fa1b34`
+- **Upload key** (used for GitHub releases, F-Droid, and sideload APKs)  
+  SHA-256: AE:32:2D:3F:B7:1A:FE:21:DF:47:27:E3:7A:5C:68:03:51:1D:5A:2F:E1:FC:31:35:43:0C:EE:06:99:FA:1B:34  
 
-- **SHA-256 (colon-separated, as shown in AppVerifier):**
-  `AE:32:2D:3F:B7:1A:FE:21:DF:47:27:E3:7A:5C:68:03:51:1D:5A:2F:E1:FC:31:35:43:0C:EE:06:99:FA:1B:34`
-
+- **Google Play App Signing key** (used for Play Store releases)  
+  SHA-256: C0:71:44:39:CB:51:62:32:A4:47:91:7A:6F:C2:28:1E:45:FA:AA:DD:37:F8:30:B1:01:1F:B4:85:68:8E:0D:64  
+  
 ### Verify with apksigner
 ```bash
 apksigner verify --print-certs MakeACopy-vX.Y.Z.apk

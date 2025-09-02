@@ -19,15 +19,17 @@ import java.io.OutputStream;
  * <p>
  * Modes:
  * - NONE: optional downscale only.
- * - AUTO: CLAHE on L channel (Lab) + mild unsharp mask.
- * - BW_TEXT: grayscale + adaptive threshold, then back to 3-channel for JPEG.
+ * - AUTO: L-channel equalization + mild unsharp mask.
+ * - BW_TEXT: grayscale binarization (Otsu) optimized for text; exported as grayscale-like JPEG.
  * <p>
- * Notes: This operates purely in the export path and does not depend on OpenCVUtils.
+ * Notes:
+ * - Uses an optional long-edge guard (from options) to avoid OOM on huge images.
+ * - Can round resize targets to multiples of 8 (helps JPEG block alignment).
+ * - Fast path: for "NONE + resize" without grayscale forcing, uses Bitmap.createScaledBitmap (no OpenCV).
  */
 public final class JpegExporter {
 
     private static final String TAG = "JpegExporter";
-    private static final int MAX_GUARD_LONG_EDGE = 4096; // safety to avoid OOM on huge images
 
     private JpegExporter() {
     }
@@ -37,7 +39,7 @@ public final class JpegExporter {
      *
      * @param context   Application or Activity context
      * @param bitmap    Perspective-corrected bitmap to save (ARGB_8888 recommended)
-     * @param options   Export options
+     * @param options   Export options (if null a default instance is used)
      * @param targetUri Target Uri (e.g., from ACTION_CREATE_DOCUMENT with MIME image/jpeg)
      * @return targetUri if success, otherwise null
      */
@@ -48,13 +50,44 @@ public final class JpegExporter {
         }
         if (options == null) options = new JpegExportOptions();
 
-        // Shortcut: if no processing requested (NONE, longEdge=0), write original bitmap.
-        boolean noResize = options.longEdgePx <= 0;
-        boolean noEnhancement = options.mode == JpegExportOptions.Mode.NONE;
-        if (noResize && noEnhancement) {
+        // Quick decisions without OpenCV allocation
+        final boolean enhancementNone = options.mode == JpegExportOptions.Mode.NONE;
+        final int srcW = bitmap.getWidth();
+        final int srcH = bitmap.getHeight();
+        final int curLong = Math.max(srcW, srcH);
+
+        final int targetLong = computeTargetLongEdge(curLong, options);
+        final boolean needsResize = targetLong > 0 && targetLong < curLong;
+
+        // Shortcut 1: no resize + no enhancement → compress original bitmap
+        if (!needsResize && enhancementNone) {
             return compressToUri(context, bitmap, options.quality, targetUri);
         }
 
+        // Shortcut 2: ONLY resize (mode NONE) → fast path w/o OpenCV
+        // (only if we don't force grayscale JPEG, which needs OpenCV here)
+        if (needsResize && enhancementNone && !options.forceGrayscaleJpeg) {
+            final double scale = targetLong / (double) curLong;
+            int newW = (int) Math.round(srcW * scale);
+            int newH = (int) Math.round(srcH * scale);
+            newW = roundToMultiple(newW, 8, options.roundResizeToMultipleOf8);
+            newH = roundToMultiple(newH, 8, options.roundResizeToMultipleOf8);
+            newW = Math.max(8, newW);
+            newH = Math.max(8, newH);
+            Bitmap scaled = null;
+            try {
+                scaled = Bitmap.createScaledBitmap(bitmap, newW, newH, true);
+                return compressToUri(context, scaled, options.quality, targetUri);
+            } catch (OutOfMemoryError oom) {
+                Log.e(TAG, "export: OOM during Bitmap scaling", oom);
+                return null;
+            } catch (Exception e) {
+                Log.e(TAG, "export: error during Bitmap scaling", e);
+                return null;
+            }
+        }
+
+        // From here on, process with OpenCV
         Bitmap outBitmap = null;
         Mat srcRgba = new Mat();
         Mat work = new Mat();
@@ -63,50 +96,56 @@ public final class JpegExporter {
             // Input to RGBA Mat
             Utils.bitmapToMat(bitmap, srcRgba); // RGBA
 
-            // Apply downscale guard and requested longEdgePx
-            int width = srcRgba.cols();
-            int height = srcRgba.rows();
-            int curLong = Math.max(width, height);
-            int targetLong = curLong;
-            if (options.longEdgePx > 0) targetLong = Math.min(options.longEdgePx, MAX_GUARD_LONG_EDGE);
-            else targetLong = Math.min(curLong, MAX_GUARD_LONG_EDGE);
-
-            double scale = (curLong > 0 && targetLong > 0 && targetLong < curLong) ? (targetLong / (double) curLong) : 1.0;
+            // Downscale if needed (with guard & optional multiples-of-8 rounding)
             Mat current = srcRgba;
-            if (scale < 1.0) {
-                int newW = (int) Math.round(width * scale);
-                int newH = (int) Math.round(height * scale);
+            if (needsResize) {
+                final double scale = targetLong / (double) curLong;
+                int newW = (int) Math.round(srcW * scale);
+                int newH = (int) Math.round(srcH * scale);
+                newW = roundToMultiple(newW, 8, options.roundResizeToMultipleOf8);
+                newH = roundToMultiple(newH, 8, options.roundResizeToMultipleOf8);
+                newW = Math.max(8, newW);
+                newH = Math.max(8, newH);
                 Imgproc.resize(srcRgba, tmp, new Size(newW, newH), 0, 0, Imgproc.INTER_AREA);
                 current = tmp;
             }
 
-            if (options.mode == JpegExportOptions.Mode.NONE) {
-                // No enhancement, just convert to Bitmap for compression.
-                outBitmap = Bitmap.createBitmap(current.cols(), current.rows(), Bitmap.Config.ARGB_8888);
-                Utils.matToBitmap(current, outBitmap);
-                return compressToUri(context, outBitmap, options.quality, targetUri);
-            }
-
-            // Convert RGBA -> BGR for color processing
+            // Convert RGBA -> BGR for processing
             Imgproc.cvtColor(current, work, Imgproc.COLOR_RGBA2BGR);
 
             switch (options.mode) {
                 case AUTO:
                     applyAutoEnhancement(work);
+                    // back to RGBA (color); grayscale may still be forced below
+                    Imgproc.cvtColor(work, work, Imgproc.COLOR_BGR2RGBA);
                     break;
+
                 case BW_TEXT:
-                    applyBwText(work);
+                    // Fast, native Otsu binarization for documents
+                    applyBwText(work); // B/W content in BGR
+                    // Export as grayscale-like JPEG: Gray -> RGBA
+                    Imgproc.cvtColor(work, work, Imgproc.COLOR_BGR2GRAY);
+                    Imgproc.cvtColor(work, work, Imgproc.COLOR_GRAY2RGBA);
                     break;
+
+                case NONE:
                 default:
-                    // Should not happen due to NONE handled above.
+                    // shouldn't reach here because NONE handled in shortcuts
+                    Imgproc.cvtColor(work, work, Imgproc.COLOR_BGR2RGBA);
                     break;
             }
 
-            // Convert back to RGBA for Bitmap
-            Imgproc.cvtColor(work, work, Imgproc.COLOR_BGR2RGBA);
+            // If grayscale JPEG is explicitly forced for non-BW_TEXT modes, convert now
+            if (options.forceGrayscaleJpeg && options.mode != JpegExportOptions.Mode.BW_TEXT) {
+                Imgproc.cvtColor(work, work, Imgproc.COLOR_RGBA2GRAY);
+                Imgproc.cvtColor(work, work, Imgproc.COLOR_GRAY2RGBA);
+            }
+
+            // Convert back to Bitmap and compress
             outBitmap = Bitmap.createBitmap(work.cols(), work.rows(), Bitmap.Config.ARGB_8888);
             Utils.matToBitmap(work, outBitmap);
             return compressToUri(context, outBitmap, options.quality, targetUri);
+
         } catch (OutOfMemoryError oom) {
             Log.e(TAG, "export: OutOfMemoryError during processing", oom);
             return null;
@@ -126,13 +165,11 @@ public final class JpegExporter {
                 tmp.release();
             } catch (Throwable ignore) {
             }
-            if (outBitmap != null && outBitmap != bitmap && !outBitmap.isRecycled()) {
-                // The caller still owns the input bitmap; we recycle only the temporary one created here.
-                // Do not recycle here to avoid issues if the caller wants to reuse the result elsewhere.
-                // Keeping GC to handle it; if we wanted, we could offer a flag to recycle.
-            }
+            // outBitmap dem GC überlassen
         }
     }
+
+    // === Image ops ===
 
     private static void applyAutoEnhancement(Mat bgr) {
         // bgr: 3-channel 8-bit image
@@ -142,23 +179,24 @@ public final class JpegExporter {
         Mat b = new Mat();
         try {
             Imgproc.cvtColor(bgr, lab, Imgproc.COLOR_BGR2Lab);
+
             java.util.List<Mat> chans = new java.util.ArrayList<>(3);
             Core.split(lab, chans);
             l = chans.get(0);
             a = chans.get(1);
             b = chans.get(2);
 
-            // Histogram equalization on L channel (CLAHE fallback if photo module not available)
+            // L-channel equalization (simple equalizeHist; CLAHE optional später)
             Imgproc.equalizeHist(l, l);
 
-            // Merge back
+            // Merge back → Lab → BGR
             chans.set(0, l);
             chans.set(1, a);
             chans.set(2, b);
             Core.merge(chans, lab);
             Imgproc.cvtColor(lab, bgr, Imgproc.COLOR_Lab2BGR);
 
-            // Unsharp mask: blur then addWeighted
+            // Mild unsharp mask
             Mat blurred = new Mat();
             try {
                 Imgproc.GaussianBlur(bgr, blurred, new Size(0, 0), 1.0);
@@ -186,92 +224,30 @@ public final class JpegExporter {
         }
     }
 
+    /**
+     * B/W binarization optimized for documents:
+     * - Convert to gray
+     * - Light Gaussian blur to stabilize noise
+     * - Otsu threshold → binary (0/255)
+     * Writes result back into the provided BGR Mat (content becomes black/white).
+     */
     private static void applyBwText(Mat bgr) {
-        // Safer pure-Java binarization to avoid OpenCV's adaptiveThreshold crash on some devices.
-        // Strategy: Convert to RGBA -> Bitmap, compute Otsu global threshold in Java, binarize, back to Mat (RGBA) -> BGR.
-        Mat rgba = new Mat();
-        Bitmap bmp = null;
+        Mat gray = new Mat();
         try {
-            // Convert BGR (3ch) -> RGBA (4ch) for Bitmap interop
-            Imgproc.cvtColor(bgr, rgba, Imgproc.COLOR_BGR2RGBA);
-
-            int width = rgba.cols();
-            int height = rgba.rows();
-            bmp = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
-            Utils.matToBitmap(rgba, bmp);
-
-            int size = width * height;
-            int[] pixels = new int[size];
-            bmp.getPixels(pixels, 0, width, 0, 0, width, height);
-
-            // Build histogram of grayscale values
-            int[] hist = new int[256];
-            int idx = 0;
-            for (int y = 0; y < height; y++) {
-                int base = y * width;
-                for (int x = 0; x < width; x++) {
-                    int c = pixels[base + x];
-                    int r = (c >> 16) & 0xFF;
-                    int g = (c >> 8) & 0xFF;
-                    int b = c & 0xFF;
-                    // Luma approximation with integer math
-                    int gray = (299 * r + 587 * g + 114 * b + 500) / 1000;
-                    hist[gray]++;
-                }
-            }
-
-            // Compute Otsu threshold
-            long total = size;
-            long sum = 0;
-            for (int t = 0; t < 256; t++) sum += (long) t * hist[t];
-            long sumB = 0;
-            long wB = 0;
-            long wF;
-            double maxVar = -1.0;
-            int threshold = 127;
-            for (int t = 0; t < 256; t++) {
-                wB += hist[t];
-                if (wB == 0) continue;
-                wF = total - wB;
-                if (wF == 0) break;
-                sumB += (long) t * hist[t];
-                double mB = sumB / (double) wB;
-                double mF = (sum - sumB) / (double) wF;
-                double varBetween = (double) wB * (double) wF * (mB - mF) * (mB - mF);
-                if (varBetween > maxVar) {
-                    maxVar = varBetween;
-                    threshold = t;
-                }
-            }
-
-            // Apply threshold to produce black/white
-            int white = 0xFFFFFFFF;
-            int black = 0xFF000000;
-            for (int y = 0; y < height; y++) {
-                int base = y * width;
-                for (int x = 0; x < width; x++) {
-                    int c = pixels[base + x];
-                    int r = (c >> 16) & 0xFF;
-                    int g = (c >> 8) & 0xFF;
-                    int b = c & 0xFF;
-                    int gray = (299 * r + 587 * g + 114 * b + 500) / 1000;
-                    pixels[base + x] = (gray > threshold) ? white : black;
-                }
-            }
-
-            bmp.setPixels(pixels, 0, width, 0, 0, width, height);
-
-            // Back to Mat (RGBA) and then to BGR for downstream consistency
-            Utils.bitmapToMat(bmp, rgba);
-            Imgproc.cvtColor(rgba, bgr, Imgproc.COLOR_RGBA2BGR);
+            Imgproc.cvtColor(bgr, gray, Imgproc.COLOR_BGR2GRAY);
+            Imgproc.GaussianBlur(gray, gray, new Size(0, 0), 0.8);
+            Imgproc.threshold(gray, gray, 0, 255, Imgproc.THRESH_BINARY | Imgproc.THRESH_OTSU);
+            // Re-expand to BGR for consistent downstream handling
+            Imgproc.cvtColor(gray, bgr, Imgproc.COLOR_GRAY2BGR);
         } finally {
             try {
-                rgba.release();
+                gray.release();
             } catch (Throwable ignore) {
             }
-            // Allow GC to free bmp; don't recycle explicitly to avoid risks if reused upstream.
         }
     }
+
+    // === IO ===
 
     private static Uri compressToUri(Context context, Bitmap bmp, int quality, Uri targetUri) {
         ContentResolver resolver = context.getContentResolver();
@@ -280,12 +256,12 @@ public final class JpegExporter {
                 Log.e(TAG, "compressToUri: failed to open OutputStream for Uri: " + targetUri);
                 return null;
             }
-            boolean ok = bmp.compress(Bitmap.CompressFormat.JPEG, Math.max(0, Math.min(100, quality)), os);
+            boolean ok = bmp.compress(Bitmap.CompressFormat.JPEG, clampQuality(quality), os);
             if (!ok) {
                 Log.e(TAG, "compressToUri: Bitmap.compress returned false");
                 return null;
             }
-            os.flush();
+            os.flush(); // close() flushes too; explicit for clarity
             return targetUri;
         } catch (IOException e) {
             Log.e(TAG, "compressToUri: IO error while writing JPEG", e);
@@ -294,5 +270,26 @@ public final class JpegExporter {
             Log.e(TAG, "compressToUri: security error while writing JPEG", se);
             return null;
         }
+    }
+
+    // === utils ===
+
+    private static int roundToMultiple(int value, int multiple, boolean enabled) {
+        if (!enabled || multiple <= 1) return value;
+        return (value / multiple) * multiple;
+    }
+
+    private static int clampQuality(int q) {
+        return Math.max(0, Math.min(100, q));
+    }
+
+    private static int computeTargetLongEdge(int curLong, JpegExportOptions opts) {
+        // Base target: desired long edge or current
+        int target = (opts.longEdgePx > 0) ? opts.longEdgePx : curLong;
+        // Apply guard if set (>0)
+        if (opts.maxLongEdgeGuardPx > 0) {
+            target = Math.min(target, opts.maxLongEdgeGuardPx);
+        }
+        return target;
     }
 }

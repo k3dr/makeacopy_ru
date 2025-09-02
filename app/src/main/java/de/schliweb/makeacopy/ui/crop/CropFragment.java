@@ -6,6 +6,7 @@ import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.ImageView;
 import androidx.annotation.NonNull;
 import androidx.core.view.ViewCompat;
 import androidx.fragment.app.Fragment;
@@ -47,6 +48,12 @@ public class CropFragment extends Fragment {
         binding = FragmentCropBinding.inflate(inflater, container, false);
         View root = binding.getRoot();
 
+        // Wire the Magnifier source view: compute and pass image->overlay matrix once layout/bitmap ready
+        if (binding.trapezoidSelection != null && binding.imageToCrop != null) {
+            // Try immediately; if sizes are 0 we'll retry after bitmap/layout
+            tryUpdateMagnifierMapping();
+        }
+
         cropViewModel.getText().observe(getViewLifecycleOwner(), binding.textCrop::setText);
 
         // System-Inset-Margin
@@ -79,6 +86,8 @@ public class CropFragment extends Fragment {
                     binding.imageToCrop.setImageBitmap(bitmap);
                     if (binding.trapezoidSelection != null)
                         binding.trapezoidSelection.setImageBitmap(bitmap);
+                    // With a new bitmap, recompute and wire the magnifier mapping
+                    tryUpdateMagnifierMapping();
                 }
             }
         });
@@ -102,6 +111,31 @@ public class CropFragment extends Fragment {
         });
 
         return root;
+    }
+
+    private void tryUpdateMagnifierMapping() {
+        if (binding == null) return;
+        final Bitmap bmp = cropViewModel != null ? cropViewModel.getImageBitmap().getValue() : null;
+        final ImageView imageView = binding.imageToCrop;
+        final View overlay = binding.trapezoidSelection;
+        if (bmp == null || imageView == null || overlay == null) return;
+        overlay.post(() -> ensureMagnifierMapping(bmp, imageView, overlay, 0));
+    }
+
+    private void ensureMagnifierMapping(Bitmap bitmap, ImageView imageView, View overlay, int attempt) {
+        if (!isAdded()) return;
+        int ow = overlay.getWidth();
+        int oh = overlay.getHeight();
+        int vw = imageView.getWidth();
+        int vh = imageView.getHeight();
+        if (ow <= 0 || oh <= 0 || vw <= 0 || vh <= 0) {
+            if (attempt < 6) {
+                overlay.postDelayed(() -> ensureMagnifierMapping(bitmap, imageView, overlay, attempt + 1), 50);
+            }
+            return;
+        }
+        // Use the ImageView as magnifier source view and rely on robust screen-space mapping
+        binding.trapezoidSelection.setMagnifierSourceView(imageView, null);
     }
 
     /**

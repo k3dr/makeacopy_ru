@@ -35,9 +35,9 @@ Builds:
       - ./prepare_opencv.sh
     ndk: r27d
 
-  - versionName: 1.1.3
-    versionCode: 10103
-    commit: ed820c2cfe96fa292fbab92b4db9bc58abcde63d
+  - versionName: 1.2.1
+    versionCode: 102012
+    commit: 6f5dca211e55a6c877733ef6c66749db78fa3cc6
     timeout: 14400
     subdir: app
     submodules: true
@@ -49,6 +49,54 @@ Builds:
     gradle:
       - yes
     output: build/outputs/apk/release/app-arm64-v8a-release-unsigned.apk
+    binary: https://github.com/egdels/makeacopy/releases/download/v%v/MakeACopy-v%v-arm64-v8a-release.apk
+    rm:
+      - external/onnxruntime/onnxruntime/test
+      - external/onnxruntime/samples
+    prebuild: sed -i -e '/^\t\tif (publishToAdo) {/,/^\t\t}/d' ../external/onnxruntime/java/build.gradle
+    scanignore:
+      - external/onnxruntime/java/build-android.gradle
+      - external/onnxruntime/java/build.gradle
+      - external/onnxruntime/js/react_native/e2e/android/build.gradle
+      - external/onnxruntime/js/react_native/android/build.gradle
+    scandelete:
+      - external/opencv
+      - external/onnxruntime
+    build:
+      - python3 --version
+      - which python3
+      - export REQUIRE_PINNED_JNI=1
+      - export VERBOSE=1
+      - export DEBUG=1
+      - export TZ=UTC
+      - export LC_ALL=C
+      - export PYTHONHASHSEED=0
+      - export SOURCE_DATE_EPOCH=1700000000
+      - export ABIS="arm64-v8a"
+      - export OPENCV_CMAKE=/usr/bin/cmake
+      - export ORT_CMAKE=/usr/bin/cmake
+      - export PY3_BIN=/usr/bin/python3
+      - cd ../scripts
+      - chmod +x *.sh
+      - ./build_opencv_android.sh
+      - ./prepare_opencv.sh
+      - ./build_onnxruntime_android.sh
+    ndk: r27d
+
+  - versionName: 1.2.1
+    versionCode: 102011
+    commit: 6f5dca211e55a6c877733ef6c66749db78fa3cc6
+    timeout: 14400
+    subdir: app
+    submodules: true
+    sudo:
+      - apt-get update
+      - apt-get install -y make ninja-build python3 ca-certificates
+      - apt-get install -y -t bookworm-backports cmake
+      - cmake --version
+    gradle:
+      - yes
+    output: build/outputs/apk/release/app-armeabi-v7a-release-unsigned.apk
     binary: https://github.com/egdels/makeacopy/releases/download/v%v/MakeACopy-v%v-armeabi-v7a-release.apk
     rm:
       - external/onnxruntime/onnxruntime/test
@@ -83,103 +131,9 @@ Builds:
       - ./build_onnxruntime_android.sh
     ndk: r27d
 
-  - versionName: 1.2.0
-    versionCode: 102001
-    commit: v1.2.0
-    timeout: 14400
-    subdir: app
-    submodules: true
-    sudo:
-      - apt-get update
-      - apt-get install -y make ninja-build python3 ca-certificates
-      - apt-get install -y -t bookworm-backports cmake
-      - cmake --version
-    gradle:
-      - yes
-    output: build/outputs/apk/release/app-armeabi-v7a-release-unsigned.apk
-    rm:
-      - external/onnxruntime/onnxruntime/test
-      - external/onnxruntime/samples
-    prebuild: sed -i -e '/^\t\tif (publishToAdo) {/,/^\t\t}/d' ../external/onnxruntime/java/build.gradle
-    scanignore:
-      - external/onnxruntime/java/build-android.gradle
-      - external/onnxruntime/java/build.gradle
-      - external/onnxruntime/js/react_native/e2e/android/build.gradle
-      - external/onnxruntime/js/react_native/android/build.gradle
-    scandelete:
-      - external/opencv
-      - external/onnxruntime
-    build:
-      - python3 --version
-      - which python3
-      - export REQUIRE_PINNED_JNI=1
-      - export VERBOSE=1
-      - export DEBUG=1
-      - export TZ=UTC
-      - export LC_ALL=C
-      - export PYTHONHASHSEED=0
-      - export SOURCE_DATE_EPOCH=1700000000
-      - export ABIS="armeabi-v7a"
-      - export OPENCV_CMAKE=/usr/bin/cmake
-      - export ORT_CMAKE=/usr/bin/cmake
-      - export PY3_BIN=/usr/bin/python3
-      - cd ../scripts
-      - chmod +x *.sh
-      - ./build_opencv_android.sh
-      - ./prepare_opencv.sh
-      - ./build_onnxruntime_android.sh
-    ndk: r27d
-
-  - versionName: 1.2.0
-    versionCode: 102002
-    commit: v1.2.0
-    timeout: 14400
-    subdir: app
-    submodules: true
-    sudo:
-      - apt-get update
-      - apt-get install -y make ninja-build python3 ca-certificates
-      - apt-get install -y -t bookworm-backports cmake
-      - cmake --version
-    gradle:
-      - yes
-    output: build/outputs/apk/release/app-arm64-v8a-release-unsigned.apk
-    rm:
-      - external/onnxruntime/onnxruntime/test
-      - external/onnxruntime/samples
-    prebuild: sed -i -e '/^\t\tif (publishToAdo) {/,/^\t\t}/d' ../external/onnxruntime/java/build.gradle
-    scanignore:
-      - external/onnxruntime/java/build-android.gradle
-      - external/onnxruntime/java/build.gradle
-      - external/onnxruntime/js/react_native/e2e/android/build.gradle
-      - external/onnxruntime/js/react_native/android/build.gradle
-    scandelete:
-      - external/opencv
-      - external/onnxruntime
-    build:
-      - python3 --version
-      - which python3
-      - export REQUIRE_PINNED_JNI=1
-      - export VERBOSE=1
-      - export DEBUG=1
-      - export TZ=UTC
-      - export LC_ALL=C
-      - export PYTHONHASHSEED=0
-      - export SOURCE_DATE_EPOCH=1700000000
-      - export ABIS="arm64-v8a"
-      - export OPENCV_CMAKE=/usr/bin/cmake
-      - export ORT_CMAKE=/usr/bin/cmake
-      - export PY3_BIN=/usr/bin/python3
-      - cd ../scripts
-      - chmod +x *.sh
-      - ./build_opencv_android.sh
-      - ./prepare_opencv.sh
-      - ./build_onnxruntime_android.sh
-    ndk: r27d
-
-  - versionName: 1.2.0
-    versionCode: 102003
-    commit: v1.2.0
+  - versionName: 1.2.1
+    versionCode: 102013
+    commit: 6f5dca211e55a6c877733ef6c66749db78fa3cc6
     timeout: 14400
     subdir: app
     submodules: true
@@ -191,6 +145,7 @@ Builds:
     gradle:
       - yes
     output: build/outputs/apk/release/app-x86-release-unsigned.apk
+    binary: https://github.com/egdels/makeacopy/releases/download/v%v/MakeACopy-v%v-x86-release.apk
     rm:
       - external/onnxruntime/onnxruntime/test
       - external/onnxruntime/samples
@@ -224,9 +179,9 @@ Builds:
       - ./build_onnxruntime_android.sh
     ndk: r27d
 
-  - versionName: 1.2.0
-    versionCode: 102004
-    commit: v1.2.0
+  - versionName: 1.2.1
+    versionCode: 102014
+    commit: 6f5dca211e55a6c877733ef6c66749db78fa3cc6
     timeout: 14400
     subdir: app
     submodules: true
@@ -238,6 +193,7 @@ Builds:
     gradle:
       - yes
     output: build/outputs/apk/release/app-x86_64-release-unsigned.apk
+    binary: https://github.com/egdels/makeacopy/releases/download/v%v/MakeACopy-v%v-x86_64-release.apk
     rm:
       - external/onnxruntime/onnxruntime/test
       - external/onnxruntime/samples
@@ -275,5 +231,5 @@ AllowedAPKSigningKeys: ae322d3fb71afe21df4727e37a5c6803511d5a2fe1fc3135430cee069
 
 AutoUpdateMode: Version
 UpdateCheckMode: Tags
-CurrentVersion: 1.2.0
-CurrentVersionCode: 102004
+CurrentVersion: 1.2.1
+CurrentVersionCode: 102014

@@ -6,6 +6,8 @@ import android.util.AttributeSet;
 import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
+import android.widget.Magnifier;
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import de.schliweb.makeacopy.utils.OpenCVUtils;
 import org.opencv.core.Mat;
@@ -42,6 +44,18 @@ public class TrapezoidSelectionView extends View {
     private int lastHeight = 0; // Last known height of the view
 
     private Bitmap imageBitmap = null; // The image bitmap for edge detection
+
+    // Magnifier (precision loupe) plumbing
+    @Nullable
+    private View magnifierSourceView;
+    @Nullable
+    private Matrix overlayToSource; // inverse from imageToOverlay matrix
+    @Nullable
+    private Magnifier magnifier;
+    private boolean magnifierEnabled = true;
+    private float magnifierZoom = 2.5f; // 2.0..4.0
+    private int magnifierSizePx = 0;
+    private boolean isDraggingWithMagnifier = false;
 
     public TrapezoidSelectionView(Context context) {
         super(context);
@@ -118,6 +132,12 @@ public class TrapezoidSelectionView extends View {
         hintBackgroundPaint.setColor(Color.argb(180, 0, 0, 0)); // Semi-transparent black
         hintBackgroundPaint.setStyle(Paint.Style.FILL);
         hintBackgroundPaint.setAntiAlias(true);
+
+        // Initialize default magnifier size in px (approx 140dp)
+        if (magnifierSizePx == 0) {
+            float density = getResources().getDisplayMetrics().density;
+            magnifierSizePx = (int) (140 * density + 0.5f);
+        }
 
         Log.d(TAG, "TrapezoidSelectionView initialized with user guidance");
     }
@@ -873,6 +893,14 @@ public class TrapezoidSelectionView extends View {
     @Override
     protected void onSizeChanged(int w, int h, int oldw, int oldh) {
         super.onSizeChanged(w, h, oldw, oldh);
+        // Invalidate magnifier on size/orientation change (rebuild lazily on next drag)
+        if (magnifier != null) {
+            try {
+                magnifier.dismiss();
+            } catch (Throwable ignore) {
+            }
+        }
+        magnifier = null;
 
         // Get the current orientation
         int orientation = getResources().getConfiguration().orientation;
@@ -951,6 +979,21 @@ public class TrapezoidSelectionView extends View {
     }
 
     @Override
+    protected void onDetachedFromWindow() {
+        super.onDetachedFromWindow();
+        if (magnifier != null) {
+            try {
+                magnifier.dismiss();
+            } catch (Throwable ignore) {
+            }
+            magnifier = null;
+        }
+        magnifierSourceView = null;
+        overlayToSource = null;
+        isDraggingWithMagnifier = false;
+    }
+
+    @Override
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
 
@@ -980,16 +1023,41 @@ public class TrapezoidSelectionView extends View {
 
         // Draw the corner handles
         for (int i = 0; i < 4; i++) {
+            // While the magnifier is active, do not draw the active corner as a yellow filled circle.
+            if (isDraggingWithMagnifier && i == activeCornerIndex) {
+                // Skip drawing the active handle to avoid a yellow circle in the magnifier; the white crosshair suffices.
+                continue;
+            }
             Paint paint = (i == activeCornerIndex) ? activePaint : cornerPaint;
             canvas.drawCircle(corners[i].x, corners[i].y, CORNER_RADIUS, paint);
         }
 
-        // Draw corner indices for debugging
-        Paint textPaint = new Paint();
+        // Draw a simple crosshair at active corner while dragging (pairs well with magnifier)
+        if (isDraggingWithMagnifier && activeCornerIndex != -1) {
+            float cx = corners[activeCornerIndex].x;
+            float cy = corners[activeCornerIndex].y;
+            Paint crossPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+            crossPaint.setColor(Color.WHITE);
+            crossPaint.setStrokeWidth(3f);
+            // Outer subtle shadow for visibility on bright backgrounds
+            crossPaint.setShadowLayer(4f, 0f, 0f, Color.BLACK);
+            float len = CORNER_RADIUS + 20f;
+            // Horizontal line
+            canvas.drawLine(cx - len, cy, cx + len, cy, crossPaint);
+            // Vertical line
+            canvas.drawLine(cx, cy - len, cx, cy + len, crossPaint);
+        }
+
+
+        // Draw corner indices (avoid drawing the active corner's digit while magnifier is active so it doesn't appear inside the loupe)
+        Paint textPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         textPaint.setColor(Color.WHITE);
         textPaint.setTextSize(40);
         textPaint.setTextAlign(Paint.Align.CENTER);
         for (int i = 0; i < 4; i++) {
+            if (isDraggingWithMagnifier && i == activeCornerIndex) {
+                continue; // skip active corner digit to keep the loupe clean (only white crosshair visible)
+            }
             canvas.drawText(String.valueOf(i), corners[i].x, corners[i].y + 15, textPaint);
         }
 
@@ -1055,8 +1123,6 @@ public class TrapezoidSelectionView extends View {
             // Draw the hint
             drawHintText(canvas, hint, hintX, hintY);
 
-            // Draw additional guidance arrows or lines if needed
-            drawCornerGuidanceIndicators(canvas, activeCornerIndex);
         } else {
             // No corner is active, show general guidance
 
@@ -1102,36 +1168,6 @@ public class TrapezoidSelectionView extends View {
 
         // Draw text
         canvas.drawText(text, x, y, hintPaint);
-    }
-
-    /**
-     * Draws guidance indicators for the active corner
-     *
-     * @param canvas      Canvas to draw on
-     * @param cornerIndex Index of the active corner
-     */
-    private void drawCornerGuidanceIndicators(Canvas canvas, int cornerIndex) {
-        if (cornerIndex < 0 || cornerIndex >= 4) {
-            return;
-        }
-
-        // Get the active corner position
-        float x = corners[cornerIndex].x;
-        float y = corners[cornerIndex].y;
-
-        // Create a paint for the indicators
-        Paint indicatorPaint = new Paint();
-        indicatorPaint.setColor(Color.YELLOW);
-        indicatorPaint.setStrokeWidth(5);
-        indicatorPaint.setStyle(Paint.Style.STROKE);
-        indicatorPaint.setAntiAlias(true);
-
-        // Draw a pulsating circle around the active corner
-        // The size varies based on the system time for a pulsating effect
-        long time = System.currentTimeMillis() % 1000;
-        float pulseRadius = CORNER_RADIUS + 10 + (float) (Math.sin(time / 1000.0 * 2 * Math.PI) * 10);
-
-        canvas.drawCircle(x, y, pulseRadius, indicatorPaint);
     }
 
     /**
@@ -1199,14 +1235,40 @@ public class TrapezoidSelectionView extends View {
             case MotionEvent.ACTION_DOWN:
                 // Check if a corner was touched
                 activeCornerIndex = findCornerIndex(x, y);
-                invalidate();
-                return activeCornerIndex != -1;
+                if (activeCornerIndex != -1) {
+                    // Initialize and show magnifier if enabled and source is set
+                    ensureMagnifier();
+                    if (magnifier != null) {
+                        PointF src = toSourceCoords(x, y);
+                        try {
+                            magnifier.show(src.x, src.y);
+                        } catch (Throwable t) {
+                            Log.w(TAG, "magnifier.show failed: " + t.getMessage());
+                        }
+                        isDraggingWithMagnifier = true;
+                    }
+                    invalidate();
+                    return true;
+                } else {
+                    invalidate();
+                    return false;
+                }
 
             case MotionEvent.ACTION_MOVE:
                 // Move the active corner
                 if (activeCornerIndex != -1) {
                     // Use updateCorner to maintain both absolute and relative coordinates
                     updateCorner(activeCornerIndex, x, y);
+
+                    // Update magnifier position if active
+                    if (isDraggingWithMagnifier && magnifier != null) {
+                        PointF src = toSourceCoords(x, y);
+                        try {
+                            magnifier.show(src.x, src.y);
+                        } catch (Throwable t) {
+                            Log.w(TAG, "magnifier.show(move) failed: " + t.getMessage());
+                        }
+                    }
 
                     // Log the updated corner position
                     Log.d(TAG, "Corner " + activeCornerIndex + " moved to: (" + x + "," + y + "), " + "relative: (" + relativeCorners[activeCornerIndex][0] + "," + relativeCorners[activeCornerIndex][1] + ")");
@@ -1224,6 +1286,15 @@ public class TrapezoidSelectionView extends View {
                     updateCorner(activeCornerIndex, corners[activeCornerIndex].x, corners[activeCornerIndex].y);
                     Log.d(TAG, "Touch released, final corner " + activeCornerIndex + " position: " + "(" + corners[activeCornerIndex].x + "," + corners[activeCornerIndex].y + ")");
                 }
+                // Dismiss magnifier if shown
+                if (magnifier != null && isDraggingWithMagnifier) {
+                    try {
+                        magnifier.dismiss();
+                    } catch (Throwable t) {
+                        Log.w(TAG, "magnifier.dismiss failed: " + t.getMessage());
+                    }
+                }
+                isDraggingWithMagnifier = false;
                 activeCornerIndex = -1;
                 invalidate();
                 break;
@@ -1300,6 +1371,100 @@ public class TrapezoidSelectionView extends View {
             Log.d(TAG, "View has valid dimensions, initializing corners with edge detection");
             initializeCorners();
         }
+    }
+
+    // ===== Magnifier API (public) =====
+    public void setMagnifierSourceView(@NonNull View imageContentView, @Nullable Matrix imageToOverlayMatrix) {
+        this.magnifierSourceView = imageContentView;
+        if (imageToOverlayMatrix != null) {
+            Matrix inv = new Matrix();
+            if (imageToOverlayMatrix.invert(inv)) {
+                this.overlayToSource = inv;
+            } else {
+                this.overlayToSource = null;
+                Log.w(TAG, "Failed to invert imageToOverlayMatrix; falling back to screen-space transforms.");
+            }
+        } else {
+            this.overlayToSource = null;
+        }
+        // Rebuild magnifier lazily on next drag
+        if (magnifier != null) {
+            try {
+                magnifier.dismiss();
+            } catch (Throwable ignore) {
+            }
+        }
+        magnifier = null;
+    }
+
+    public void setMagnifierEnabled(boolean enabled) {
+        this.magnifierEnabled = enabled;
+        if (!enabled && magnifier != null) {
+            try {
+                magnifier.dismiss();
+            } catch (Throwable ignore) {
+            }
+            magnifier = null;
+        }
+    }
+
+    public void setMagnifierZoom(float zoom) {
+        // clamp 2.0 .. 4.0
+        float clamped = Math.max(2.0f, Math.min(4.0f, zoom));
+        this.magnifierZoom = clamped;
+        // Rebuild lazily
+        if (magnifier != null) {
+            try {
+                magnifier.dismiss();
+            } catch (Throwable ignore) {
+            }
+            magnifier = null;
+        }
+    }
+
+    public void setMagnifierSizePx(int sizePx) {
+        this.magnifierSizePx = Math.max(80, sizePx);
+        if (magnifier != null) {
+            try {
+                magnifier.dismiss();
+            } catch (Throwable ignore) {
+            }
+            magnifier = null;
+        }
+    }
+
+    // ===== Magnifier helpers (private) =====
+    private void ensureMagnifier() {
+        if (magnifier == null && magnifierSourceView != null && magnifierEnabled) {
+            try {
+                Magnifier.Builder builder = new Magnifier.Builder(magnifierSourceView)
+                        .setInitialZoom(magnifierZoom)
+                        .setSize(magnifierSizePx, magnifierSizePx)
+                        .setDefaultSourceToMagnifierOffset(0, -(int) (magnifierSizePx * 0.75f));
+                magnifier = builder.build();
+            } catch (Throwable t) {
+                Log.w(TAG, "Failed to create Magnifier: " + t.getMessage());
+                magnifier = null;
+            }
+        }
+    }
+
+    private PointF toSourceCoords(float overlayX, float overlayY) {
+        if (overlayToSource != null) {
+            float[] pts = new float[]{overlayX, overlayY};
+            overlayToSource.mapPoints(pts);
+            return new PointF(pts[0], pts[1]);
+        }
+        if (magnifierSourceView != null) {
+            int[] srcLoc = new int[2];
+            int[] ovlLoc = new int[2];
+            magnifierSourceView.getLocationOnScreen(srcLoc);
+            this.getLocationOnScreen(ovlLoc);
+            float screenX = overlayX + ovlLoc[0];
+            float screenY = overlayY + ovlLoc[1];
+            return new PointF(screenX - srcLoc[0], screenY - srcLoc[1]);
+        }
+        return new PointF(overlayX, overlayY);
     }
 
     /**

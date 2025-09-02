@@ -31,9 +31,9 @@ jobs:
           python-version: '3.11.2'
 
       # NDK installieren
-      - name: Install Android SDK NDK 27.3.13750724
+      - name: Install Android SDK NDK 28.0.13004108
         run: |
-          yes | ${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager --sdk_root=${ANDROID_HOME} "ndk;27.3.13750724"
+          yes | ${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager --sdk_root=${ANDROID_HOME} "ndk;28.0.13004108"
         env:
           ANDROID_SDK_ROOT: ${{ env.ANDROID_HOME }}
 

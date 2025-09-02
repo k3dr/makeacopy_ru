@@ -46,7 +46,7 @@ jobs:
       # Use the installed CMake on PATH to align with FDroid
       - name: Export ANDROID_*, CMake and Python paths
         run: |
-          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.3.13750724" >> $GITHUB_ENV
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/28.0.13004108" >> $GITHUB_ENV
           echo "ANDROID_SDK_ROOT=$ANDROID_HOME" >> $GITHUB_ENV
           echo "BUILD_GENERATOR=Unix Makefiles" >> $GITHUB_ENV
           echo "ORT_CMAKE=$(which cmake)" >> $GITHUB_ENV

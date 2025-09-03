@@ -23,13 +23,32 @@
             app:layout_constraintEnd_toEndOf="parent"/>
 
     <!-- Kamera-Vorschau -->
+    <!-- Barrier to place checkbox above whichever bottom button container is visible -->
+    <androidx.constraintlayout.widget.Barrier
+            android:id="@+id/buttons_top_barrier"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            app:barrierDirection="top"
+            app:barrierAllowsGoneWidgets="false"
+            app:constraint_referenced_ids="scan_button_container,button_container" />
+
+    <!-- Skip OCR toggle on Camera screen (always directly above the buttons) -->
+    <CheckBox
+            android:id="@+id/checkbox_skip_ocr_camera"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/skip_ocr_export_only"
+            app:layout_constraintBottom_toTopOf="@id/buttons_top_barrier"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent" />
+
     <androidx.camera.view.PreviewView
             android:id="@+id/view_finder"
             android:layout_width="0dp"
             android:layout_height="0dp"
             android:layout_margin="16dp"
             app:layout_constraintTop_toBottomOf="@id/text_camera"
-            app:layout_constraintBottom_toTopOf="@+id/scan_button_container"
+            app:layout_constraintBottom_toTopOf="@id/checkbox_skip_ocr_camera"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent"/>
 
@@ -43,7 +62,7 @@
             android:contentDescription="@string/captured_image"
             android:visibility="gone"
             app:layout_constraintTop_toBottomOf="@id/text_camera"
-            app:layout_constraintBottom_toTopOf="@+id/button_container"
+            app:layout_constraintBottom_toTopOf="@id/checkbox_skip_ocr_camera"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent"/>
 

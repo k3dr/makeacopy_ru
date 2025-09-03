@@ -61,4 +61,5 @@
     <string name="jpeg_mode_none">Aucune amélioration (JPEG)</string>
     <string name="jpeg_mode_auto">Amélioration automatique (JPEG)</string>
     <string name="jpeg_mode_bw_text">Noir et blanc (texte) (JPEG)</string>
+    <string name="skip_ocr_export_only">Ignorer l’OCR (export seulement)</string>
 </resources>

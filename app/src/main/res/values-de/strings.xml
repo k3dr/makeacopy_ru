@@ -61,4 +61,5 @@
     <string name="jpeg_mode_none">Keine Verbesserung (JPEG)</string>
     <string name="jpeg_mode_auto">Automatisch verbessern (JPEG)</string>
     <string name="jpeg_mode_bw_text">Schwarz-Weiß (Text) (JPEG)</string>
+    <string name="skip_ocr_export_only">OCR überspringen (nur Export)</string>
 </resources>

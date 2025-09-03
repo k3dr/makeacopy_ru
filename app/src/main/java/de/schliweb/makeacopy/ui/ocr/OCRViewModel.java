@@ -20,8 +20,8 @@ public class OCRViewModel extends ViewModel {
     /**
      * @param offsetY letterboxing, else 0
      */ // Transform Original → Target (for example A4)
-        public record OcrTransform(int srcW, int srcH, int dstW, int dstH, float scaleX, float scaleY, int offsetX,
-                                   int offsetY) {
+    public record OcrTransform(int srcW, int srcH, int dstW, int dstH, float scaleX, float scaleY, int offsetX,
+                               int offsetY) {
     }
 
     /**
@@ -29,47 +29,47 @@ public class OCRViewModel extends ViewModel {
      * @param meanConfidence optional (0..100)
      * @param transform      optional
      */ // UI-State
-        public record OcrUiState(boolean processing, boolean imageProcessed, String language, String ocrText,
-                                 List<RecognizedWord> words, Long durationMs, Integer meanConfidence,
-                                 OcrTransform transform) {
+    public record OcrUiState(boolean processing, boolean imageProcessed, String language, String ocrText,
+                             List<RecognizedWord> words, Long durationMs, Integer meanConfidence,
+                             OcrTransform transform) {
         /**
          * Creates a new OcrUiState.
          */
         public OcrUiState {
         }
 
-            public OcrUiState withProcessing(boolean p) {
-                return new OcrUiState(p, imageProcessed, language, ocrText, words, durationMs, meanConfidence, transform);
-            }
-
-            public OcrUiState withImageProcessed(boolean ip) {
-                return new OcrUiState(processing, ip, language, ocrText, words, durationMs, meanConfidence, transform);
-            }
-
-            public OcrUiState withText(String t) {
-                return new OcrUiState(processing, imageProcessed, language, t, words, durationMs, meanConfidence, transform);
-            }
-
-            public OcrUiState withWords(List<RecognizedWord> w) {
-                return new OcrUiState(processing, imageProcessed, language, ocrText, w, durationMs, meanConfidence, transform);
-            }
-
-            public OcrUiState withLanguage(String lang) {
-                return new OcrUiState(processing, imageProcessed, lang, ocrText, words, durationMs, meanConfidence, transform);
-            }
-
-            public OcrUiState withDuration(Long ms) {
-                return new OcrUiState(processing, imageProcessed, language, ocrText, words, ms, meanConfidence, transform);
-            }
-
-            public OcrUiState withMeanConfidence(Integer mc) {
-                return new OcrUiState(processing, imageProcessed, language, ocrText, words, durationMs, mc, transform);
-            }
-
-            public OcrUiState withTransform(OcrTransform tx) {
-                return new OcrUiState(processing, imageProcessed, language, ocrText, words, durationMs, meanConfidence, tx);
-            }
+        public OcrUiState withProcessing(boolean p) {
+            return new OcrUiState(p, imageProcessed, language, ocrText, words, durationMs, meanConfidence, transform);
         }
+
+        public OcrUiState withImageProcessed(boolean ip) {
+            return new OcrUiState(processing, ip, language, ocrText, words, durationMs, meanConfidence, transform);
+        }
+
+        public OcrUiState withText(String t) {
+            return new OcrUiState(processing, imageProcessed, language, t, words, durationMs, meanConfidence, transform);
+        }
+
+        public OcrUiState withWords(List<RecognizedWord> w) {
+            return new OcrUiState(processing, imageProcessed, language, ocrText, w, durationMs, meanConfidence, transform);
+        }
+
+        public OcrUiState withLanguage(String lang) {
+            return new OcrUiState(processing, imageProcessed, lang, ocrText, words, durationMs, meanConfidence, transform);
+        }
+
+        public OcrUiState withDuration(Long ms) {
+            return new OcrUiState(processing, imageProcessed, language, ocrText, words, ms, meanConfidence, transform);
+        }
+
+        public OcrUiState withMeanConfidence(Integer mc) {
+            return new OcrUiState(processing, imageProcessed, language, ocrText, words, durationMs, mc, transform);
+        }
+
+        public OcrUiState withTransform(OcrTransform tx) {
+            return new OcrUiState(processing, imageProcessed, language, ocrText, words, durationMs, meanConfidence, tx);
+        }
+    }
 
     /**
      * Event wrapper for LiveData.

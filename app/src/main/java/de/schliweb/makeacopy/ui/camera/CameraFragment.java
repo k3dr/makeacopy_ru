@@ -164,6 +164,18 @@ public class CameraFragment extends Fragment implements SensorEventListener {
         // Init UI visibility
         showCameraMode();
 
+        // Wire Skip OCR (export only) checkbox: persist in SharedPreferences
+        try {
+            android.content.SharedPreferences prefs = requireContext().getSharedPreferences("export_options", Context.MODE_PRIVATE);
+            boolean skipOcr = prefs.getBoolean("skip_ocr", false);
+            if (binding.checkboxSkipOcrCamera != null) {
+                binding.checkboxSkipOcrCamera.setChecked(skipOcr);
+                binding.checkboxSkipOcrCamera.setOnCheckedChangeListener((btn, checked) ->
+                        prefs.edit().putBoolean("skip_ocr", checked).apply());
+            }
+        } catch (Exception ignored) {
+        }
+
         final TextView textView = binding.textCamera;
         cameraViewModel.getText().observe(getViewLifecycleOwner(), textView::setText);
 

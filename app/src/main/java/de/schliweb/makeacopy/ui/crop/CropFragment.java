@@ -74,7 +74,12 @@ public class CropFragment extends Fragment {
 
         // Recrop/Confirm-Buttons
         binding.buttonRecrop.setOnClickListener(v -> resetCrop());
-        binding.buttonConfirmCrop.setOnClickListener(v -> Navigation.findNavController(requireView()).navigate(R.id.navigation_ocr));
+        binding.buttonConfirmCrop.setOnClickListener(v -> {
+            android.content.SharedPreferences prefs = requireContext().getSharedPreferences("export_options", android.content.Context.MODE_PRIVATE);
+            boolean skipOcr = prefs.getBoolean("skip_ocr", false);
+            int dest = skipOcr ? R.id.navigation_export : R.id.navigation_ocr;
+            Navigation.findNavController(requireView()).navigate(dest);
+        });
 
         // Bitmap-Change
         cropViewModel.getImageBitmap().observe(getViewLifecycleOwner(), bitmap -> {

@@ -137,6 +137,18 @@ public class ExportFragment extends Fragment {
         exportViewModel.setConvertToGrayscale(convertToGrayscale);
         exportViewModel.setExportFormat(exportAsJpeg ? "JPEG" : "PDF");
 
+        // If user chose to skip OCR earlier (Camera screen), hide the option and force export without OCR
+        boolean skipOcr = prefs.getBoolean("skip_ocr", false);
+        if (skipOcr) {
+            if (binding.checkboxIncludeOcr != null) {
+                binding.checkboxIncludeOcr.setVisibility(View.GONE);
+                binding.checkboxIncludeOcr.setChecked(false);
+            }
+            exportViewModel.setIncludeOcr(false);
+            // Persist include_ocr=false to avoid accidental TXT export prompts
+            prefs.edit().putBoolean("include_ocr", false).apply();
+        }
+
         // Insets
         ViewCompat.setOnApplyWindowInsetsListener(binding.exportOptionsGroup, (v, insets) -> {
             UIUtils.adjustMarginForSystemInsets(binding.exportOptionsGroup, 8); // 8dp extra Abstand

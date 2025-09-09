@@ -62,4 +62,8 @@
     <string name="jpeg_mode_auto">Amélioration automatique (JPEG)</string>
     <string name="jpeg_mode_bw_text">Noir et blanc (texte) (JPEG)</string>
     <string name="skip_ocr_export_only">Ignorer l’OCR (export seulement)</string>
+    <!-- Donate / Support -->
+    <string name="support_donate">Soutenir / Faire un don</string>
+    <string name="donation_url">https://ko-fi.com/egdels</string>
+    <string name="donate_cd">Soutenir ce projet</string>
 </resources>

@@ -12,6 +12,7 @@ import de.schliweb.makeacopy.ui.BaseViewModel;
 public class CameraViewModel extends BaseViewModel {
 
     private final MutableLiveData<Boolean> mCameraPermissionGranted;
+    private final MutableLiveData<String> mImagePath = new MutableLiveData<>();
 
     public CameraViewModel() {
         super("Camera Fragment");
@@ -38,5 +39,13 @@ public class CameraViewModel extends BaseViewModel {
      */
     public void setCameraPermissionGranted(boolean granted) {
         mCameraPermissionGranted.setValue(granted);
+    }
+
+    public MutableLiveData<String> getImagePath() {
+        return mImagePath;
+    }
+
+    public void setImagePath(String path) {
+        mImagePath.setValue(path);
     }
 }

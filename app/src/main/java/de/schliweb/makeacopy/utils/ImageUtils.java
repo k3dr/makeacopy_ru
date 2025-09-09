@@ -5,7 +5,7 @@ import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Matrix;
-import android.media.ExifInterface;
+import androidx.exifinterface.media.ExifInterface;
 import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
@@ -17,9 +17,11 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
- * A utility class for handling image operations such as loading images from a URI
- * and applying the correct orientation based on the EXIF information.
+ * Deprecated: Use ImageLoader for all internal image decoding. ImageLoader prefers decoding from file path
+ * and falls back to URI streams, with downsampling and rotation handling.
+ * This class remains for backward compatibility with potential external references.
  */
+@Deprecated
 public class ImageUtils {
     private static final String TAG = "ImageUtils";
     private static final ExecutorService executor = Executors.newCachedThreadPool();

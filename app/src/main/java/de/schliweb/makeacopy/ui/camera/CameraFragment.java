@@ -37,6 +37,7 @@ import androidx.lifecycle.ViewModelProvider;
 import androidx.navigation.Navigation;
 import com.google.common.util.concurrent.ListenableFuture;
 import de.schliweb.makeacopy.BuildConfig;
+import de.schliweb.makeacopy.MainActivity;
 import de.schliweb.makeacopy.R;
 import de.schliweb.makeacopy.databinding.FragmentCameraBinding;
 import de.schliweb.makeacopy.ui.crop.CropViewModel;
@@ -182,7 +183,8 @@ public class CameraFragment extends Fragment implements SensorEventListener {
         // Observe the image URI and switch modes accordingly
         cameraViewModel.getImageUri().observe(getViewLifecycleOwner(), uri -> {
             if (uri != null) {
-                displayCapturedImage(uri);
+                String path = cameraViewModel.getImagePath().getValue();
+                displayCapturedImage(path, uri);
             }
             // when null, UI will be reset explicitly when needed
         });
@@ -510,7 +512,7 @@ public class CameraFragment extends Fragment implements SensorEventListener {
             }
 
             // Datei mit Zeitstempel erstellen
-            String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(System.currentTimeMillis());
+            String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss_SSS", Locale.US).format(System.currentTimeMillis());
             File photoFile = new File(outputDir, "MakeACopy_" + timestamp + ".jpg");
 
             ImageCapture.OutputFileOptions outputOptions =
@@ -523,9 +525,18 @@ public class CameraFragment extends Fragment implements SensorEventListener {
                     new ImageCapture.OnImageSavedCallback() {
                         @Override
                         public void onImageSaved(@NonNull ImageCapture.OutputFileResults outputFileResults) {
-                            Log.d(TAG, "Image saved to: " + photoFile.getAbsolutePath());
+                            // Wait until file is non-empty (≤1s)
+                            long start = System.currentTimeMillis();
+                            long waited = 0;
+                            long size = photoFile.length();
+                            while (size == 0 && waited < 1000) {
+                                try { Thread.sleep(50); } catch (InterruptedException ignored) {}
+                                size = photoFile.length();
+                                waited = System.currentTimeMillis() - start;
+                            }
+                            Log.d(TAG, "Image saved to: " + photoFile.getAbsolutePath() + ", size=" + size + ", waitedMs=" + waited);
 
-                            // (8) FileProvider-Authority zentral
+                            // FileProvider URI (for sharing)
                             Uri imageUri = FileProvider.getUriForFile(
                                     requireContext(),
                                     BuildConfig.APPLICATION_ID + ".fileprovider",
@@ -537,8 +548,9 @@ public class CameraFragment extends Fragment implements SensorEventListener {
                                 if (cropViewModel != null) {
                                     cropViewModel.setCaptureRotationDegrees(captureDeg);
                                 }
+                                // Set path first so observer can pick it up reliably, then set URI to trigger the observer
+                                cameraViewModel.setImagePath(photoFile.getAbsolutePath());
                                 cameraViewModel.setImageUri(imageUri);
-                                displayCapturedImage(imageUri);
                             }
                         }
 
@@ -569,32 +581,29 @@ public class CameraFragment extends Fragment implements SensorEventListener {
 
     /**
      * Displays the image captured by the camera in the interface and transitions the UI to review mode.
-     * Attempts to load the image from the given {@code imageUri} asynchronously and handles both
-     * successful image loading and potential failures. If the image loading is successful, the image
-     * is displayed in the corresponding view. In case of failure, a toast message is shown, and the
-     * user is navigated to the crop screen.
-     *
-     * @param imageUri The {@link Uri} of the image to be displayed. The URI is used to fetch the image
-     *                 asynchronously for rendering in the UI.
+     * Loads via ImageLoader with path-first strategy; falls back to URI if needed.
      */
-    private void displayCapturedImage(Uri imageUri) {
+    private void displayCapturedImage(String imagePath, Uri imageUri) {
         if (binding == null || !isAdded()) return;
 
         binding.textCamera.setText(R.string.processing_image);
+        // Clear previous image to avoid showing stale bitmap while loading new one
+        binding.capturedImage.setImageDrawable(null);
 
-        de.schliweb.makeacopy.utils.ImageUtils.loadImageFromUriAsync(requireContext(), imageUri,
-                new de.schliweb.makeacopy.utils.ImageUtils.ImageLoadCallback() {
+        de.schliweb.makeacopy.utils.ImageLoader.decodeAsync(requireContext(), imagePath, imageUri,
+                new de.schliweb.makeacopy.utils.ImageLoader.Callback() {
                     @Override
-                    public void onImageLoaded(Bitmap bitmap) {
+                    public void onLoaded(Bitmap bitmap) {
                         if (binding == null || !isAdded()) return;
                         binding.capturedImage.setImageBitmap(bitmap);
                         showReviewMode();
                     }
 
                     @Override
-                    public void onImageLoadFailed(String error) {
+                    public void onError(Throwable error) {
                         if (!isAdded()) return;
-                        UIUtils.showToast(requireContext(), getString(R.string.error_displaying_image, error), Toast.LENGTH_SHORT);
+                        String msg = error != null ? error.getMessage() : "unknown";
+                        UIUtils.showToast(requireContext(), getString(R.string.error_displaying_image, msg), Toast.LENGTH_SHORT);
                         if (getView() != null) {
                             Navigation.findNavController(requireView()).navigate(R.id.navigation_crop);
                         }
@@ -633,6 +642,11 @@ public class CameraFragment extends Fragment implements SensorEventListener {
         }
         binding.textCamera.setText(R.string.camera_ready_tap_the_button_to_scan_a_document);
 
+        // Show donate heart only when Scan button is visible
+        if (getActivity() instanceof MainActivity) {
+            ((MainActivity) getActivity()).setDonateFabVisible(true);
+        }
+
         lowLightPromptShown = false;
     }
 
@@ -661,6 +675,11 @@ public class CameraFragment extends Fragment implements SensorEventListener {
             binding.scanButtonContainer.setVisibility(View.GONE);
         }
         binding.textCamera.setText(R.string.review_your_scan_tap_confirm_to_proceed_or_retake_to_try_again);
+
+        // Hide donate heart when Scan button is not visible
+        if (getActivity() instanceof MainActivity) {
+            ((MainActivity) getActivity()).setDonateFabVisible(false);
+        }
     }
 
     /**
@@ -796,6 +815,7 @@ public class CameraFragment extends Fragment implements SensorEventListener {
 
         if (cameraViewModel != null) {
             cameraViewModel.setImageUri(null);
+            cameraViewModel.setImagePath(null);
         }
 
         lowLightPromptShown = false;

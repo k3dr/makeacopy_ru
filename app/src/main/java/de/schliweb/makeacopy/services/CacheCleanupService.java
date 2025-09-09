@@ -470,9 +470,16 @@ public class CacheCleanupService extends Service {
      */
     private int cleanupTempFiles() {
         try {
-            // Cleanup app cache directory
+            int total = 0;
+            // Cleanup internal app cache directory
             File cacheDir = getCacheDir();
-            return cleanupDirectoryRecursively(cacheDir);
+            total += cleanupDirectoryRecursively(cacheDir);
+            // Also cleanup external cache directory if available
+            File extCacheDir = getExternalCacheDir();
+            if (extCacheDir != null) {
+                total += cleanupDirectoryRecursively(extCacheDir);
+            }
+            return total;
 
         } catch (Exception e) {
             Log.e(TAG, "Error cleaning up temp files", e);
@@ -793,9 +800,16 @@ public class CacheCleanupService extends Service {
      */
     private static int cleanupTempFilesDirect(Context context) {
         try {
-            // Cleanup app cache directory
+            int total = 0;
+            // Cleanup internal app cache directory
             File cacheDir = context.getCacheDir();
-            return cleanupDirectoryRecursivelyDirect(cacheDir);
+            total += cleanupDirectoryRecursivelyDirect(cacheDir);
+            // Also cleanup external cache directory if available
+            File extCacheDir = context.getExternalCacheDir();
+            if (extCacheDir != null) {
+                total += cleanupDirectoryRecursivelyDirect(extCacheDir);
+            }
+            return total;
 
         } catch (Exception e) {
             Log.e(TAG, "Error in direct temp files cleanup", e);

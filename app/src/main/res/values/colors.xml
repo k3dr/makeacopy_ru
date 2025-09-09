@@ -10,4 +10,5 @@
     <color name="button_container_background">#FFFFFFFF</color>
     <color name="document_preview_background">#F5F5F5</color>
     <color name="ocr_text_color">#FF000000</color>
+    <color name="heart_red">#E53935</color>
 </resources>

@@ -150,13 +150,16 @@ public class CropFragment extends Fragment {
      * @param uri The URI of the image to be loaded.
      */
     private void loadImageFromUri(Uri uri) {
-        Bitmap bitmap = de.schliweb.makeacopy.utils.ImageUtils.loadImageFromUri(requireContext(), uri);
+        String path = cameraViewModel != null && cameraViewModel.getImagePath() != null
+                ? cameraViewModel.getImagePath().getValue() : null;
+        Bitmap bitmap = de.schliweb.makeacopy.utils.ImageLoader.decode(requireContext(), path, uri);
         if (bitmap != null) {
             cropViewModel.setImageUri(uri);
             cropViewModel.setImageBitmap(bitmap);
             cropViewModel.setOriginalImageBitmap(bitmap);
         } else {
-            // Error Handling
+            // Error Handling: show friendly message
+            de.schliweb.makeacopy.utils.UIUtils.showToast(requireContext(), getString(R.string.error_displaying_image, "decode failed"), android.widget.Toast.LENGTH_SHORT);
         }
     }
 

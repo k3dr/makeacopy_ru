@@ -17,6 +17,7 @@ tesseract = "4.9.0"
 lombok = "1.18.38"
 pdfbox = "2.0.27.0"
 activity = "1.9.2"
+exifinterface = "1.3.7"
 
 [libraries]
 junit = { group = "junit", name = "junit", version.ref = "junit" }
@@ -45,6 +46,9 @@ lombok = { group = "org.projectlombok", name = "lombok", version.ref = "lombok" 
 
 # PdfBox-Android dependency
 pdfbox-android = { group = "com.tom-roush", name = "pdfbox-android", version.ref = "pdfbox" }
+
+# ExifInterface
+exifinterface = { group = "androidx.exifinterface", name = "exifinterface", version.ref = "exifinterface" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

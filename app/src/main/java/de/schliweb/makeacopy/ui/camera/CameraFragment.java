@@ -3,6 +3,7 @@ package de.schliweb.makeacopy.ui.camera;
 import android.Manifest;
 import android.content.Context;
 import android.content.DialogInterface;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.drawable.BitmapDrawable;
@@ -127,6 +128,7 @@ public class CameraFragment extends Fragment implements SensorEventListener {
     private boolean isLowLightDialogVisible = false; // (9) Entprellung
 
     private ActivityResultLauncher<String> requestPermissionLauncher;
+    private ActivityResultLauncher<Intent> pickImageLauncher;
 
     // (1) Orientation listener to keep target rotation in sync
     private OrientationEventListener orientationListener;
@@ -147,6 +149,37 @@ public class CameraFragment extends Fragment implements SensorEventListener {
                         cameraViewModel.setCameraPermissionGranted(true);
                     } else {
                         UIUtils.showToast(requireContext(), R.string.msg_camera_permission_required, Toast.LENGTH_LONG);
+                    }
+                });
+
+        // Register the image picker launcher (SAF)
+        pickImageLauncher = registerForActivityResult(
+                new ActivityResultContracts.StartActivityForResult(), result -> {
+                    if (result == null || result.getData() == null) return;
+                    if (result.getResultCode() != android.app.Activity.RESULT_OK) return;
+                    Intent data = result.getData();
+                    Uri uri = data.getData();
+                    if (uri == null) return;
+                    // Validate MIME type to be image/*
+                    try {
+                        String mime = requireContext().getContentResolver().getType(uri);
+                        if (mime == null || !mime.startsWith("image/")) {
+                            UIUtils.showToast(requireContext(), R.string.error_selected_file_is_not_an_image, Toast.LENGTH_SHORT);
+                            return;
+                        }
+                    } catch (Exception ignored) {
+                        // If type cannot be determined, proceed cautiously (SAF already filtered), no-op
+                    }
+                    try {
+                        int takeFlags = data.getFlags() & (Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+                        if ((takeFlags & Intent.FLAG_GRANT_READ_URI_PERMISSION) != 0) {
+                            requireContext().getContentResolver().takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                        }
+                    } catch (Exception ignored) {
+                    }
+                    if (cameraViewModel != null) {
+                        cameraViewModel.setImagePath(null);
+                        cameraViewModel.setImageUri(uri);
                     }
                 });
 
@@ -200,6 +233,18 @@ public class CameraFragment extends Fragment implements SensorEventListener {
 
         // Set up flashlight button
         binding.buttonFlash.setOnClickListener(v -> toggleFlashlight());
+
+        // Set up pick image button
+        if (binding.buttonPickImage != null) {
+            binding.buttonPickImage.setOnClickListener(v -> {
+                Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+                intent.addCategory(Intent.CATEGORY_OPENABLE);
+                intent.setType("image/*");
+                intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, false);
+                intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+                pickImageLauncher.launch(intent);
+            });
+        }
 
         // Set up retake and confirm button listeners
         binding.buttonRetake.setOnClickListener(v -> {
@@ -530,7 +575,10 @@ public class CameraFragment extends Fragment implements SensorEventListener {
                             long waited = 0;
                             long size = photoFile.length();
                             while (size == 0 && waited < 1000) {
-                                try { Thread.sleep(50); } catch (InterruptedException ignored) {}
+                                try {
+                                    Thread.sleep(50);
+                                } catch (InterruptedException ignored) {
+                                }
                                 size = photoFile.length();
                                 waited = System.currentTimeMillis() - start;
                             }
@@ -604,9 +652,8 @@ public class CameraFragment extends Fragment implements SensorEventListener {
                         if (!isAdded()) return;
                         String msg = error != null ? error.getMessage() : "unknown";
                         UIUtils.showToast(requireContext(), getString(R.string.error_displaying_image, msg), Toast.LENGTH_SHORT);
-                        if (getView() != null) {
-                            Navigation.findNavController(requireView()).navigate(R.id.navigation_crop);
-                        }
+                        // On preview load failure, reset to camera mode instead of navigating forward
+                        resetCamera();
                     }
                 });
     }

@@ -22,8 +22,7 @@
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent"/>
 
-    <!-- Kamera-Vorschau -->
-    <!-- Barrier to place checkbox above whichever bottom button container is visible -->
+    <!-- Barrier für Buttons -->
     <androidx.constraintlayout.widget.Barrier
             android:id="@+id/buttons_top_barrier"
             android:layout_width="wrap_content"
@@ -32,7 +31,7 @@
             app:barrierAllowsGoneWidgets="false"
             app:constraint_referenced_ids="scan_button_container,button_container" />
 
-    <!-- Skip OCR toggle on Camera screen (always directly above the buttons) -->
+    <!-- Skip OCR -->
     <CheckBox
             android:id="@+id/checkbox_skip_ocr_camera"
             android:layout_width="wrap_content"
@@ -42,6 +41,7 @@
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent" />
 
+    <!-- Kamera-Vorschau -->
     <androidx.camera.view.PreviewView
             android:id="@+id/view_finder"
             android:layout_width="0dp"
@@ -52,7 +52,7 @@
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent"/>
 
-    <!-- Bild-Vorschau nach Aufnahme -->
+    <!-- Bild-Vorschau -->
     <ImageView
             android:id="@+id/captured_image"
             android:layout_width="0dp"
@@ -66,7 +66,7 @@
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent"/>
 
-    <!-- Scan-Button (Kamera-Modus) -->
+    <!-- Scan-Buttons -->
     <LinearLayout
             android:id="@+id/scan_button_container"
             android:layout_width="match_parent"
@@ -83,7 +83,7 @@
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent">
 
-        <!-- Flashlight toggle button -->
+        <!-- Flash -->
         <ImageButton
                 android:id="@+id/button_flash"
                 android:layout_width="48dp"
@@ -93,14 +93,28 @@
                 android:contentDescription="@string/toggle_flashlight"
                 android:src="@drawable/ic_flash_off"/>
 
+        <!-- Scan -->
         <Button
                 android:id="@+id/button_scan"
-                android:layout_width="wrap_content"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
+                android:layout_weight="1"
                 android:text="@string/btn_scan"/>
+
+        <Space
+                android:layout_width="16dp"
+                android:layout_height="0dp" />
+
+        <Button
+                android:id="@+id/button_pick_image"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/btn_pick_image"
+                android:contentDescription="@string/pick_image_cd"/>
     </LinearLayout>
 
-    <!-- Review-Buttons (Review-Modus) -->
+    <!-- Review-Buttons -->
     <LinearLayout
             android:id="@+id/button_container"
             android:layout_width="match_parent"

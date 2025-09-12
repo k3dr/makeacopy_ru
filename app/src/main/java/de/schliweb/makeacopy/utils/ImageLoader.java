@@ -9,10 +9,9 @@ import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
-
 import androidx.annotation.Nullable;
-
 import androidx.exifinterface.media.ExifInterface;
+
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -32,15 +31,25 @@ public final class ImageLoader {
     private static final ExecutorService EXECUTOR = Executors.newCachedThreadPool();
     private static final Handler MAIN = new Handler(Looper.getMainLooper());
 
-    private ImageLoader() {}
+    private ImageLoader() {
+    }
 
     public interface Callback {
         void onLoaded(@Nullable Bitmap bitmap);
+
         void onError(@Nullable Throwable error);
     }
 
     /**
-     * Decode bitmap, preferring file path if provided. Returns null on failure.
+     * Decodes an image from a file path or URI into a {@link Bitmap}. The method attempts
+     * to read image data, apply downsampling if necessary, and correct orientation using
+     * EXIF metadata, if available.
+     *
+     * @param ctx  the context used to access resources, such as a {@link ContentResolver}.
+     * @param path the file path to the image to be decoded. This can be {@code null}.
+     * @param uri  the URI of the image to be decoded. This can be {@code null}.
+     * @return a decoded {@link Bitmap} if successful, or {@code null} if decoding fails
+     * or both {@code path} and {@code uri} are {@code null}.
      */
     @Nullable
     public static Bitmap decode(Context ctx, @Nullable String path, @Nullable Uri uri) {
@@ -103,6 +112,21 @@ public final class ImageLoader {
                 }
                 if (bmp != null) {
                     where = "uri";
+                    // Apply EXIF rotation for URI source if available
+                    try (InputStream exifIs = ctx.getContentResolver().openInputStream(uri)) {
+                        if (exifIs != null) {
+                            ExifInterface exif = new ExifInterface(exifIs);
+                            int orientation = exif.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL);
+                            int degrees = exifOrientationToDegrees(orientation);
+                            if (degrees != 0) {
+                                Matrix m = new Matrix();
+                                m.postRotate(degrees);
+                                bmp = Bitmap.createBitmap(bmp, 0, 0, bmp.getWidth(), bmp.getHeight(), m, true);
+                            }
+                        }
+                    } catch (Exception ex) {
+                        Log.w(TAG, "EXIF rotation (uri) failed: " + ex.getMessage());
+                    }
                     return bmp;
                 }
             }
@@ -131,7 +155,8 @@ public final class ImageLoader {
             Bitmap finalBmp = bmp;
             Throwable finalErr = err;
             MAIN.post(() -> {
-                if (finalBmp != null) cb.onLoaded(finalBmp); else cb.onError(finalErr);
+                if (finalBmp != null) cb.onLoaded(finalBmp);
+                else cb.onError(finalErr);
             });
         });
     }

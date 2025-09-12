@@ -67,4 +67,7 @@
     <string name="support_donate">Supporto / Dona</string>
     <string name="donation_url">https://ko-fi.com/egdels</string>
     <string name="donate_cd">Supporta questo progetto</string>
+    <string name="btn_pick_image">Scegli immagine</string>
+    <string name="pick_image_cd">Scegli un\'immagine esistente</string>
+    <string name="error_selected_file_is_not_an_image">Il file selezionato non è un\'immagine</string>
 </resources>

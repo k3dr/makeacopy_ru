@@ -224,24 +224,29 @@ public class OpenCVUtils {
     }
 
     /**
-     * Applies perspective correction to the given bitmap using the specified corner points.
-     * The method attempts to correct the perspective using either OpenCV or an Android fallback method
-     * based on the application's safe mode configuration. The result is a transformed bitmap with
-     * corrected perspective.
+     * Applies a perspective correction to the given bitmap based on the specified corner points.
+     * This method attempts to correct the image's perspective distortion by warping it to a target
+     * size while maintaining the aspect ratio of the selected area defined by the corners.
+     * The implementation uses OpenCV's warpPerspective if available and falls back
+     * to Android's Matrix-based transformation if in safe mode.
      *
-     * @param originalBitmap The input bitmap to which perspective correction will be applied.
-     * @param corners        An array of four {@link Point} objects that specify the corner points of the region to correct.
-     *                       These points should define the desired transformation from the original bitmap.
-     * @return A new {@link Bitmap} object with perspective correction applied. The dimensions of the output
-     * bitmap match those of the input bitmap.
+     * @param originalBitmap The input bitmap to which the perspective correction will be applied.
+     *                       This cannot be null.
+     * @param corners        An array of four points that represent the corners of the area to be corrected.
+     *                       These points must be in the order: top-left, top-right, bottom-right, bottom-left.
+     *                       The array must have exactly four points; otherwise, the original bitmap will be returned.
+     * @return A new bitmap with the perspective correction applied. If an error occurs or the parameters
+     * are invalid, the original bitmap is returned unmodified.
      */
     public static Bitmap applyPerspectiveCorrection(Bitmap originalBitmap, Point[] corners) {
+        if (corners == null || corners.length != 4) return originalBitmap;
         Mat mat = new Mat();
         try {
             Utils.bitmapToMat(originalBitmap, mat);
+            // Compute a tight target size based on the selection to preserve aspect ratio of the cropped area
+            Size targetSize = computeWarpTargetSize(corners);
             if (!isSafeMode()) {
                 Log.d(TAG, "Using OpenCV warpPerspective");
-                Size targetSize = new Size(originalBitmap.getWidth(), originalBitmap.getHeight());
                 Mat warped = warpPerspectiveSafe(mat, corners, targetSize);
                 try {
                     Bitmap output = Bitmap.createBitmap((int) targetSize.width, (int) targetSize.height, Bitmap.Config.ARGB_8888);
@@ -252,7 +257,7 @@ public class OpenCVUtils {
                 }
             } else {
                 Log.d(TAG, "Using Android Matrix warp fallback");
-                return warpPerspectiveWithMatrix(originalBitmap, corners);
+                return warpPerspectiveWithMatrix(originalBitmap, corners, targetSize);
             }
         } finally {
             release(mat);
@@ -260,23 +265,22 @@ public class OpenCVUtils {
     }
 
     /**
-     * Applies a perspective warp transformation to a given bitmap using the provided corner points
-     * and returns the transformed bitmap. The method maps the four given source corner points
-     * to the corners of the output bitmap and performs the perspective transformation.
+     * Applies a perspective warp transformation to a given bitmap using specified corner points
+     * and produces a new bitmap with the target dimensions.
      *
-     * @param srcBitmap the source bitmap to be transformed
-     * @param corners   an array of four points representing the corners of the perspective warp
-     *                  in the source bitmap. The points should be specified in clockwise or
-     *                  counterclockwise order.
-     * @return the transformed bitmap with the perspective warp applied. If the corners array
-     * is null or does not contain exactly four points, the original source bitmap
-     * is returned unmodified.
+     * @param srcBitmap  the source bitmap to be transformed.
+     * @param corners    an array of four {@link Point} objects representing the corner points of the region
+     *                   in the source bitmap to be warped. The points should be in the order:
+     *                   top-left, top-right, bottom-right, bottom-left.
+     * @param targetSize the dimensions of the output bitmap, specified as a {@link Size} object.
+     * @return a new {@link Bitmap} object containing the perspective-warped image with the specified dimensions.
+     * If the corners array is null or does not contain exactly four points, the source bitmap is returned as-is.
      */
-    private static Bitmap warpPerspectiveWithMatrix(Bitmap srcBitmap, Point[] corners) {
+    private static Bitmap warpPerspectiveWithMatrix(Bitmap srcBitmap, Point[] corners, Size targetSize) {
         if (corners == null || corners.length != 4) return srcBitmap;
 
-        int width = srcBitmap.getWidth();
-        int height = srcBitmap.getHeight();
+        int width = Math.max(1, (int) Math.round(targetSize.width));
+        int height = Math.max(1, (int) Math.round(targetSize.height));
 
         float[] src = new float[]{(float) corners[0].x, (float) corners[0].y, (float) corners[1].x, (float) corners[1].y, (float) corners[2].x, (float) corners[2].y, (float) corners[3].x, (float) corners[3].y};
 
@@ -812,4 +816,34 @@ public class OpenCVUtils {
         }
         mats.clear();
     }
+
+    /**
+     * Computes a tight target size (width/height) for the warp based on the lengths of the
+     * selected quadrilateral edges. This preserves the aspect ratio of the selected area
+     * when mapping to a rectangle.
+     */
+    private static Size computeWarpTargetSize(Point[] corners) {
+        if (corners == null || corners.length != 4) {
+            return new Size(1, 1);
+        }
+        double wTop = distance(corners[0], corners[1]);
+        double wBottom = distance(corners[2], corners[3]);
+        double hLeft = distance(corners[0], corners[3]);
+        double hRight = distance(corners[1], corners[2]);
+        int w = Math.max(1, (int) Math.round(Math.max(wTop, wBottom)));
+        int h = Math.max(1, (int) Math.round(Math.max(hLeft, hRight)));
+        return new Size(w, h);
+    }
+
+    /**
+     * Calculates the Euclidean distance between two points.
+     *
+     * @param a the first point, represented as an object of type Point
+     * @param b the second point, represented as an object of type Point
+     * @return the distance between the two points as a double
+     */
+    private static double distance(Point a, Point b) {
+        return Math.hypot(a.x - b.x, a.y - b.y);
+    }
 }
+

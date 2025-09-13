@@ -4,6 +4,7 @@ import android.content.Context;
 import android.graphics.*;
 import android.net.Uri;
 import android.util.Log;
+
 import com.tom_roush.pdfbox.android.PDFBoxResourceLoader;
 import com.tom_roush.pdfbox.pdmodel.PDDocument;
 import com.tom_roush.pdfbox.pdmodel.PDPage;
@@ -16,47 +17,29 @@ import com.tom_roush.pdfbox.pdmodel.graphics.image.JPEGFactory;
 import com.tom_roush.pdfbox.pdmodel.graphics.image.LosslessFactory;
 import com.tom_roush.pdfbox.pdmodel.graphics.image.PDImageXObject;
 import com.tom_roush.pdfbox.pdmodel.graphics.state.RenderingMode;
+import com.tom_roush.pdfbox.util.Matrix;
 
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 
 /**
- * Utility class for generating searchable PDF files from bitmap images
- * and recognized text information.
- * <p>
- * This class integrates image processing and Optical Character Recognition (OCR) outputs
- * to generate a PDF file that includes an image representation of the source as well
- * as selectable text rendered on top of the image for searchability.
- * <p>
- * The PDF generation makes use of the Apache PDFBox library for managing PDF file creation,
- * image embedding, and text layer rendering.
+ * Generates a searchable PDF (image + invisible OCR text layer).
+ * The OCR text is drawn in the SAME transform as the image to avoid viewer-specific drift.
  */
 public class PdfCreator {
     private static final String TAG = "PdfCreator";
 
-    // Fine-tuning constants
-    private static final float DEFAULT_TEXT_SIZE_RATIO = 0.7f;
-    private static final float TEXT_POSITION_ADJUSTMENT = 0.0f;
-    private static final float VERTICAL_ALIGNMENT_FACTOR = 0.5f;
-    private static final float OCR_X_ADJUSTMENT = -2f;
-    private static final float OCR_Y_ADJUSTMENT = -4f;
+    // Text sizing (relative to OCR box height in image space)
+    private static final float TEXT_SIZE_RATIO = 0.70f;
+    private static final float MIN_FONT_PT = 2f; // lower bound for tiny boxes
 
     /**
-     * Creates a searchable PDF file from the given image and recognized words. The PDF
-     * will include the image as its background and an optional text layer based on the
-     * recognized words.
-     *
-     * @param context            the Context used to access resources such as fonts and output streams
-     * @param bitmap             the bitmap image to include in the PDF as the background
-     * @param words              the list of recognized words to include in the text layer of the PDF; can be null or empty
-     * @param outputUri          the URI where the resulting PDF should be saved
-     * @param jpegQuality        the quality of the image to be saved in the PDF (1-100); used if the image is compressed to JPEG
-     * @param convertToGrayscale a flag that indicates whether the image should be converted to grayscale before adding to the PDF
-     * @return the URI of the created PDF if successful, or null otherwise
+     * Creates a searchable PDF from bitmap + OCR words.
      */
     public static Uri createSearchablePdf(Context context,
                                           Bitmap bitmap,
@@ -79,19 +62,18 @@ public class PdfCreator {
             prepared = processImageForPdf(bitmap, convertToGrayscale);
 
             try (PDDocument document = new PDDocument()) {
-                try {
-                    document.getDocument().setVersion(1.5f);
-                } catch (Throwable ignore) {
-                }
+                try { document.getDocument().setVersion(1.5f); } catch (Throwable ignore) {}
                 document.getDocumentInformation().setCreator("MakeACopy");
                 document.getDocumentInformation().setProducer("MakeACopy");
 
                 PDRectangle pageSize = PDRectangle.A4;
                 float pageW = pageSize.getWidth();
                 float pageH = pageSize.getHeight();
+
                 PDPage page = new PDPage(pageSize);
                 document.addPage(page);
 
+                // Fit image into page while preserving aspect ratio (letterboxing if needed)
                 float scale = calculateScale(prepared.getWidth(), prepared.getHeight(), pageW, pageH);
                 float drawW = prepared.getWidth() * scale;
                 float drawH = prepared.getHeight() * scale;
@@ -103,13 +85,20 @@ public class PdfCreator {
                         ? JPEGFactory.createFromImage(document, prepared, q)
                         : LosslessFactory.createFromImage(document, prepared);
 
-                PDFont font = chooseFont(document, context);
+                // Load embedded fonts with fallbacks
+                List<PDFont> fonts = loadFontsWithFallbacks(document, context);
 
                 try (PDPageContentStream cs = new PDPageContentStream(document, page)) {
+                    // 1) Draw image in page coordinates
                     cs.drawImage(pdImg, offsetX, offsetY, drawW, drawH);
 
+                    // 2) Draw OCR text in the EXACT SAME transform as the image
                     if (words != null && !words.isEmpty()) {
-                        addTextLayer(cs, words, font, scale, offsetX, offsetY, prepared.getHeight(), pageH);
+                        cs.saveGraphicsState();
+                        cs.transform(new Matrix(scale, 0, 0, scale, offsetX, offsetY)); // identical CTM
+                        // now output text in IMAGE coordinates (0..imgW / 0..imgH)
+                        addTextLayerImageSpace(cs, words, fonts, prepared.getWidth(), prepared.getHeight());
+                        cs.restoreGraphicsState();
                     }
                 }
 
@@ -127,210 +116,138 @@ public class PdfCreator {
             return null;
         } finally {
             if (prepared != null && prepared != bitmap) {
-                try {
-                    prepared.recycle();
-                } catch (Throwable ignore) {
-                }
+                try { prepared.recycle(); } catch (Throwable ignore) {}
             }
         }
     }
 
-    /**
-     * Chooses and loads a font to be used in a PDF document. Attempts to load a Unicode font
-     * from the application's assets. If the font is not found or fails to load, it falls back to
-     * a default Helvetica font.
-     *
-     * @param document the {@link PDDocument} representing the PDF document where the font will be used
-     * @param context  the {@link Context} used to access application resources, such as the font file
-     * @return the {@link PDFont} object representing the loaded font; either the specified Unicode font or Helvetica as a fallback
-     */
-    private static PDFont chooseFont(PDDocument document, Context context) {
-        try (InputStream is = context.getAssets().open("fonts/NotoSans-Regular.ttf")) {
-            return PDType0Font.load(document, is, true);
-        } catch (Exception e) {
-            Log.w(TAG, "Unicode font not found, falling back to Helvetica");
-            return PDType1Font.HELVETICA;
+    // ===== Fonts (embedded) with fallbacks =====
+
+    private static List<PDFont> loadFontsWithFallbacks(PDDocument document, Context context) {
+        List<PDFont> fonts = new ArrayList<>();
+        // Put the widest-coverage fonts first. Only those present in assets/ will be loaded.
+        String[] candidates = new String[] {
+                "fonts/NotoSans-Regular.ttf",             // Latin
+                "fonts/NotoSansSymbols2-Regular.ttf",     // Symbols (optional)
+                "fonts/NotoSansCJKsc-Regular.otf",        // CJK (optional, large)
+                "fonts/NotoNaskhArabic-Regular.ttf",      // Arabic (optional)
+                "fonts/NotoSansDevanagari-Regular.ttf"    // Indic (optional)
+        };
+        for (String path : candidates) {
+            try (InputStream is = context.getAssets().open(path)) {
+                fonts.add(PDType0Font.load(document, is, true));
+            } catch (Exception ignore) { /* optional font not present */ }
+        }
+        if (fonts.isEmpty()) {
+            // Last resort: try the base NotoSans; if missing, fall back to Helvetica (not embedded)
+            try (InputStream is = context.getAssets().open("fonts/NotoSans-Regular.ttf")) {
+                fonts.add(PDType0Font.load(document, is, true));
+            } catch (Exception e) {
+                Log.w(TAG, "No embedded font found, falling back to Helvetica (not embedded)");
+                fonts.add(PDType1Font.HELVETICA);
+            }
+        }
+        return fonts;
+    }
+
+    private static void showTextWithFallbacks(PDPageContentStream cs,
+                                              String token,
+                                              float fontSize,
+                                              List<PDFont> fonts) throws Exception {
+        Exception last = null;
+        for (PDFont f : fonts) {
+            try {
+                cs.setFont(f, fontSize);
+                cs.showText(token);
+                return; // success
+            } catch (Exception e) {
+                last = e; // try next
+            }
+        }
+        // As a safety net, replace control chars and draw with first font
+        cs.setFont(fonts.get(0), fontSize);
+        cs.showText(token.replaceAll("\\p{C}", "?"));
+        if (last != null) {
+            Log.w(TAG, "showText fallback used: " + last.getMessage());
         }
     }
 
-    /**
-     * Adds a text layer to a PDF page content stream by rendering recognized words
-     * into the provided content stream, maintaining their layout and formatting.
-     * This method processes the words to determine their line grouping, positions them
-     * accurately within the text layer, and employs adjustments for proper alignment.
-     * It also handles fallback scenarios for word-by-word rendering in case of errors.
-     *
-     * @param cs          the PDF page content stream where the text layer will be drawn
-     * @param words       the list of recognized words to be rendered onto the text layer
-     * @param font        the font to be used for rendering the text
-     * @param scale       the scaling factor applied to the text layer
-     * @param offsetX     the horizontal offset for positioning the text layer
-     * @param offsetY     the vertical offset for positioning the text layer
-     * @param imageHeight the height of the original image from which the text layer is derived
-     * @param pageHeight  the height of the PDF page where the text layer will be placed
-     * @throws Exception if an error occurs while processing or rendering the text
-     */
-    private static void addTextLayer(PDPageContentStream cs,
-                                     List<RecognizedWord> words,
-                                     PDFont font,
-                                     float scale,
-                                     float offsetX,
-                                     float offsetY,
-                                     int imageHeight,
-                                     float pageHeight) throws Exception {
+    // ===== OCR text rendering in IMAGE SPACE =====
+
+    private static void addTextLayerImageSpace(PDPageContentStream cs,
+                                               List<RecognizedWord> words,
+                                               List<PDFont> fonts,
+                                               int imageWidth,
+                                               int imageHeight) throws Exception {
         if (words == null || words.isEmpty()) return;
 
-        try {
-
-            final float ADJ_EPS_PT = 0.75f;
-            final float ADJ_CLAMP = 5000f;
-
-            // 1) Sort words top-to-bottom, then left-to-right
-            words.sort((a, b) -> {
-                int cmp = Float.compare(midY(a), midY(b));
-                if (Math.abs(midY(a) - midY(b)) < 6f) {
-                    return Float.compare(a.getBoundingBox().left, b.getBoundingBox().left);
-                }
-                return cmp;
-            });
-
-            // 2) Cluster into lines
-            List<List<RecognizedWord>> lines = new ArrayList<>();
-            for (RecognizedWord w : words) {
-                if (lines.isEmpty()) {
-                    List<RecognizedWord> first = new ArrayList<>();
-                    first.add(w);
-                    lines.add(first);
-                } else {
-                    List<RecognizedWord> lastLine = lines.get(lines.size() - 1);
-                    float refY = midY(lastLine.get(0));
-                    if (Math.abs(midY(w) - refY) < 6f) {
-                        lastLine.add(w);
-                    } else {
-                        List<RecognizedWord> newline = new ArrayList<>();
-                        newline.add(w);
-                        lines.add(newline);
-                    }
-                }
+        // Sort top->bottom, then left->right
+        words.sort((a, b) -> {
+            float ya = (a.getBoundingBox().top + a.getBoundingBox().bottom) * 0.5f;
+            float yb = (b.getBoundingBox().top + b.getBoundingBox().bottom) * 0.5f;
+            if (Math.abs(ya - yb) < 6f) {
+                return Float.compare(a.getBoundingBox().left, b.getBoundingBox().left);
             }
+            return Float.compare(ya, yb);
+        });
 
-            // 3) Render lines
-            for (List<RecognizedWord> line : lines) {
-                if (line.isEmpty()) continue;
-                line.sort(Comparator.comparingDouble(rw -> rw.getBoundingBox().left));
+        // Cluster to lines
+        List<List<RecognizedWord>> lines = new ArrayList<>();
+        for (RecognizedWord w : words) {
+            if (lines.isEmpty()) {
+                List<RecognizedWord> l = new ArrayList<>(); l.add(w); lines.add(l);
+            } else {
+                List<RecognizedWord> last = lines.get(lines.size() - 1);
+                float refY = (last.get(0).getBoundingBox().top + last.get(0).getBoundingBox().bottom) * 0.5f;
+                float curY = (w.getBoundingBox().top + w.getBoundingBox().bottom) * 0.5f;
+                if (Math.abs(curY - refY) < 6f) last.add(w);
+                else { List<RecognizedWord> l = new ArrayList<>(); l.add(w); lines.add(l); }
+            }
+        }
 
-                float lineHeightPx = medianHeight(line);
-                float fontSize = Math.max(0.1f, lineHeightPx * scale * DEFAULT_TEXT_SIZE_RATIO);
+        // Render lines; absolute positioning per token (no TJ-kerning)
+        for (List<RecognizedWord> line : lines) {
+            if (line.isEmpty()) continue;
+            line.sort(Comparator.comparingDouble(rw -> rw.getBoundingBox().left));
 
-                RectF firstBox = line.get(0).getBoundingBox();
-                float baseline;
-                try {
-                    float asc = font.getFontDescriptor().getAscent() / 1000f * fontSize;
-                    float desc = -font.getFontDescriptor().getDescent() / 1000f * fontSize;
-                    float fHeight = asc + desc;
-                    float textTop = firstBox.top + (lineHeightPx - fHeight) * VERTICAL_ALIGNMENT_FACTOR;
-                    float baselineOffset = (textTop - firstBox.bottom) + asc + (lineHeightPx * TEXT_POSITION_ADJUSTMENT);
-                    baseline = firstBox.bottom + baselineOffset;
-                } catch (Throwable t) {
-                    baseline = firstBox.bottom + (lineHeightPx * (0.25f + TEXT_POSITION_ADJUSTMENT));
-                }
+            float medianH = medianHeight(line);                       // px in image
+            float fontSize = Math.max(MIN_FONT_PT, medianH * TEXT_SIZE_RATIO);
 
-                float startX = firstBox.left * scale + offsetX + OCR_X_ADJUSTMENT;
-                float startY = pageHeight - ((imageHeight - baseline) * scale + offsetY) + OCR_Y_ADJUSTMENT;
+            for (int i = 0; i < line.size(); i++) {
+                RecognizedWord w = line.get(i);
+                String tokenRaw = safeText(w.getText());
+                if (tokenRaw.trim().isEmpty()) continue;
 
-                List<Object> tj = new ArrayList<>();
-                float cursorX = startX;
+                // Normalize to NFC; trailing space improves selection continuity
+                String token = Normalizer.normalize(tokenRaw + " ", Normalizer.Form.NFC);
 
-                for (int i = 0; i < line.size(); i++) {
-                    RecognizedWord w = line.get(i);
-                    String token = (i == 0) ? safeText(w.getText()) : " " + safeText(w.getText());
-                    if (token.trim().isEmpty()) continue;
-                    tj.add(token);
+                RectF b = w.getBoundingBox();
+                float boxH = b.height();
 
-                    if (i < line.size() - 1) {
-                        RecognizedWord next = line.get(i + 1);
+                // Baseline ~ lower quarter of the box (image space: Y grows downward)
+                float baselineImgY = b.bottom + boxH * 0.25f;
 
-                        // (2) getStringWidth robust mit Fallback
-                        float tokenWidthPt;
-                        try {
-                            tokenWidthPt = font.getStringWidth(token) / 1000f * fontSize;
-                        } catch (Exception ex) {
-                            tokenWidthPt = Math.max(1f, fontSize * token.length() * 0.5f);
-                        }
-
-                        float expectedNextX = cursorX + tokenWidthPt;
-                        float targetNextX = next.getBoundingBox().left * scale + offsetX + OCR_X_ADJUSTMENT;
-
-                        float gapPt = targetNextX - expectedNextX;
-                        if (Math.abs(gapPt) > ADJ_EPS_PT) {
-                            float adj = -(gapPt * 1000f) / fontSize;
-                            if (adj > ADJ_CLAMP) adj = ADJ_CLAMP;
-                            if (adj < -ADJ_CLAMP) adj = -ADJ_CLAMP;
-                            tj.add(adj);
-                            cursorX = expectedNextX + gapPt;
-                        } else {
-                            cursorX = expectedNextX;
-                        }
-                    }
-                }
+                // Convert to PDF Y-up (image space): invert Y once
+                float x_img = clamp(b.left, 0f, imageWidth);
+                float y_img = clamp((imageHeight - baselineImgY), 0f, imageHeight);
 
                 cs.beginText();
-                cs.setRenderingMode(RenderingMode.NEITHER);
-                cs.setFont(font, fontSize);
-                cs.newLineAtOffset(startX, startY);
-                cs.showTextWithPositioning(tj.toArray());
-                cs.endText();
-            }
-        } catch (Exception e) {
-            Log.w(TAG, "Line grouping failed, fallback to word-by-word: " + e.getMessage());
-            for (RecognizedWord w : words) {
-                String txt = safeText(w.getText());
-                if (txt.trim().isEmpty()) continue;
-
-                RectF box = w.getBoundingBox();
-                float boxH = box.height();
-                float fontSize = Math.max(0.1f, boxH * scale * DEFAULT_TEXT_SIZE_RATIO);
-
-                float baseline = box.bottom + (boxH * (0.25f + TEXT_POSITION_ADJUSTMENT));
-                float x = box.left * scale + offsetX + OCR_X_ADJUSTMENT;
-                float y = pageHeight - ((imageHeight - baseline) * scale + offsetY) + OCR_Y_ADJUSTMENT;
-
-                cs.beginText();
-                cs.setRenderingMode(RenderingMode.NEITHER);
-                cs.setFont(font, fontSize);
-                cs.newLineAtOffset(x, y);
-                cs.showText(txt);
+                cs.setRenderingMode(RenderingMode.NEITHER); // invisible but selectable
+                cs.setTextMatrix(Matrix.getTranslateInstance(x_img, y_img));
+                showTextWithFallbacks(cs, token, fontSize, fonts);
                 cs.endText();
             }
         }
     }
 
-    /**
-     * Calculates the scale factor to fit an image within the dimensions of a page
-     * while maintaining the aspect ratio of the image.
-     *
-     * @param imageWidth  the width of the image in pixels
-     * @param imageHeight the height of the image in pixels
-     * @param pageWidth   the width of the page in the desired unit (e.g., points or pixels)
-     * @param pageHeight  the height of the page in the desired unit (e.g., points or pixels)
-     * @return the scale factor as a float, which is the smaller of the horizontal
-     * and vertical scaling factors
-     */
+    // ===== Image prep & helpers =====
+
     private static float calculateScale(int imageWidth, int imageHeight, float pageWidth, float pageHeight) {
         float sx = pageWidth / imageWidth;
         float sy = pageHeight / imageHeight;
         return Math.min(sx, sy);
     }
 
-    /**
-     * Processes a given bitmap image for inclusion in a PDF by resizing it to A4 dimensions at 300 DPI
-     * and optionally converting it to grayscale. The method ensures the image fits within the required
-     * dimensions without distortion and applies grayscale conversion if specified.
-     *
-     * @param original the original bitmap image to be processed; must not be null
-     * @param toGray   a flag indicating whether the image should be converted to grayscale
-     * @return a processed bitmap image scaled to fit A4 dimensions at 300 DPI or null if the input is null
-     */
     private static Bitmap processImageForPdf(Bitmap original, boolean toGray) {
         if (original == null) return null;
 
@@ -369,34 +286,11 @@ public class PdfCreator {
         canvas.drawBitmap(base, 0, 0, paint);
 
         if (base != original) {
-            try {
-                base.recycle();
-            } catch (Throwable ignore) {
-            }
+            try { base.recycle(); } catch (Throwable ignore) {}
         }
         return gray;
     }
 
-    /**
-     * Calculates the vertical midpoint (Y-coordinate) of the bounding box of a given RecognizedWord.
-     *
-     * @param rw the RecognizedWord object containing the bounding box for which the vertical midpoint is to be calculated
-     * @return the vertical midpoint (Y-coordinate) of the bounding box as a float value
-     */
-    // --- Helper methods ---
-    private static float midY(RecognizedWord rw) {
-        RectF b = rw.getBoundingBox();
-        return (b.top + b.bottom) * 0.5f;
-    }
-
-    /**
-     * Calculates the median height of the bounding boxes of the given list of RecognizedWord objects.
-     * The bounding boxes are extracted and sorted by height, and the median is computed.
-     * If the list is empty, the method returns 0.
-     *
-     * @param line the list of RecognizedWord objects, where each word contains a bounding box with height information
-     * @return the median height of the bounding boxes as a float value
-     */
     private static float medianHeight(List<RecognizedWord> line) {
         List<Float> heights = new ArrayList<>();
         for (RecognizedWord w : line) heights.add(w.getBoundingBox().height());
@@ -407,17 +301,12 @@ public class PdfCreator {
         return (heights.get(n / 2 - 1) + heights.get(n / 2)) / 2f;
     }
 
-    /**
-     * Replaces control characters in the input string with spaces, excluding
-     * tab, newline, and carriage return characters. If the input string is null,
-     * an empty string is returned.
-     *
-     * @param t the input string to process; can be null
-     * @return a sanitized string where control characters are replaced with spaces,
-     * or an empty string if the input is null
-     */
     private static String safeText(String t) {
         if (t == null) return "";
         return t.replaceAll("[\\p{Cntrl}&&[^\r\n\t]]", " ");
+    }
+
+    private static float clamp(float v, float min, float max) {
+        return Math.max(min, Math.min(max, v));
     }
 }

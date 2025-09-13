@@ -5,17 +5,17 @@ plugins {
 def enableAbiSplits = (project.findProperty("enableAbiSplits") ?: "true").toBoolean()
 
 android {
-    namespace 'de.schliweb.makeacopy'
-    compileSdk 36
+    namespace = 'de.schliweb.makeacopy'
+    compileSdk = 36
 
-    ndkVersion '28.0.13004108'
+    ndkVersion = '28.0.13004108'
 
     defaultConfig {
         applicationId "de.schliweb.makeacopy"
-        minSdk 29
-        targetSdk 36
-        versionCode 10400
-        versionName "1.4.0"
+        minSdk = 29
+        targetSdk = 36
+        versionCode 10401
+        versionName "1.4.1"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
 
@@ -61,8 +61,8 @@ android {
 
     buildTypes {
         release {
-            minifyEnabled true
-            shrinkResources true
+            minifyEnabled = true
+            shrinkResources = true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
             // Only use signing config when available (GitHub Actions)
             // F-Droid will sign with their own keys
@@ -74,7 +74,7 @@ android {
 
     splits {
         abi {
-            enable enableAbiSplits
+            enable = enableAbiSplits
             reset()
             def abisEnv = System.getenv("ABIS")
             def abisProp = (project.findProperty("ABIS") ?: project.findProperty("abis"))
@@ -84,7 +84,7 @@ android {
             println "Gradle ABI splits: ${abisList}"
             abisList.each { include it }
 
-            universalApk false
+            universalApk = false
         }
     }
 
@@ -93,8 +93,8 @@ android {
         targetCompatibility JavaVersion.VERSION_17
     }
     buildFeatures {
-        viewBinding true
-        buildConfig true
+        viewBinding = true
+        buildConfig = true
     }
 
     sourceSets {

@@ -17,7 +17,7 @@ dependencyResolutionManagement {
         google()
         mavenCentral()
         // Add JitPack for tesseract4android
-        maven { url 'https://jitpack.io' }
+        maven { url = uri('https://jitpack.io') }
     }
 }
 

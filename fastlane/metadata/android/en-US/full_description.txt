@@ -13,4 +13,6 @@ Features:
 
 MakeACopy is F-Droid compliant and builds OpenCV native libraries from source during the build process, ensuring that no prebuilt binaries are included in the repository. All components are open source and respect your privacy.
 
+MakeACopy is free and open source. If you find it useful, please consider supporting development: https://ko-fi.com/egdels
+
 License: Apache License 2.0

@@ -45,6 +45,19 @@ public class TrapezoidSelectionView extends View {
 
     private Bitmap imageBitmap = null; // The image bitmap for edge detection
 
+    // Debounced initialization runnable to avoid synchronous heavy work in onSizeChanged
+    private final Runnable initCornersRunnable = new Runnable() {
+        @Override
+        public void run() {
+            if (getWidth() <= 0 || getHeight() <= 0) return;
+            try {
+                initializeCorners();
+            } catch (Throwable t) {
+                Log.e(TAG, "initializeCorners runnable failed", t);
+            }
+        }
+    };
+
     // Magnifier (precision loupe) plumbing
     @Nullable
     private View magnifierSourceView;
@@ -910,8 +923,10 @@ public class TrapezoidSelectionView extends View {
 
         // Initialize corners when the view size is first determined
         if (!initialized) {
-            Log.d(TAG, "Initializing corners in onSizeChanged");
-            initializeCorners();
+            Log.d(TAG, "Scheduling corners initialization via posted runnable");
+            // Debounce any previous requests and post a fresh one
+            removeCallbacks(initCornersRunnable);
+            post(initCornersRunnable);
         } else if ((w != oldw || h != oldh) && w > 0 && h > 0) {
             // If size changed and we're already initialized, scale the corners proportionally
 
@@ -981,6 +996,8 @@ public class TrapezoidSelectionView extends View {
     @Override
     protected void onDetachedFromWindow() {
         super.onDetachedFromWindow();
+        // Cancel any pending initialization callbacks to avoid running after detach
+        removeCallbacks(initCornersRunnable);
         if (magnifier != null) {
             try {
                 magnifier.dismiss();

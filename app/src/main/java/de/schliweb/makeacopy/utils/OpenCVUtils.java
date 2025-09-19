@@ -614,11 +614,28 @@ public class OpenCVUtils {
             edgesCopy = edges.clone();
             Imgproc.findContours(edgesCopy, contours, hierarchy, Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_SIMPLE);
 
-            debug = Mat.zeros(edges.size(), CvType.CV_8UC3);
-            for (int i = 0; i < contours.size(); i++) {
-                Imgproc.drawContours(debug, contours, i, new Scalar(0, 255, 0), 2);
+            if (USE_DEBUG_IMAGES) {
+                debug = Mat.zeros(edges.size(), CvType.CV_8UC3);
+                // Safely draw contours for debugging (guard against oversized/invalid lists)
+                try {
+                    if (contours != null && !contours.isEmpty()) {
+                        int maxToDraw = Math.min(contours.size(), 256); // cap to reduce conversion pressure
+                        for (int i = 0; i < maxToDraw; i++) {
+                            MatOfPoint c = contours.get(i);
+                            if (c == null || c.empty()) continue;
+                            java.util.List<MatOfPoint> one = java.util.Collections.singletonList(c);
+                            try {
+                                Imgproc.drawContours(debug, one, 0, new Scalar(0, 255, 0), 2);
+                            } catch (Throwable t) {
+                                Log.w(TAG, "drawContours skipped for index " + i + ": " + t.getMessage());
+                            }
+                        }
+                    }
+                } catch (Throwable t) {
+                    Log.w(TAG, "drawContours debug rendering failed: " + t.getMessage());
+                }
+                saveDebugImage(context, debug, "debug_contours.png");
             }
-            saveDebugImage(context, debug, "debug_contours.png");
 
             double imgArea = rgba.width() * rgba.height();
             double maxArea = 0;

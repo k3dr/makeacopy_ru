@@ -83,6 +83,25 @@ public class ExportFragment extends Fragment {
     private Uri lastExportedDocumentUri;
     private String lastExportedPdfName;
 
+    // Main thread handler for safe UI updates
+    private final android.os.Handler mainHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+
+    /**
+     * Posts a runnable to the main thread only if the Fragment is still added and the view binding exists.
+     * If called on the main thread, runs immediately; otherwise posts to main.
+     */
+    private void postToUiSafe(@NonNull Runnable action) {
+        if (!isAdded() || binding == null) return;
+        if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) {
+            action.run();
+        } else {
+            mainHandler.post(() -> {
+                if (!isAdded() || binding == null) return;
+                action.run();
+            });
+        }
+    }
+
     /**
      * Creates and initializes the view hierarchy associated with this fragment.
      * This method handles view inflation, view model setup, event listeners, and initializes
@@ -385,7 +404,7 @@ public class ExportFragment extends Fragment {
                         convertToGrayscale
                 );
 
-                requireActivity().runOnUiThread(() -> {
+                postToUiSafe(() -> {
                     if (exportUri != null) {
                         lastExportedDocumentUri = exportUri;
                         String displayName = FileUtils.getDisplayNameFromUri(requireContext(), lastExportedDocumentUri);
@@ -405,14 +424,14 @@ public class ExportFragment extends Fragment {
                 });
             } catch (Exception e) {
                 Log.e(TAG, "Error during export", e);
-                requireActivity().runOnUiThread(() -> {
+                postToUiSafe(() -> {
                     lastExportedDocumentUri = null;
                     exportViewModel.setTxtExportUri(null);
                     binding.buttonShare.setEnabled(false);
                     UIUtils.showToast(appContext, "Error during export: " + e.getMessage(), Toast.LENGTH_SHORT);
                 });
             } finally {
-                requireActivity().runOnUiThread(() -> exportViewModel.setExporting(false));
+                postToUiSafe(() -> exportViewModel.setExporting(false));
             }
         }).start();
     }
@@ -499,7 +518,7 @@ public class ExportFragment extends Fragment {
                 options.mode = (chosenMode != null) ? chosenMode : JpegExportOptions.Mode.NONE;
 
                 Uri exportUri = JpegExporter.export(appContext, documentBitmap, options, selectedLocation);
-                requireActivity().runOnUiThread(() -> {
+                postToUiSafe(() -> {
                     if (exportUri != null) {
                         lastExportedDocumentUri = exportUri;
                         String displayName = FileUtils.getDisplayNameFromUri(requireContext(), lastExportedDocumentUri);
@@ -518,13 +537,13 @@ public class ExportFragment extends Fragment {
                 });
             } catch (Exception e) {
                 Log.e(TAG, "Error during JPEG export", e);
-                requireActivity().runOnUiThread(() -> {
+                postToUiSafe(() -> {
                     lastExportedDocumentUri = null;
                     binding.buttonShare.setEnabled(false);
                     UIUtils.showToast(appContext, "Error during JPEG export: " + e.getMessage(), Toast.LENGTH_SHORT);
                 });
             } finally {
-                requireActivity().runOnUiThread(() -> exportViewModel.setExporting(false));
+                postToUiSafe(() -> exportViewModel.setExporting(false));
             }
         }).start();
     }

@@ -224,6 +224,13 @@ Contributions welcome!
 - Integration with cloud storage
 - ML-based scan enhancements
 
+## ❤️ Support this project
+MakeACopy is free and open source.
+If you find it useful, please consider supporting development:
+
+[![Ko-fi](https://img.shields.io/badge/Buy%20me%20a%20coffee-Ko--fi-orange)](https://ko-fi.com/egdels)
+[![PayPal](https://img.shields.io/badge/Donate-PayPal-blue)](https://www.paypal.com/paypalme/egdels)
+
 ## License
 
 ```

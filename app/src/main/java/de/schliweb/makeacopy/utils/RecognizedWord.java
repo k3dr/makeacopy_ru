@@ -25,7 +25,7 @@ public class RecognizedWord {
      * The coordinates of the rectangle are guaranteed to follow normalization constraints:
      * the left coordinate is always less than or equal to the right, and the top coordinate
      * is always less than or equal to the bottom.
-     *
+     * <p>
      * This variable is immutable and encapsulated for integrity and consistency.
      * Access to the bounding box must be performed through the `getBoundingBox()` method,
      * which provides a defensive copy to prevent external modification.
@@ -73,13 +73,13 @@ public class RecognizedWord {
      * @param offsetX The horizontal translation to apply to the bounding box.
      * @param offsetY The vertical translation to apply to the bounding box.
      * @return A new {@code RecognizedWord} instance with the transformed bounding box
-     *         and the same text and confidence score as the original.
+     * and the same text and confidence score as the original.
      */
     public RecognizedWord transform(float scaleX, float scaleY, float offsetX, float offsetY) {
         RectF r = new RectF(
-                boundingBox.left   * scaleX + offsetX,
-                boundingBox.top    * scaleY + offsetY,
-                boundingBox.right  * scaleX + offsetX,
+                boundingBox.left * scaleX + offsetX,
+                boundingBox.top * scaleY + offsetY,
+                boundingBox.right * scaleX + offsetX,
                 boundingBox.bottom * scaleY + offsetY
         );
         return new RecognizedWord(text, r, confidence);
@@ -89,12 +89,12 @@ public class RecognizedWord {
      * Transforms the bounding box of the current {@code RecognizedWord} instance by applying
      * uniform scaling and translation transformations based on the provided parameters.
      *
-     * @param scale  The uniform scale factor to apply to both the horizontal and vertical dimensions
-     *               of the bounding box.
+     * @param scale   The uniform scale factor to apply to both the horizontal and vertical dimensions
+     *                of the bounding box.
      * @param offsetX The horizontal translation to apply to the bounding box.
      * @param offsetY The vertical translation to apply to the bounding box.
      * @return A new {@code RecognizedWord} instance with the transformed bounding box,
-     *         while retaining the same text and confidence score.
+     * while retaining the same text and confidence score.
      */
     public RecognizedWord transform(float scale, float offsetX, float offsetY) {
         return transform(scale, scale, offsetX, offsetY);
@@ -107,24 +107,36 @@ public class RecognizedWord {
      * @param maxW The maximum allowable width. The left and right edges of the bounding box will be clamped between 0 and this value.
      * @param maxH The maximum allowable height. The top and bottom edges of the bounding box will be clamped between 0 and this value.
      * @return A new {@code RecognizedWord} instance with the text and confidence score unchanged, but with the bounding box adjusted
-     *         to fit within the specified limits.
+     * to fit within the specified limits.
      */
     public RecognizedWord clipTo(float maxW, float maxH) {
         RectF r = new RectF(
-                clamp(boundingBox.left,   0f, maxW),
-                clamp(boundingBox.top,    0f, maxH),
-                clamp(boundingBox.right,  0f, maxW),
+                clamp(boundingBox.left, 0f, maxW),
+                clamp(boundingBox.top, 0f, maxH),
+                clamp(boundingBox.right, 0f, maxW),
                 clamp(boundingBox.bottom, 0f, maxH)
         );
         return new RecognizedWord(text, r, confidence);
     }
 
-    public float width()  { return boundingBox.width();  }
-    public float height() { return boundingBox.height(); }
+    public float width() {
+        return boundingBox.width();
+    }
 
-    /** Useful helpers for line clustering/alignment */
-    public float midY()    { return 0.5f * (boundingBox.top + boundingBox.bottom); }
-    public float centerX() { return 0.5f * (boundingBox.left + boundingBox.right); }
+    public float height() {
+        return boundingBox.height();
+    }
+
+    /**
+     * Useful helpers for line clustering/alignment
+     */
+    public float midY() {
+        return 0.5f * (boundingBox.top + boundingBox.bottom);
+    }
+
+    public float centerX() {
+        return 0.5f * (boundingBox.left + boundingBox.right);
+    }
 
     @Override
     public String toString() {
@@ -138,10 +150,10 @@ public class RecognizedWord {
     // ---- private helpers ----
     private static RectF normalize(RectF in) {
         if (in == null) return new RectF();
-        float left   = Math.min(in.left,   in.right);
-        float right  = Math.max(in.left,   in.right);
-        float top    = Math.min(in.top,    in.bottom);
-        float bottom = Math.max(in.top,    in.bottom);
+        float left = Math.min(in.left, in.right);
+        float right = Math.max(in.left, in.right);
+        float top = Math.min(in.top, in.bottom);
+        float bottom = Math.max(in.top, in.bottom);
         return new RectF(left, top, right, bottom); // defensive copy
     }
 

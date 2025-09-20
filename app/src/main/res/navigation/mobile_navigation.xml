@@ -28,4 +28,10 @@
         android:name="de.schliweb.makeacopy.ui.export.ExportFragment"
         android:label="@string/title_export"
         tools:layout="@layout/fragment_export" />
+
+    <fragment
+        android:id="@+id/navigation_completed_scans_picker"
+        android:name="de.schliweb.makeacopy.ui.export.picker.CompletedScansPickerFragment"
+        android:label="@string/picker_title_completed_scans"
+        tools:layout="@layout/fragment_completed_scans_picker" />
 </navigation>

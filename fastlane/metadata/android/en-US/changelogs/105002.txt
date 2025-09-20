@@ -1,0 +1,10 @@
+1.5.0 (Release Candidate)
+
+• Introducing multi-page scanning (initial version)
+  - Add multiple pages to a single export
+  - Reorder or remove pages before exporting
+  - Clear all pages when needed
+• New “Completed scans” picker to add existing pages
+• Inline OCR status messages and minor UX improvements
+
+Note: This is an RC build; feedback is welcome to improve stability and polish.

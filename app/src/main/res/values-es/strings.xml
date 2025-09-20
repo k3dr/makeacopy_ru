@@ -63,11 +63,53 @@
     <string name="jpeg_mode_auto">Mejora automática (JPEG)</string>
     <string name="jpeg_mode_bw_text">Blanco y negro (texto) (JPEG)</string>
     <string name="skip_ocr_export_only">Omitir OCR (solo exportar)</string>
-    <!-- Donate / Support -->
-    <string name="support_donate">Apoyo / Donar</string>
-    <string name="donation_url">https://ko-fi.com/egdels</string>
-    <string name="donate_cd">Apoya este proyecto</string>
     <string name="btn_pick_image">Elegir imagen</string>
     <string name="pick_image_cd">Elegir imagen existente</string>
     <string name="error_selected_file_is_not_an_image">El archivo seleccionado no es una imagen</string>
+    
+    <!-- Multipage Export (v1 increment) -->
+    <string name="pages_header">Páginas (%1$d)</string>
+    <string name="add_another_page">Añadir otra página</string>
+    <string name="clear_all_pages">Eliminar todas</string>
+    <string name="remove_this_page">Eliminar esta página</string>
+    <string name="multipage_not_implemented">Exportación de varias páginas aún no implementada</string>
+
+    <!-- Reorder A11y controls -->
+    <string name="move_page_left">Mover página a la izquierda</string>
+    <string name="move_page_right">Mover página a la derecha</string>
+
+    <!-- Back confirmation for clearing multipage session -->
+    <string name="confirm_clear_multipage_title">¿Eliminar páginas?</string>
+    <string name="confirm_clear_multipage_message">Se han añadido varias páginas. ¿Quieres eliminar todas las páginas y volver atrás?</string>
+    <string name="cancel">Cancelar</string>
+
+    <!-- Clear-all confirmation for trash icon in multipage -->
+    <string name="confirm_clear_pages_title">¿Eliminar todas las páginas?</string>
+    <string name="confirm_clear_pages_message">¿Quieres eliminar todas las páginas de la tira de imágenes?</string>
+
+    <!-- Registry Picker -->
+    <string name="picker_title_completed_scans">Elegir de escaneos completados</string>
+    <string name="picker_empty">No se encontraron escaneos completados</string>
+    <string name="done">Listo</string>
+    <string name="thumbnail">Miniatura</string>
+
+    <string name="added_pages_from_registry">Se añadieron %1$d página(s) del registro</string>
+
+    <!-- Add page options dialog -->
+    <string name="add_page_option_choose_completed">Elegir de escaneos completados</string>
+    <string name="add_page_option_capture_new">Capturar nueva página</string>
+
+    <!-- Picker states -->
+    <string name="missing_file">Falta el archivo</string>
+
+    <!-- Inline OCR cues -->
+    <string name="ocr_processing_started">Ejecutando OCR…</string>
+    <string name="ocr_processing_finished">OCR añadido para esta página</string>
+    <string name="ocr_processing_failed">El OCR en línea ha fallado</string>
+
+    <!-- Registry Picker: context action -->
+    <string name="remove_from_registry_title">Eliminar del registro</string>
+    <string name="remove_from_registry_message">¿Eliminar esta entrada y sus archivos asociados?</string>
+    <string name="remove">Eliminar</string>
+    <string name="removed_from_registry_toast">Entrada eliminada</string>
 </resources>

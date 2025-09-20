@@ -689,11 +689,6 @@ public class CameraFragment extends Fragment implements SensorEventListener {
         }
         binding.textCamera.setText(R.string.camera_ready_tap_the_button_to_scan_a_document);
 
-        // Show donate heart only when Scan button is visible
-        if (getActivity() instanceof MainActivity) {
-            ((MainActivity) getActivity()).setDonateFabVisible(true);
-        }
-
         lowLightPromptShown = false;
     }
 
@@ -722,11 +717,6 @@ public class CameraFragment extends Fragment implements SensorEventListener {
             binding.scanButtonContainer.setVisibility(View.GONE);
         }
         binding.textCamera.setText(R.string.review_your_scan_tap_confirm_to_proceed_or_retake_to_try_again);
-
-        // Hide donate heart when Scan button is not visible
-        if (getActivity() instanceof MainActivity) {
-            ((MainActivity) getActivity()).setDonateFabVisible(false);
-        }
     }
 
     /**

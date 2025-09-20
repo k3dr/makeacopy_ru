@@ -62,11 +62,53 @@
     <string name="jpeg_mode_auto">Automatisch verbessern (JPEG)</string>
     <string name="jpeg_mode_bw_text">Schwarz-Weiß (Text) (JPEG)</string>
     <string name="skip_ocr_export_only">OCR überspringen (nur Export)</string>
-    <!-- Donate / Support -->
-    <string name="support_donate">Support / Spenden</string>
-    <string name="donation_url">https://ko-fi.com/egdels</string>
-    <string name="donate_cd">Dieses Projekt unterstützen</string>
     <string name="btn_pick_image">Bild wählen</string>
     <string name="pick_image_cd">Vorhandenes Bild wählen</string>
     <string name="error_selected_file_is_not_an_image">Ausgewählte Datei ist kein Bild</string>
+    
+    <!-- Mehrseiten-Export (v1 Inkrement) -->
+    <string name="pages_header">Seiten (%1$d)</string>
+    <string name="add_another_page">Weitere Seite hinzufügen</string>
+    <string name="clear_all_pages">Alle entfernen</string>
+    <string name="remove_this_page">Diese Seite entfernen</string>
+    <string name="multipage_not_implemented">Mehrseiten-Export noch nicht implementiert</string>
+    
+    <!-- Reorder A11y controls -->
+    <string name="move_page_left">Seite nach links verschieben</string>
+    <string name="move_page_right">Seite nach rechts verschieben</string>
+    
+    <!-- Bestätigungsdialog beim Zurück (Mehrseiten löschen) -->
+    <string name="confirm_clear_multipage_title">Seiten löschen?</string>
+    <string name="confirm_clear_multipage_message">Es sind mehrere Seiten hinzugefügt. Möchtest du alle Seiten löschen und zurückgehen?</string>
+    <string name="cancel">Abbrechen</string>
+    
+    <!-- Bestätigung beim Leeren per Papierkorb (Mehrseiten) -->
+    <string name="confirm_clear_pages_title">Alle Seiten löschen?</string>
+    <string name="confirm_clear_pages_message">Möchtest du alle Seiten aus dem Filmstreifen entfernen?</string>
+    
+    <!-- Registry Picker -->
+    <string name="picker_title_completed_scans">Aus fertigen Scans wählen</string>
+    <string name="picker_empty">Keine fertigen Scans gefunden</string>
+    <string name="done">Fertig</string>
+    <string name="thumbnail">Miniaturansicht</string>
+
+    <string name="added_pages_from_registry">%1$d Seite(n) aus Registry hinzugefügt</string>
+    
+    <!-- Add page options dialog -->
+    <string name="add_page_option_choose_completed">Aus fertigen Scans wählen</string>
+    <string name="add_page_option_capture_new">Neue Seite aufnehmen</string>
+
+    <!-- Picker states -->
+    <string name="missing_file">Datei fehlt</string>
+
+    <!-- Inline OCR cues -->
+    <string name="ocr_processing_started">OCR wird ausgeführt…</string>
+    <string name="ocr_processing_finished">OCR für diese Seite hinzugefügt</string>
+    <string name="ocr_processing_failed">Inline-OCR fehlgeschlagen</string>
+
+    <!-- Registry Picker: context action -->
+    <string name="remove_from_registry_title">Aus Registry entfernen</string>
+    <string name="remove_from_registry_message">Diesen Eintrag und zugehörige Dateien löschen?</string>
+    <string name="remove">Entfernen</string>
+    <string name="removed_from_registry_toast">Eintrag entfernt</string>
 </resources>

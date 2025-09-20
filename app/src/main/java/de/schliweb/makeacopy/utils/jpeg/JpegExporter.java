@@ -285,6 +285,102 @@ public final class JpegExporter {
         }
     }
 
+    /**
+     * Processes and writes a JPEG to the provided OutputStream using the same pipeline as export().
+     * Returns true on success.
+     */
+    public static boolean exportToStream(Context context, Bitmap bitmap, JpegExportOptions options, OutputStream out) {
+        if (context == null || bitmap == null || out == null) {
+            Log.e(TAG, "exportToStream: invalid arguments");
+            return false;
+        }
+        if (options == null) options = new JpegExportOptions();
+
+        final boolean enhancementNone = options.mode == JpegExportOptions.Mode.NONE;
+        final int srcW = bitmap.getWidth();
+        final int srcH = bitmap.getHeight();
+        final int curLong = Math.max(srcW, srcH);
+        final int targetLong = computeTargetLongEdge(curLong, options);
+        final boolean needsResize = targetLong > 0 && targetLong < curLong;
+
+        // Shortcut 1
+        if (!needsResize && enhancementNone && !options.forceGrayscaleJpeg) {
+            return bitmap.compress(Bitmap.CompressFormat.JPEG, clampQuality(options.quality), out);
+        }
+        // Shortcut 2: ONLY resize
+        if (needsResize && enhancementNone && !options.forceGrayscaleJpeg) {
+            final double scale = targetLong / (double) curLong;
+            int newW = (int) Math.round(srcW * scale);
+            int newH = (int) Math.round(srcH * scale);
+            newW = roundToMultiple(newW, 8, options.roundResizeToMultipleOf8);
+            newH = roundToMultiple(newH, 8, options.roundResizeToMultipleOf8);
+            newW = Math.max(8, newW);
+            newH = Math.max(8, newH);
+            Bitmap scaled = null;
+            try {
+                scaled = Bitmap.createScaledBitmap(bitmap, newW, newH, true);
+                return scaled.compress(Bitmap.CompressFormat.JPEG, clampQuality(options.quality), out);
+            } catch (Throwable t) {
+                Log.e(TAG, "exportToStream: error during scaling", t);
+                return false;
+            }
+        }
+
+        Bitmap outBitmap = null;
+        Mat srcRgba = new Mat();
+        Mat work = new Mat();
+        Mat tmp = new Mat();
+        try {
+            Utils.bitmapToMat(bitmap, srcRgba);
+            Mat current = srcRgba;
+            if (needsResize) {
+                final double scale = targetLong / (double) curLong;
+                int newW = (int) Math.round(srcW * scale);
+                int newH = (int) Math.round(srcH * scale);
+                newW = roundToMultiple(newW, 8, options.roundResizeToMultipleOf8);
+                newH = roundToMultiple(newH, 8, options.roundResizeToMultipleOf8);
+                newW = Math.max(8, newW);
+                newH = Math.max(8, newH);
+                Imgproc.resize(srcRgba, tmp, new Size(newW, newH), 0, 0, Imgproc.INTER_AREA);
+                current = tmp;
+            }
+            Imgproc.cvtColor(current, work, Imgproc.COLOR_RGBA2BGR);
+            switch (options.mode) {
+                case AUTO:
+                    applyAutoEnhancement(work);
+                    Imgproc.cvtColor(work, work, Imgproc.COLOR_BGR2RGBA);
+                    break;
+                case BW_TEXT:
+                    applyBwText(work);
+                    Imgproc.cvtColor(work, work, Imgproc.COLOR_BGR2GRAY);
+                    Imgproc.cvtColor(work, work, Imgproc.COLOR_GRAY2RGBA);
+                    break;
+                case NONE:
+                default:
+                    Imgproc.cvtColor(work, work, Imgproc.COLOR_BGR2RGBA);
+                    break;
+            }
+            if (options.forceGrayscaleJpeg && options.mode != JpegExportOptions.Mode.BW_TEXT) {
+                Imgproc.cvtColor(work, work, Imgproc.COLOR_RGBA2GRAY);
+                Imgproc.cvtColor(work, work, Imgproc.COLOR_GRAY2RGBA);
+            }
+            outBitmap = Bitmap.createBitmap(work.cols(), work.rows(), Bitmap.Config.ARGB_8888);
+            Utils.matToBitmap(work, outBitmap);
+            int outQuality = options.quality;
+            if (options.mode == JpegExportOptions.Mode.BW_TEXT) {
+                outQuality = clampQuality(options.quality - 30);
+            }
+            return outBitmap.compress(Bitmap.CompressFormat.JPEG, clampQuality(outQuality), out);
+        } catch (Throwable t) {
+            Log.e(TAG, "exportToStream: error during processing", t);
+            return false;
+        } finally {
+            try { srcRgba.release(); } catch (Throwable ignore) {}
+            try { work.release(); } catch (Throwable ignore) {}
+            try { tmp.release(); } catch (Throwable ignore) {}
+        }
+    }
+
     // === utils ===
 
     private static int roundToMultiple(int value, int multiple, boolean enabled) {

@@ -31,9 +31,72 @@
             android:scaleType="fitCenter"
             android:contentDescription="@string/document_preview"
             app:layout_constraintTop_toBottomOf="@id/text_export"
-            app:layout_constraintBottom_toTopOf="@id/export_options_group"
+            app:layout_constraintBottom_toTopOf="@+id/pages_container"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent" />
+
+    <!-- Mehrseiten: Container -->
+    <LinearLayout
+            android:id="@+id/pages_container"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingTop="4dp"
+            android:paddingBottom="4dp"
+            android:visibility="gone"
+            app:layout_constraintTop_toBottomOf="@id/document_preview"
+            app:layout_constraintBottom_toTopOf="@id/pages_actions_row"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent">
+
+
+        <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/pages_recycler"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:overScrollMode="never"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp"
+                android:clipToPadding="false"
+                android:nestedScrollingEnabled="false"
+                android:scrollbars="none"/>
+
+    </LinearLayout>
+
+    <!-- Pages actions row: always visible (Add), Clear toggled in code -->
+    <LinearLayout
+            android:id="@+id/pages_actions_row"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:padding="8dp"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintBottom_toTopOf="@id/export_options_group">
+
+        <ImageButton
+                android:id="@+id/button_add_page"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:padding="8dp"
+                android:contentDescription="@string/add_another_page"
+                android:src="@drawable/ic_add"
+                app:tint="?attr/colorControlNormal"
+                android:background="@android:color/transparent"/>
+
+        <ImageButton
+                android:id="@+id/button_clear_pages"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:padding="8dp"
+                android:contentDescription="@string/clear_all_pages"
+                android:src="@drawable/ic_delete"
+                app:tint="?attr/colorControlNormal"
+                android:background="@android:color/transparent"/>
+    </LinearLayout>
 
     <!-- Optionen & Button -->
     <LinearLayout

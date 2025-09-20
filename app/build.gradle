@@ -14,8 +14,8 @@ android {
         applicationId "de.schliweb.makeacopy"
         minSdk = 29
         targetSdk = 36
-        versionCode 10402
-        versionName "1.4.2"
+        versionCode 10500
+        versionName "1.5.0"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
 
@@ -117,6 +117,9 @@ dependencies {
     implementation libs.navigation.fragment
     implementation libs.navigation.ui
     implementation libs.activity
+
+    // JSON serialization for registry
+    implementation libs.gson
 
     // Lombok dependency
     compileOnly libs.lombok

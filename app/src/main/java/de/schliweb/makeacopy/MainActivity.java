@@ -38,46 +38,6 @@ public class MainActivity extends AppCompatActivity {
 
         binding = ActivityMainBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
-
-        // Setup donate FAB (temporarily disabled)
-        if (binding.fabDonate != null) {
-            // Temporarily disable donation feature: no click listener, hidden and not interactive
-            binding.fabDonate.setOnClickListener(null);
-            binding.fabDonate.setVisibility(View.GONE);
-            binding.fabDonate.setEnabled(false);
-            binding.fabDonate.setClickable(false);
-        }
-
-        // Dynamically position FAB just above the navigation bar based on WindowInsets
-        ViewCompat.setOnApplyWindowInsetsListener(binding.getRoot(), (v, insets) -> {
-            if (binding.fabDonate != null) {
-                int bottomInset = insets.getInsets(WindowInsetsCompat.Type.systemBars()).bottom;
-                ViewGroup.MarginLayoutParams lp = (ViewGroup.MarginLayoutParams) binding.fabDonate.getLayoutParams();
-                int baseMarginPx = (int) TypedValue.applyDimension(
-                        TypedValue.COMPLEX_UNIT_DIP, 0, getResources().getDisplayMetrics());
-                lp.bottomMargin = bottomInset + baseMarginPx;
-                binding.fabDonate.setLayoutParams(lp);
-            }
-            return insets;
-        });
-    }
-
-    public void setDonateFabVisible(boolean visible) {
-        // Temporarily disabled: always hide, ignore requested visibility
-        if (binding != null && binding.fabDonate != null) {
-            binding.fabDonate.setVisibility(View.GONE);
-        }
-    }
-
-    private void openDonationLink() {
-        String url = getString(R.string.donation_url);
-        Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
-        intent.addCategory(Intent.CATEGORY_BROWSABLE);
-        try {
-            startActivity(intent);
-        } catch (ActivityNotFoundException e) {
-            Toast.makeText(this, R.string.donate_cd, Toast.LENGTH_SHORT).show();
-        }
     }
 
     /**

@@ -62,11 +62,54 @@
     <string name="jpeg_mode_auto">Auto enhance (JPEG)</string>
     <string name="jpeg_mode_bw_text">Black &amp; White (Text) (JPEG)</string>
     <string name="skip_ocr_export_only">Skip OCR (export only)</string>
-    <!-- Donate / Support -->
-    <string name="support_donate">Support / Donate</string>
-    <string name="donation_url">https://ko-fi.com/egdels</string>
-    <string name="donate_cd">Support this project</string>
+
     <string name="btn_pick_image">Pick image</string>
     <string name="pick_image_cd">Pick existing image</string>
     <string name="error_selected_file_is_not_an_image">Selected file is not an image</string>
+    
+    <!-- Multipage Export (v1 increment) -->
+    <string name="pages_header">Pages (%1$d)</string>
+    <string name="add_another_page">Add another page</string>
+    <string name="clear_all_pages">Clear all</string>
+    <string name="remove_this_page">Remove this page</string>
+    <string name="multipage_not_implemented">Multi-page export not implemented yet</string>
+    
+    <!-- Reorder A11y controls -->
+    <string name="move_page_left">Move page left</string>
+    <string name="move_page_right">Move page right</string>
+    
+    <!-- Back confirmation for clearing multipage session -->
+    <string name="confirm_clear_multipage_title">Delete pages?</string>
+    <string name="confirm_clear_multipage_message">Multiple pages are added. Do you want to delete all pages and go back?</string>
+    <string name="cancel">Cancel</string>
+    
+    <!-- Clear-all confirmation for trash icon in multipage -->
+    <string name="confirm_clear_pages_title">Clear all pages?</string>
+    <string name="confirm_clear_pages_message">Do you want to remove all pages from the filmstrip?</string>
+    
+    <!-- Registry Picker -->
+    <string name="picker_title_completed_scans">Choose from completed scans</string>
+    <string name="picker_empty">No completed scans found</string>
+    <string name="done">Done</string>
+    <string name="thumbnail">Thumbnail</string>
+
+    <string name="added_pages_from_registry">Added %1$d page(s) from registry</string>
+    
+    <!-- Add page options dialog -->
+    <string name="add_page_option_choose_completed">Choose from completed scans</string>
+    <string name="add_page_option_capture_new">Capture new page</string>
+
+    <!-- Picker states -->
+    <string name="missing_file">Missing file</string>
+
+    <!-- Inline OCR cues -->
+    <string name="ocr_processing_started">Running OCR…</string>
+    <string name="ocr_processing_finished">OCR added for this page</string>
+    <string name="ocr_processing_failed">Inline OCR failed</string>
+
+    <!-- Registry Picker: context action -->
+    <string name="remove_from_registry_title">Remove from registry</string>
+    <string name="remove_from_registry_message">Delete this entry and its associated files?</string>
+    <string name="remove">Remove</string>
+    <string name="removed_from_registry_toast">Entry removed</string>
 </resources>

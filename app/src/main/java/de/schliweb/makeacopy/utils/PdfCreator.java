@@ -4,7 +4,6 @@ import android.content.Context;
 import android.graphics.*;
 import android.net.Uri;
 import android.util.Log;
-
 import com.tom_roush.pdfbox.android.PDFBoxResourceLoader;
 import com.tom_roush.pdfbox.pdmodel.PDDocument;
 import com.tom_roush.pdfbox.pdmodel.PDPage;
@@ -62,7 +61,10 @@ public class PdfCreator {
             prepared = processImageForPdf(bitmap, convertToGrayscale);
 
             try (PDDocument document = new PDDocument()) {
-                try { document.getDocument().setVersion(1.5f); } catch (Throwable ignore) {}
+                try {
+                    document.getDocument().setVersion(1.5f);
+                } catch (Throwable ignore) {
+                }
                 document.getDocumentInformation().setCreator("MakeACopy");
                 document.getDocumentInformation().setProducer("MakeACopy");
 
@@ -116,7 +118,10 @@ public class PdfCreator {
             return null;
         } finally {
             if (prepared != null && prepared != bitmap) {
-                try { prepared.recycle(); } catch (Throwable ignore) {}
+                try {
+                    prepared.recycle();
+                } catch (Throwable ignore) {
+                }
             }
         }
     }
@@ -126,7 +131,7 @@ public class PdfCreator {
     private static List<PDFont> loadFontsWithFallbacks(PDDocument document, Context context) {
         List<PDFont> fonts = new ArrayList<>();
         // Put the widest-coverage fonts first. Only those present in assets/ will be loaded.
-        String[] candidates = new String[] {
+        String[] candidates = new String[]{
                 "fonts/NotoSans-Regular.ttf",             // Latin
                 "fonts/NotoSansSymbols2-Regular.ttf",     // Symbols (optional)
                 "fonts/NotoSansCJKsc-Regular.otf",        // CJK (optional, large)
@@ -195,13 +200,19 @@ public class PdfCreator {
         List<List<RecognizedWord>> lines = new ArrayList<>();
         for (RecognizedWord w : words) {
             if (lines.isEmpty()) {
-                List<RecognizedWord> l = new ArrayList<>(); l.add(w); lines.add(l);
+                List<RecognizedWord> l = new ArrayList<>();
+                l.add(w);
+                lines.add(l);
             } else {
                 List<RecognizedWord> last = lines.get(lines.size() - 1);
                 float refY = (last.get(0).getBoundingBox().top + last.get(0).getBoundingBox().bottom) * 0.5f;
                 float curY = (w.getBoundingBox().top + w.getBoundingBox().bottom) * 0.5f;
                 if (Math.abs(curY - refY) < 6f) last.add(w);
-                else { List<RecognizedWord> l = new ArrayList<>(); l.add(w); lines.add(l); }
+                else {
+                    List<RecognizedWord> l = new ArrayList<>();
+                    l.add(w);
+                    lines.add(l);
+                }
             }
         }
 
@@ -286,7 +297,10 @@ public class PdfCreator {
         canvas.drawBitmap(base, 0, 0, paint);
 
         if (base != original) {
-            try { base.recycle(); } catch (Throwable ignore) {}
+            try {
+                base.recycle();
+            } catch (Throwable ignore) {
+            }
         }
         return gray;
     }
@@ -308,5 +322,97 @@ public class PdfCreator {
 
     private static float clamp(float v, float min, float max) {
         return Math.max(min, Math.min(max, v));
+    }
+
+    /**
+     * Creates a searchable multi-page PDF from a list of bitmaps and optional per-page OCR words.
+     * Each bitmap is placed on its own A4 page with the same scaling and centering logic as the
+     * single-page variant. If perPageWords[i] is non-null/non-empty, an OCR text layer is drawn
+     * for that page using identical image-space transform.
+     */
+    public static Uri createSearchablePdf(Context context,
+                                          List<Bitmap> bitmaps,
+                                          List<List<RecognizedWord>> perPageWords,
+                                          Uri outputUri,
+                                          int jpegQuality,
+                                          boolean convertToGrayscale) {
+        if (bitmaps == null || bitmaps.isEmpty() || outputUri == null) return null;
+        try {
+            PDFBoxResourceLoader.init(context);
+        } catch (Throwable t) {
+            Log.e(TAG, "PDFBox init failed", t);
+            return null;
+        }
+        try (PDDocument document = new PDDocument()) {
+            try {
+                document.getDocument().setVersion(1.5f);
+            } catch (Throwable ignore) {
+            }
+            document.getDocumentInformation().setCreator("MakeACopy");
+            document.getDocumentInformation().setProducer("MakeACopy");
+
+            PDRectangle pageSize = PDRectangle.A4;
+            float pageW = pageSize.getWidth();
+            float pageH = pageSize.getHeight();
+
+            // Load fonts once
+            List<PDFont> fonts = loadFontsWithFallbacks(document, context);
+
+            for (int i = 0; i < bitmaps.size(); i++) {
+                Bitmap src = bitmaps.get(i);
+                if (src == null) continue; // skip nulls defensively
+                Bitmap prepared = null;
+                try {
+                    prepared = processImageForPdf(src, convertToGrayscale);
+
+                    PDPage page = new PDPage(pageSize);
+                    document.addPage(page);
+
+                    float scale = calculateScale(prepared.getWidth(), prepared.getHeight(), pageW, pageH);
+                    float drawW = prepared.getWidth() * scale;
+                    float drawH = prepared.getHeight() * scale;
+                    float offsetX = (pageW - drawW) / 2f;
+                    float offsetY = (pageH - drawH) / 2f;
+
+                    float q = Math.max(0f, Math.min(1f, jpegQuality / 100f));
+                    PDImageXObject pdImg = (jpegQuality < 100)
+                            ? JPEGFactory.createFromImage(document, prepared, q)
+                            : LosslessFactory.createFromImage(document, prepared);
+
+                    try (PDPageContentStream cs = new PDPageContentStream(document, page)) {
+                        cs.drawImage(pdImg, offsetX, offsetY, drawW, drawH);
+                        List<RecognizedWord> words = (perPageWords != null && i < perPageWords.size()) ? perPageWords.get(i) : null;
+                        if (words != null && !words.isEmpty()) {
+                            cs.saveGraphicsState();
+                            cs.transform(new Matrix(scale, 0, 0, scale, offsetX, offsetY));
+                            addTextLayerImageSpace(cs, words, fonts, prepared.getWidth(), prepared.getHeight());
+                            cs.restoreGraphicsState();
+                        }
+                    }
+                } catch (Exception e) {
+                    Log.e(TAG, "Error rendering page " + (i + 1), e);
+                    return null;
+                } finally {
+                    if (prepared != null && prepared != src) {
+                        try {
+                            prepared.recycle();
+                        } catch (Throwable ignore) {
+                        }
+                    }
+                }
+            }
+
+            try (OutputStream os = context.getContentResolver().openOutputStream(outputUri)) {
+                if (os == null) {
+                    Log.e(TAG, "createSearchablePdf(multi): openOutputStream returned null");
+                    return null;
+                }
+                document.save(os);
+            }
+            return outputUri;
+        } catch (Exception e) {
+            Log.e(TAG, "Error creating multi-page PDF", e);
+            return null;
+        }
     }
 }

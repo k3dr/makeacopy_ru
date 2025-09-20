@@ -92,3 +92,12 @@
 -dontwarn org.opencv.**
 
 -keep class ai.onnxruntime.** { *; }
+
+# ---- Gson/Registry JSON model keeps ----
+# Keep JSON layout stable for persisted registry across releases.
+# Gson uses reflection; obfuscation must not rename these classes/fields.
+-keep class de.schliweb.makeacopy.data.CompletedScanEntry { *; }
+-keep class de.schliweb.makeacopy.data.CompletedScansRegistry$RegistryFile { *; }
+
+# Ensure generic type info is retained (Gson reads List<CompletedScanEntry> from field signature)
+-keepattributes Signature

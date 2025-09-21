@@ -26,6 +26,8 @@ public class ExportViewModel extends ViewModel {
     private final MutableLiveData<String> mText;
     private final MutableLiveData<Boolean> mDocumentReady;
     private final MutableLiveData<Boolean> mIsExporting;
+    private final MutableLiveData<Integer> mExportProgress;
+    private final MutableLiveData<Integer> mExportProgressMax;
     private final MutableLiveData<String> mExportFormat;
     private final MutableLiveData<Boolean> mIncludeOcr;
     private final MutableLiveData<Boolean> mConvertToGrayscale;
@@ -50,6 +52,11 @@ public class ExportViewModel extends ViewModel {
 
         mIsExporting = new MutableLiveData<>();
         mIsExporting.setValue(false);
+
+        mExportProgress = new MutableLiveData<>();
+        mExportProgress.setValue(0);
+        mExportProgressMax = new MutableLiveData<>();
+        mExportProgressMax.setValue(0);
 
         mExportFormat = new MutableLiveData<>();
         mExportFormat.setValue("PDF");
@@ -91,6 +98,23 @@ public class ExportViewModel extends ViewModel {
 
     public void setExporting(boolean exporting) {
         mIsExporting.setValue(exporting);
+    }
+
+    // Export progress (0..max), only used for multi-page export operations
+    public LiveData<Integer> getExportProgress() {
+        return mExportProgress;
+    }
+
+    public LiveData<Integer> getExportProgressMax() {
+        return mExportProgressMax;
+    }
+
+    public void setExportProgress(int value) {
+        mExportProgress.setValue(Math.max(0, value));
+    }
+
+    public void setExportProgressMax(int max) {
+        mExportProgressMax.setValue(Math.max(0, max));
     }
 
     public LiveData<String> getExportFormat() {

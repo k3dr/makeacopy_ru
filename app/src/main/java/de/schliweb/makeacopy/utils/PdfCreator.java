@@ -32,7 +32,6 @@ import java.util.List;
  */
 public class PdfCreator {
     private static final String TAG = "PdfCreator";
-
     // Text sizing (relative to OCR box height in image space)
     private static final float TEXT_SIZE_RATIO = 0.70f;
     private static final float MIN_FONT_PT = 2f; // lower bound for tiny boxes
@@ -46,6 +45,18 @@ public class PdfCreator {
                                           Uri outputUri,
                                           int jpegQuality,
                                           boolean convertToGrayscale) {
+        // Default 300 dpi behavior
+        return createSearchablePdf(context, bitmap, words, outputUri, jpegQuality, convertToGrayscale, 300);
+    }
+
+    // Phase 1: Overload with target DPI
+    public static Uri createSearchablePdf(Context context,
+                                          Bitmap bitmap,
+                                          List<RecognizedWord> words,
+                                          Uri outputUri,
+                                          int jpegQuality,
+                                          boolean convertToGrayscale,
+                                          int targetDpi) {
         Log.d(TAG, "createSearchablePdf: uri=" + outputUri + ", words=" + (words == null ? 0 : words.size()));
         if (bitmap == null || outputUri == null) return null;
 
@@ -58,7 +69,7 @@ public class PdfCreator {
 
         Bitmap prepared = null;
         try {
-            prepared = processImageForPdf(bitmap, convertToGrayscale);
+            prepared = processImageForPdf(bitmap, convertToGrayscale, targetDpi);
 
             try (PDDocument document = new PDDocument()) {
                 try {
@@ -126,8 +137,6 @@ public class PdfCreator {
         }
     }
 
-    // ===== Fonts (embedded) with fallbacks =====
-
     private static List<PDFont> loadFontsWithFallbacks(PDDocument document, Context context) {
         List<PDFont> fonts = new ArrayList<>();
         // Put the widest-coverage fonts first. Only those present in assets/ will be loaded.
@@ -155,6 +164,8 @@ public class PdfCreator {
         return fonts;
     }
 
+    // ===== Fonts (embedded) with fallbacks =====
+
     private static void showTextWithFallbacks(PDPageContentStream cs,
                                               String token,
                                               float fontSize,
@@ -176,8 +187,6 @@ public class PdfCreator {
             Log.w(TAG, "showText fallback used: " + last.getMessage());
         }
     }
-
-    // ===== OCR text rendering in IMAGE SPACE =====
 
     private static void addTextLayerImageSpace(PDPageContentStream cs,
                                                List<RecognizedWord> words,
@@ -251,7 +260,7 @@ public class PdfCreator {
         }
     }
 
-    // ===== Image prep & helpers =====
+    // ===== OCR text rendering in IMAGE SPACE =====
 
     private static float calculateScale(int imageWidth, int imageHeight, float pageWidth, float pageHeight) {
         float sx = pageWidth / imageWidth;
@@ -259,19 +268,28 @@ public class PdfCreator {
         return Math.min(sx, sy);
     }
 
+    // ===== Image prep & helpers =====
+
     private static Bitmap processImageForPdf(Bitmap original, boolean toGray) {
+        // Backward-compatible: default to 300 dpi A4 target
+        return processImageForPdf(original, toGray, 300);
+    }
+
+    // Phase 1: allow target DPI control for A4 placement pre-scaling
+    private static Bitmap processImageForPdf(Bitmap original, boolean toGray, int targetDpi) {
         if (original == null) return null;
 
+        int[] a4px = a4PixelsForDpi(targetDpi <= 0 ? 300 : targetDpi);
+        int maxW = a4px[0];
+        int maxH = a4px[1];
+
         boolean preScaled =
-                Math.abs(original.getWidth() - ImageScaler.A4_WIDTH_300DPI) <= 1 &&
-                        Math.abs(original.getHeight() - ImageScaler.A4_HEIGHT_300DPI) <= 1;
+                Math.abs(original.getWidth() - maxW) <= 1 &&
+                        Math.abs(original.getHeight() - maxH) <= 1;
 
         Bitmap base = original;
 
         if (!preScaled) {
-            int maxW = ImageScaler.A4_WIDTH_300DPI;
-            int maxH = ImageScaler.A4_HEIGHT_300DPI;
-
             float scale = 1f;
             if (original.getWidth() > maxW || original.getHeight() > maxH) {
                 float sw = (float) maxW / original.getWidth();
@@ -305,6 +323,13 @@ public class PdfCreator {
         return gray;
     }
 
+    private static int[] a4PixelsForDpi(int dpi) {
+        // A4 size in inches: 8.27 x 11.69
+        int w = Math.max(1, Math.round(8.27f * dpi));
+        int h = Math.max(1, Math.round(11.69f * dpi));
+        return new int[]{w, h};
+    }
+
     private static float medianHeight(List<RecognizedWord> line) {
         List<Float> heights = new ArrayList<>();
         for (RecognizedWord w : line) heights.add(w.getBoundingBox().height());
@@ -336,6 +361,29 @@ public class PdfCreator {
                                           Uri outputUri,
                                           int jpegQuality,
                                           boolean convertToGrayscale) {
+        return createSearchablePdf(context, bitmaps, perPageWords, outputUri, jpegQuality, convertToGrayscale, null);
+    }
+
+    public static Uri createSearchablePdf(Context context,
+                                          List<Bitmap> bitmaps,
+                                          List<List<RecognizedWord>> perPageWords,
+                                          Uri outputUri,
+                                          int jpegQuality,
+                                          boolean convertToGrayscale,
+                                          ProgressListener listener) {
+        // Default 300 dpi behavior
+        return createSearchablePdf(context, bitmaps, perPageWords, outputUri, jpegQuality, convertToGrayscale, 300, listener);
+    }
+
+    // Phase 1: Overload with target DPI + progress listener
+    public static Uri createSearchablePdf(Context context,
+                                          List<Bitmap> bitmaps,
+                                          List<List<RecognizedWord>> perPageWords,
+                                          Uri outputUri,
+                                          int jpegQuality,
+                                          boolean convertToGrayscale,
+                                          int targetDpi,
+                                          ProgressListener listener) {
         if (bitmaps == null || bitmaps.isEmpty() || outputUri == null) return null;
         try {
             PDFBoxResourceLoader.init(context);
@@ -358,12 +406,19 @@ public class PdfCreator {
             // Load fonts once
             List<PDFont> fonts = loadFontsWithFallbacks(document, context);
 
+            int total = bitmaps.size();
             for (int i = 0; i < bitmaps.size(); i++) {
                 Bitmap src = bitmaps.get(i);
-                if (src == null) continue; // skip nulls defensively
+                if (src == null) {
+                    if (listener != null) try {
+                        listener.onPageProcessed(i + 1, total);
+                    } catch (Throwable ignore) {
+                    }
+                    continue; // skip nulls defensively
+                }
                 Bitmap prepared = null;
                 try {
-                    prepared = processImageForPdf(src, convertToGrayscale);
+                    prepared = processImageForPdf(src, convertToGrayscale, targetDpi);
 
                     PDPage page = new PDPage(pageSize);
                     document.addPage(page);
@@ -387,6 +442,12 @@ public class PdfCreator {
                             cs.transform(new Matrix(scale, 0, 0, scale, offsetX, offsetY));
                             addTextLayerImageSpace(cs, words, fonts, prepared.getWidth(), prepared.getHeight());
                             cs.restoreGraphicsState();
+                        }
+                    }
+                    if (listener != null) {
+                        try {
+                            listener.onPageProcessed(i + 1, total);
+                        } catch (Throwable ignore) {
                         }
                     }
                 } catch (Exception e) {
@@ -414,5 +475,9 @@ public class PdfCreator {
             Log.e(TAG, "Error creating multi-page PDF", e);
             return null;
         }
+    }
+
+    public interface ProgressListener {
+        void onPageProcessed(int pageIndex, int totalPages);
     }
 }

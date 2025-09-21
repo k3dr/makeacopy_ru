@@ -111,55 +111,6 @@
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent">
 
-        <!-- Optionen: OCR-Text einbetten -->
-        <CheckBox
-                android:id="@+id/checkbox_include_ocr"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/include_ocr_text"/>
-
-        <!-- Option: Graustufen -->
-        <CheckBox
-                android:id="@+id/checkbox_grayscale"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/convert_to_grayscale" />
-
-        <!-- Option: Export as JPEG -->
-        <CheckBox
-                android:id="@+id/checkbox_export_jpeg"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/export_as_jpeg" />
-
-        <!-- JPEG Modes (shown only when Export as JPEG is checked) -->
-        <LinearLayout
-                android:id="@+id/jpeg_mode_group"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:paddingTop="8dp"
-                android:visibility="gone">
-
-            <CheckBox
-                    android:id="@+id/checkbox_jpeg_none"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/jpeg_mode_none" />
-
-            <CheckBox
-                    android:id="@+id/checkbox_jpeg_auto"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/jpeg_mode_auto" />
-
-            <CheckBox
-                    android:id="@+id/checkbox_jpeg_bw_text"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/jpeg_mode_bw_text" />
-        </LinearLayout>
-
         <!-- Button Container for Export and Share -->
         <LinearLayout
                 android:layout_width="match_parent"
@@ -188,16 +139,16 @@
                     android:enabled="false" />
         </LinearLayout>
 
-        <!-- (Optional) Platz für Fortschritt, wenn du magst -->
-        <!--
+        <!-- Progress indicator for long exports (multi-page PDF/JPEG) -->
         <ProgressBar
             android:id="@+id/export_progress"
-            android:layout_width="wrap_content"
+            style="@style/Widget.AppCompat.ProgressBar.Horizontal"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
             android:visibility="gone"
-            android:layout_gravity="center_horizontal"
-            style="@style/Widget.AppCompat.ProgressBar.Horizontal"/>
-        -->
+            android:max="100"
+            android:indeterminate="false" />
 
     </LinearLayout>
 

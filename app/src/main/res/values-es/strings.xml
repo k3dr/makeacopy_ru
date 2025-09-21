@@ -112,4 +112,12 @@
     <string name="remove_from_registry_message">¿Eliminar esta entrada y sus archivos asociados?</string>
     <string name="remove">Eliminar</string>
     <string name="removed_from_registry_toast">Entrada eliminada</string>
+    <!-- PDF quality presets (Phase 1) -->
+    <string name="pdf_quality_title">Calidad/tamaño PDF</string>
+    <string name="pdf_preset_high">Alta (300 dpi, q85)</string>
+    <string name="pdf_preset_standard">Estándar (200 dpi, q72)</string>
+    <string name="pdf_preset_small">Pequeño (150 dpi, q62)</string>
+    <string name="pdf_preset_very_small">Muy pequeño (110 dpi, q52)</string>
+    <string name="export_options_title">Opciones de exportación</string>
+    <string name="jpeg_enhancement_title">Mejora de JPEG</string>
 </resources>

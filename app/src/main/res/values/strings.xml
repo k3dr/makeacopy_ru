@@ -62,7 +62,6 @@
     <string name="jpeg_mode_auto">Auto enhance (JPEG)</string>
     <string name="jpeg_mode_bw_text">Black &amp; White (Text) (JPEG)</string>
     <string name="skip_ocr_export_only">Skip OCR (export only)</string>
-
     <string name="btn_pick_image">Pick image</string>
     <string name="pick_image_cd">Pick existing image</string>
     <string name="error_selected_file_is_not_an_image">Selected file is not an image</string>
@@ -112,4 +111,12 @@
     <string name="remove_from_registry_message">Delete this entry and its associated files?</string>
     <string name="remove">Remove</string>
     <string name="removed_from_registry_toast">Entry removed</string>
+    <!-- PDF quality presets (Phase 1) -->
+    <string name="pdf_quality_title">PDF quality / size</string>
+    <string name="pdf_preset_high">High (300 dpi, q85)</string>
+    <string name="pdf_preset_standard">Standard (200 dpi, q72)</string>
+    <string name="pdf_preset_small">Small (150 dpi, q62)</string>
+    <string name="pdf_preset_very_small">Very small (110 dpi, q52)</string>
+    <string name="export_options_title">Export options</string>
+    <string name="jpeg_enhancement_title">JPEG enhancement</string>
 </resources>

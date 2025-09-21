@@ -107,6 +107,27 @@ public class ExportFragment extends Fragment {
         }
     }
 
+    // Decode a sampled bitmap from file to roughly fit into the given bounds to avoid OOM
+    private Bitmap decodeSampled(String path, int reqW, int reqH) {
+        try {
+            android.graphics.BitmapFactory.Options opts = new android.graphics.BitmapFactory.Options();
+            opts.inJustDecodeBounds = true;
+            android.graphics.BitmapFactory.decodeFile(path, opts);
+            int inSampleSize = 1;
+            int halfH = Math.max(1, opts.outHeight) / 2;
+            int halfW = Math.max(1, opts.outWidth) / 2;
+            while ((halfH / inSampleSize) >= Math.max(1, reqH) && (halfW / inSampleSize) >= Math.max(1, reqW)) {
+                inSampleSize *= 2;
+            }
+            android.graphics.BitmapFactory.Options real = new android.graphics.BitmapFactory.Options();
+            real.inSampleSize = Math.max(1, inSampleSize);
+            real.inPreferredConfig = Bitmap.Config.RGB_565;
+            return android.graphics.BitmapFactory.decodeFile(path, real);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
     /**
      * Creates and initializes the view hierarchy associated with this fragment.
      * This method handles view inflation, view model setup, event listeners, and initializes
@@ -132,9 +153,6 @@ public class ExportFragment extends Fragment {
         boolean includeOcr = prefs.getBoolean("include_ocr", false);
         boolean convertToGrayscale = prefs.getBoolean("convert_to_grayscale", false);
         boolean exportAsJpeg = prefs.getBoolean("export_as_jpeg", false);
-        binding.checkboxIncludeOcr.setChecked(includeOcr);
-        binding.checkboxGrayscale.setChecked(convertToGrayscale);
-        binding.checkboxExportJpeg.setChecked(exportAsJpeg);
 
         // Initialize JPEG mode checkboxes from saved preference (default AUTO)
         String savedModeName = prefs.getString("jpeg_mode", JpegExportOptions.Mode.AUTO.name());
@@ -144,16 +162,6 @@ public class ExportFragment extends Fragment {
         } catch (IllegalArgumentException ex) {
             savedMode = JpegExportOptions.Mode.AUTO;
         }
-        if (binding.checkboxJpegNone != null)
-            binding.checkboxJpegNone.setChecked(savedMode == JpegExportOptions.Mode.NONE);
-        if (binding.checkboxJpegAuto != null)
-            binding.checkboxJpegAuto.setChecked(savedMode == JpegExportOptions.Mode.AUTO);
-        if (binding.checkboxJpegBwText != null)
-            binding.checkboxJpegBwText.setChecked(savedMode == JpegExportOptions.Mode.BW_TEXT);
-
-        // Initial visibility: show JPEG modes only when exporting as JPEG; hide grayscale then.
-        binding.jpegModeGroup.setVisibility(exportAsJpeg ? View.VISIBLE : View.GONE);
-        binding.checkboxGrayscale.setVisibility(exportAsJpeg ? View.GONE : View.VISIBLE);
 
         // ViewModel
         exportViewModel = new ViewModelProvider(this).get(ExportViewModel.class);
@@ -161,23 +169,37 @@ public class ExportFragment extends Fragment {
         exportViewModel.setConvertToGrayscale(convertToGrayscale);
         exportViewModel.setExportFormat(exportAsJpeg ? "JPEG" : "PDF");
 
-        // If user chose to skip OCR earlier (Camera screen), hide the option and force export without OCR
-        boolean skipOcr = prefs.getBoolean("skip_ocr", false);
-        if (skipOcr) {
-            if (binding.checkboxIncludeOcr != null) {
-                binding.checkboxIncludeOcr.setVisibility(View.GONE);
-                binding.checkboxIncludeOcr.setChecked(false);
-            }
-            exportViewModel.setIncludeOcr(false);
-            // Persist include_ocr=false to avoid accidental TXT export prompts
-            prefs.edit().putBoolean("include_ocr", false).apply();
-        }
+        // Include OCR option is now managed solely via ExportOptionsDialogFragment.
+        // Keep the inline checkbox hidden and do not alter its visibility here.
 
         // Insets
         ViewCompat.setOnApplyWindowInsetsListener(binding.exportOptionsGroup, (v, insets) -> {
             UIUtils.adjustMarginForSystemInsets(binding.exportOptionsGroup, 8); // 8dp extra Abstand
             return insets;
         });
+
+        // Observe exporting state and progress to update progress bar
+        if (binding.exportProgress != null) {
+            exportViewModel.isExporting().observe(getViewLifecycleOwner(), exporting -> {
+                if (exporting != null && exporting) {
+                    binding.exportProgress.setVisibility(View.VISIBLE);
+                    // Disable Share while exporting to meet requirement: only active after export completes
+                    binding.buttonShare.setEnabled(false);
+                } else {
+                    binding.exportProgress.setVisibility(View.GONE);
+                    // Do not enable share here; it will be enabled explicitly on successful export
+                }
+            });
+            exportViewModel.getExportProgressMax().observe(getViewLifecycleOwner(), max -> {
+                Integer m = (max == null) ? 0 : max;
+                binding.exportProgress.setMax((m <= 0) ? 100 : m);
+                if (m != null && m > 0) binding.exportProgress.setIndeterminate(false);
+                else binding.exportProgress.setIndeterminate(true);
+            });
+            exportViewModel.getExportProgress().observe(getViewLifecycleOwner(), value -> {
+                if (value != null) binding.exportProgress.setProgress(value);
+            });
+        }
 
         cropViewModel = new ViewModelProvider(requireActivity()).get(CropViewModel.class);
         ocrViewModel = new ViewModelProvider(requireActivity()).get(OCRViewModel.class);
@@ -196,8 +218,38 @@ public class ExportFragment extends Fragment {
                 List<de.schliweb.makeacopy.ui.export.session.CompletedScan> cur = exportSessionViewModel.getPages().getValue();
                 if (cur == null || position < 0 || position >= cur.size()) return;
                 de.schliweb.makeacopy.ui.export.session.CompletedScan sel = cur.get(position);
-                if (sel != null && sel.inMemoryBitmap() != null) {
-                    exportViewModel.setDocumentBitmap(sel.inMemoryBitmap());
+                if (sel == null) return;
+                Bitmap bmp = sel.inMemoryBitmap();
+                try {
+                    if (bmp == null) {
+                        String path = sel.filePath();
+                        if (path != null) {
+                            // Decode a sampled bitmap to avoid OOM; target a reasonable bound
+                            int reqW = (binding != null && binding.documentPreview != null && binding.documentPreview.getWidth() > 0)
+                                    ? binding.documentPreview.getWidth() : 2048;
+                            int reqH = (binding != null && binding.documentPreview != null && binding.documentPreview.getHeight() > 0)
+                                    ? binding.documentPreview.getHeight() : 2048;
+                            bmp = decodeSampled(path, reqW, reqH);
+                        }
+                    }
+                    // Apply rotation for preview if needed
+                    if (bmp != null) {
+                        int deg = 0;
+                        try { deg = sel.rotationDeg(); } catch (Throwable ignore) {}
+                        if (deg % 360 != 0) {
+                            try {
+                                android.graphics.Matrix m = new android.graphics.Matrix();
+                                m.postRotate(deg);
+                                Bitmap rotated = android.graphics.Bitmap.createBitmap(bmp, 0, 0, bmp.getWidth(), bmp.getHeight(), m, true);
+                                if (rotated != null) bmp = rotated;
+                            } catch (Throwable ignore) {}
+                        }
+                    }
+                } catch (Throwable t) {
+                    // ignore decode errors
+                }
+                if (bmp != null) {
+                    exportViewModel.setDocumentBitmap(bmp);
                     exportViewModel.setDocumentReady(true);
                 }
             }
@@ -271,6 +323,7 @@ public class ExportFragment extends Fragment {
                     exportViewModel.setDocumentReady(true);
                 }
             }
+            // Do not toggle Include OCR checkbox visibility here; it remains hidden and controlled by the dialog.
         });
         // Initialize or update pages based on current state and pending add-page flag
         Bitmap initBmp = cropViewModel.getImageBitmap().getValue();
@@ -592,7 +645,8 @@ public class ExportFragment extends Fragment {
                     dialog.show();
                     return;
                 }
-                // Default behavior (single/zero page): just reset and navigate back
+                // Default behavior (single/zero page): clear session, reset and navigate back
+                if (exportSessionViewModel != null) exportSessionViewModel.setInitial(null);
                 cameraViewModel.setImageUri(null);
                 cropViewModel.setImageCropped(false);
                 cropViewModel.setImageBitmap(null);
@@ -605,54 +659,33 @@ public class ExportFragment extends Fragment {
 
         exportViewModel.getText().observe(getViewLifecycleOwner(), binding.textExport::setText);
 
-        binding.checkboxIncludeOcr.setOnCheckedChangeListener((button, checked) -> {
-            exportViewModel.setIncludeOcr(checked);
-            prefs.edit().putBoolean("include_ocr", checked).apply();
-        });
-        binding.checkboxGrayscale.setOnCheckedChangeListener((button, checked) -> {
-            exportViewModel.setConvertToGrayscale(checked);
-            prefs.edit().putBoolean("convert_to_grayscale", checked).apply();
-        });
-        binding.checkboxExportJpeg.setOnCheckedChangeListener((button, checked) -> {
-            exportViewModel.setExportFormat(checked ? "JPEG" : "PDF");
-            prefs.edit().putBoolean("export_as_jpeg", checked).apply();
-            // Toggle UI groups: JPEG modes vs PDF grayscale
-            binding.jpegModeGroup.setVisibility(checked ? View.VISIBLE : View.GONE);
-            binding.checkboxGrayscale.setVisibility(checked ? View.GONE : View.VISIBLE);
-        });
-
-        // Enforce mutual exclusivity for JPEG mode checkboxes and persist selection
-        View.OnClickListener jpegModeClick = v -> {
-            if (v == binding.checkboxJpegNone) {
-                binding.checkboxJpegAuto.setChecked(false);
-                binding.checkboxJpegBwText.setChecked(false);
-                prefs.edit().putString("jpeg_mode", JpegExportOptions.Mode.NONE.name()).apply();
-            } else if (v == binding.checkboxJpegAuto) {
-                binding.checkboxJpegNone.setChecked(false);
-                binding.checkboxJpegBwText.setChecked(false);
-                prefs.edit().putString("jpeg_mode", JpegExportOptions.Mode.AUTO.name()).apply();
-            } else if (v == binding.checkboxJpegBwText) {
-                binding.checkboxJpegNone.setChecked(false);
-                binding.checkboxJpegAuto.setChecked(false);
-                prefs.edit().putString("jpeg_mode", JpegExportOptions.Mode.BW_TEXT.name()).apply();
-            }
-            // Ensure at least one is selected; if user unticked all somehow, default to AUTO
-            if (!binding.checkboxJpegNone.isChecked() && !binding.checkboxJpegAuto.isChecked() && !binding.checkboxJpegBwText.isChecked()) {
-                binding.checkboxJpegAuto.setChecked(true);
-                prefs.edit().putString("jpeg_mode", JpegExportOptions.Mode.AUTO.name()).apply();
-            }
-        };
-        binding.checkboxJpegNone.setOnClickListener(jpegModeClick);
-        binding.checkboxJpegAuto.setOnClickListener(jpegModeClick);
-        binding.checkboxJpegBwText.setOnClickListener(jpegModeClick);
+        // No inline option listeners: options are managed exclusively via ExportOptionsDialogFragment.
 
         binding.buttonExport.setOnClickListener(v -> {
-            boolean asJpeg = binding.checkboxExportJpeg.isChecked();
-            if (asJpeg) {
-                selectJpegFileLocation();
-            } else {
-                selectFileLocation();
-            }
+            // Show dedicated export options dialog instead of inline selection
+            getParentFragmentManager().setFragmentResultListener(ExportOptionsDialogFragment.REQUEST_KEY, getViewLifecycleOwner(), (requestKey, bundle) -> {
+                // Apply selections from dialog to ViewModel only (no inline UI updates)
+                boolean includeOcrSel = bundle.getBoolean(ExportOptionsDialogFragment.BUNDLE_INCLUDE_OCR, false);
+                boolean exportAsJpegSel = bundle.getBoolean(ExportOptionsDialogFragment.BUNDLE_EXPORT_AS_JPEG, false);
+                boolean graySel = bundle.getBoolean(ExportOptionsDialogFragment.BUNDLE_CONVERT_TO_GRAYSCALE, false);
+                // Persisted choices like jpeg_mode and pdf_preset are already saved by the dialog to SharedPreferences
+
+                // Update ViewModel
+                exportViewModel.setIncludeOcr(includeOcrSel);
+                exportViewModel.setConvertToGrayscale(graySel);
+                exportViewModel.setExportFormat(exportAsJpegSel ? "JPEG" : "PDF");
+
+                // Now go to file location selection
+                if (exportAsJpegSel) {
+                    selectJpegFileLocation();
+                } else {
+                    selectFileLocation();
+                }
+
+                // Remove listener after one-time use in this click
+                getParentFragmentManager().clearFragmentResultListener(ExportOptionsDialogFragment.REQUEST_KEY);
+            });
+            ExportOptionsDialogFragment.show(getParentFragmentManager());
         });
         binding.buttonShare.setOnClickListener(v -> shareDocument());
 
@@ -677,6 +710,8 @@ public class ExportFragment extends Fragment {
                 binding.documentPreview.setVisibility(View.INVISIBLE);
             }
         });
+
+        // No inline PDF preset UI setup: presets are chosen in the dialog and stored in SharedPreferences.
 
         checkDocumentReady();
 
@@ -770,11 +805,29 @@ public class ExportFragment extends Fragment {
 
         final Context appContext = requireContext().getApplicationContext();
         exportViewModel.setTxtExportUri(null);
+        // Disable Share at the start of export; it will be re-enabled only on success
+        binding.buttonShare.setEnabled(false);
+        lastExportedDocumentUri = null;
+        lastExportedPdfName = null;
         exportViewModel.setExporting(true);
 
         new Thread(() -> {
             try {
-                int jpegQuality = 75;
+                // Determine PDF quality preset from SharedPreferences (set by dialog)
+                de.schliweb.makeacopy.utils.PdfQualityPreset preset;
+                try {
+                    android.content.SharedPreferences p = requireContext().getSharedPreferences("export_options", Context.MODE_PRIVATE);
+                    String presetSaved = p.getString("pdf_preset", null);
+                    java.util.List<de.schliweb.makeacopy.ui.export.session.CompletedScan> pgs = exportSessionViewModel != null ? exportSessionViewModel.getPages().getValue() : null;
+                    int pageCount = (pgs == null) ? 0 : pgs.size();
+                    de.schliweb.makeacopy.utils.PdfQualityPreset def = (pageCount > 1) ? de.schliweb.makeacopy.utils.PdfQualityPreset.STANDARD : de.schliweb.makeacopy.utils.PdfQualityPreset.HIGH;
+                    preset = de.schliweb.makeacopy.utils.PdfQualityPreset.fromName(presetSaved, def);
+                } catch (Throwable t) {
+                    preset = de.schliweb.makeacopy.utils.PdfQualityPreset.STANDARD;
+                }
+                int jpegQuality = preset.jpegQuality;
+                // If preset forces grayscale, override checkbox
+                boolean convertGrayEffective = preset.forceGrayscale || convertToGrayscale;
                 Uri exportUri;
                 if (isMulti) {
                     // Build lists
@@ -854,13 +907,21 @@ public class ExportFragment extends Fragment {
                         }
                         perPage.add(pageWords);
                     }
+                    // Setup progress for multi-page export
+                    final int totalPages = (bitmaps == null) ? 0 : bitmaps.size();
+                    postToUiSafe(() -> {
+                        exportViewModel.setExportProgressMax(totalPages);
+                        exportViewModel.setExportProgress(0);
+                    });
                     exportUri = PdfCreator.createSearchablePdf(
                             appContext,
                             bitmaps,
                             perPage,
                             selectedLocation,
                             jpegQuality,
-                            convertToGrayscale
+                            convertGrayEffective,
+                            preset.targetDpi,
+                            (pageIndex, total) -> postToUiSafe(() -> exportViewModel.setExportProgress(pageIndex))
                     );
                     // Recycle any temporary bitmaps we created (those not part of the session's in-memory references)
                     try {
@@ -910,7 +971,8 @@ public class ExportFragment extends Fragment {
                                 recognizedWords,
                                 selectedLocation,
                                 jpegQuality,
-                                convertToGrayscale
+                                convertGrayEffective,
+                                preset.targetDpi
                         );
                     } finally {
                         if (createdTemp && toExport != null && toExport != src) {
@@ -950,7 +1012,11 @@ public class ExportFragment extends Fragment {
                     UIUtils.showToast(appContext, "Error during export: " + e.getMessage(), Toast.LENGTH_SHORT);
                 });
             } finally {
-                postToUiSafe(() -> exportViewModel.setExporting(false));
+                postToUiSafe(() -> {
+                    exportViewModel.setExporting(false);
+                    exportViewModel.setExportProgress(0);
+                    exportViewModel.setExportProgressMax(0);
+                });
             }
         }).start();
     }
@@ -1010,19 +1076,14 @@ public class ExportFragment extends Fragment {
      * MVP: uses default options (quality=85, original size, no enhancement).
      */
     private void performJpegExport() {
-        // Determine JPEG mode directly from UI checkboxes; fallback to saved preference or AUTO
+        // Determine JPEG mode from SharedPreferences (set by dialog)
         Context context = requireContext();
         android.content.SharedPreferences prefs = context.getSharedPreferences("export_options", Context.MODE_PRIVATE);
-        JpegExportOptions.Mode mode = null;
-        if (binding.checkboxJpegNone.isChecked()) mode = JpegExportOptions.Mode.NONE;
-        else if (binding.checkboxJpegAuto.isChecked()) mode = JpegExportOptions.Mode.AUTO;
-        else if (binding.checkboxJpegBwText.isChecked()) mode = JpegExportOptions.Mode.BW_TEXT;
-        if (mode == null) {
-            try {
-                mode = JpegExportOptions.Mode.valueOf(prefs.getString("jpeg_mode", JpegExportOptions.Mode.AUTO.name()));
-            } catch (Exception ignored) {
-                mode = JpegExportOptions.Mode.AUTO;
-            }
+        JpegExportOptions.Mode mode;
+        try {
+            mode = JpegExportOptions.Mode.valueOf(prefs.getString("jpeg_mode", JpegExportOptions.Mode.AUTO.name()));
+        } catch (Exception ignored) {
+            mode = JpegExportOptions.Mode.AUTO;
         }
         performJpegExport(mode);
     }
@@ -1069,6 +1130,10 @@ public class ExportFragment extends Fragment {
 
         // Reset any previously generated TXT URI to avoid sharing stale OCR text
         exportViewModel.setTxtExportUri(null);
+        // Disable Share at the start of export; it will be re-enabled only on success
+        binding.buttonShare.setEnabled(false);
+        lastExportedDocumentUri = null;
+        lastExportedPdfName = null;
         exportViewModel.setExporting(true);
         new Thread(() -> {
             try {
@@ -1137,7 +1202,11 @@ public class ExportFragment extends Fragment {
                     UIUtils.showToast(appContext, "Error during JPEG export: " + e.getMessage(), Toast.LENGTH_SHORT);
                 });
             } finally {
-                postToUiSafe(() -> exportViewModel.setExporting(false));
+                postToUiSafe(() -> {
+                    exportViewModel.setExporting(false);
+                    exportViewModel.setExportProgress(0);
+                    exportViewModel.setExportProgressMax(0);
+                });
             }
         }).start();
     }
@@ -1146,13 +1215,15 @@ public class ExportFragment extends Fragment {
      * Performs a multi-image ZIP export for JPEG when there are multiple pages.
      */
     private void performJpegZipExport() {
-        // Determine mode directly from checkboxes
+        // Determine mode from SharedPreferences (set by dialog)
         Context context = requireContext();
-        JpegExportOptions.Mode mode = null;
-        if (binding.checkboxJpegNone.isChecked()) mode = JpegExportOptions.Mode.NONE;
-        else if (binding.checkboxJpegAuto.isChecked()) mode = JpegExportOptions.Mode.AUTO;
-        else if (binding.checkboxJpegBwText.isChecked()) mode = JpegExportOptions.Mode.BW_TEXT;
-        if (mode == null) mode = JpegExportOptions.Mode.AUTO;
+        JpegExportOptions.Mode mode;
+        try {
+            android.content.SharedPreferences prefs = context.getSharedPreferences("export_options", Context.MODE_PRIVATE);
+            mode = JpegExportOptions.Mode.valueOf(prefs.getString("jpeg_mode", JpegExportOptions.Mode.AUTO.name()));
+        } catch (Exception e) {
+            mode = JpegExportOptions.Mode.AUTO;
+        }
 
         final Uri selectedLocation = exportViewModel.getSelectedFileLocation().getValue();
         if (selectedLocation == null) {
@@ -1167,10 +1238,20 @@ public class ExportFragment extends Fragment {
         final Context appContext = requireContext().getApplicationContext();
         exportViewModel.setExporting(true);
         exportViewModel.setTxtExportUri(null);
+        // Disable Share at the start of export; it will be re-enabled only on success
+        binding.buttonShare.setEnabled(false);
+        lastExportedDocumentUri = null;
+        lastExportedPdfName = null;
 
         final JpegExportOptions.Mode finalMode = mode;
         new Thread(() -> {
             java.util.zip.ZipOutputStream zos = null;
+            // Initialize progress for ZIP multi-image export
+            final int totalPages = (pages == null) ? 0 : pages.size();
+            postToUiSafe(() -> {
+                exportViewModel.setExportProgressMax(totalPages);
+                exportViewModel.setExportProgress(0);
+            });
             try {
                 // Ensure OpenCV is initialized
                 try {
@@ -1232,6 +1313,9 @@ public class ExportFragment extends Fragment {
                         } catch (Throwable ignore) {
                         }
                     }
+                    // Update progress after each page
+                    final int done = idx;
+                    postToUiSafe(() -> exportViewModel.setExportProgress(done));
                     idx++;
                 }
                 zos.finish();
@@ -1268,7 +1352,11 @@ public class ExportFragment extends Fragment {
                     } catch (Exception ignore) {
                     }
                 }
-                postToUiSafe(() -> exportViewModel.setExporting(false));
+                postToUiSafe(() -> {
+                    exportViewModel.setExporting(false);
+                    exportViewModel.setExportProgress(0);
+                    exportViewModel.setExportProgressMax(0);
+                });
             }
         }).start();
     }

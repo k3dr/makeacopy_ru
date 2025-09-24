@@ -63,7 +63,7 @@ Supported out of the box:
 
 ### F-Droid
 
-MakeACopy is F-Droid compliant and will be available on F-Droid soon. The app builds all required native components from source during CI/local builds:
+MakeACopy is F-Droid compliant. The app builds all required native components from source during CI/local builds:
 
 1. **OpenCV Java Classes**: The required OpenCV Java wrapper classes are directly included in the app's source tree (copied from OpenCV but now part of this project). They are no longer used from the submodule.
 2. **OpenCV Native Libraries**: All OpenCV native libraries are built from source using the official OpenCV code provided via the Git submodule at `external/opencv`.

@@ -77,15 +77,23 @@
         <a href="index_de.html">Deutsch</a>
     </div>
     
+    <div class="store-badges" style="margin: 10px 0;">
+        <a href="https://f-droid.org/packages/de.schliweb.makeacopy/"><img src="https://fdroid.gitlab.io/artwork/badge/get-it-on.png" alt="Get it on F-Droid" height="80"></a>
+        <a href="https://play.google.com/store/apps/details?id=de.schliweb.makeacopy"><img src="https://play.google.com/intl/en_us/badges/images/generic/en-play-badge.png" alt="Get it on Google Play" height="80"></a>
+    </div>
+    
     <h2>Features</h2>
     
     <ul>
         <li><strong>Camera Scanning</strong>: Capture documents using the device camera</li>
-        <li><strong>Edge Detection</strong>: Automatic document edge detection using OpenCV</li>
+        <li><strong>Edge Detection</strong>: Automatic document edge detection using OpenCV, enhanced with an ONNX model (DocAligner)</li>
         <li><strong>Perspective Correction</strong>: Adjust and crop documents with manual or automatic perspective correction</li>
         <li><strong>Image Enhancement</strong>: Apply filters (grayscale, contrast, sharpening)</li>
         <li><strong>OCR</strong>: Offline text recognition with Tesseract</li>
         <li><strong>PDF Export</strong>: Save as searchable PDF with recognized text</li>
+        <li><strong>JPEG Export</strong>: Export scans as high-quality JPEG images (configurable quality, color/BW)</li>
+        <li><strong>Multi-page Scanning</strong>: Combine multiple pages into one document; reorder and manage pages before export</li>
+        <li><strong>Last Scans</strong>: Quickly access and reuse your most recent scans</li>
         <li><strong>Share & Save</strong>: Export locally or share with other apps</li>
         <li><strong>Dark Mode</strong>: Material 3 theme with day/night support</li>
         <li><strong>Privacy-Focused</strong>: 100% offline functionality, no internet connection required</li>
@@ -93,7 +101,12 @@
     
     <h2>Screenshots</h2>
     
-    <p><em>Screenshots will be added soon</em></p>
+    <p align="center">
+        <img src="https://raw.githubusercontent.com/egdels/makeacopy/main/fastlane/metadata/android/en-US/images/phoneScreenshots/1_en-US.png" alt="MakeACopy screenshot 1" width="110" />
+        <img src="https://raw.githubusercontent.com/egdels/makeacopy/main/fastlane/metadata/android/en-US/images/phoneScreenshots/2_en-US.png" alt="MakeACopy screenshot 2" width="110" />
+        <img src="https://raw.githubusercontent.com/egdels/makeacopy/main/fastlane/metadata/android/en-US/images/phoneScreenshots/3_en-US.png" alt="MakeACopy screenshot 3" width="110" />
+        <img src="https://raw.githubusercontent.com/egdels/makeacopy/main/fastlane/metadata/android/en-US/images/phoneScreenshots/4_en-US.png" alt="MakeACopy screenshot 4" width="110" />
+    </p>
     
     <h2>How to Use</h2>
     
@@ -123,7 +136,11 @@
     
     <h3>F-Droid</h3>
     
-    <p>MakeACopy will be available on F-Droid soon.</p>
+    <p>MakeACopy is available on F-Droid: <a href="https://f-droid.org/packages/de.schliweb.makeacopy/">f-droid.org/packages/de.schliweb.makeacopy</a>.
+        For F-Droid compliance, all native components are built from source: OpenCV native libraries (from the
+        <code>external/opencv</code> submodule) and ONNX Runtime (CPU-only, Java bindings) from
+        <code>external/onnxruntime</code>. The resulting libraries are integrated into the app during the build; no prebuilt
+        binaries are stored in the repository.</p>
     
     <h3>GitHub Releases</h3>
     

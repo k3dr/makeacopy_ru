@@ -163,7 +163,6 @@ Contributions welcome!
 
 ## Future Enhancements
 
-- OCR for multiple languages
 - Editable OCR text export
 - Add more languages to OCR detection
 - Further ML-based scan enhancements (quality and speed)

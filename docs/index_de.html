@@ -53,15 +53,23 @@
         <a href="index.html">English</a>
     </div>
     
+    <div class="store-badges" style="margin: 10px 0;">
+        <a href="https://f-droid.org/packages/de.schliweb.makeacopy/"><img src="https://fdroid.gitlab.io/artwork/badge/get-it-on.png" alt="Hol es dir bei F-Droid" height="80"></a>
+        <a href="https://play.google.com/store/apps/details?id=de.schliweb.makeacopy"><img src="https://play.google.com/intl/en_us/badges/images/generic/en-play-badge.png" alt="Jetzt bei Google Play" height="80"></a>
+    </div>
+    
     <h2>Funktionen</h2>
     
     <ul>
         <li><strong>Kamera-Scan</strong>: Erfassen von Dokumenten mit der Gerätekamera</li>
-        <li><strong>Randerkennung</strong>: Automatische Dokumentenranderkennung mit OpenCV</li>
+        <li><strong>Randerkennung</strong>: Automatische Dokumentenranderkennung mit OpenCV, unterstützt durch ein ONNX-Modell (DocAligner)</li>
         <li><strong>Perspektivkorrektur</strong>: Anpassen und Zuschneiden von Dokumenten mit manueller oder automatischer Perspektivkorrektur</li>
         <li><strong>Bildverbesserung</strong>: Filter anwenden (Graustufen, Kontrast, Schärfen)</li>
         <li><strong>OCR</strong>: Offline-Texterkennung mit Tesseract</li>
         <li><strong>PDF-Export</strong>: Speichern als durchsuchbares PDF mit erkanntem Text</li>
+        <li><strong>JPEG-Export</strong>: Export als hochwertige JPEG-Bilder (Qualität, Farbe/Schwarzweiß konfigurierbar)</li>
+        <li><strong>Mehrseitige Scans</strong>: Mehrere Seiten zu einem Dokument zusammenführen; Seiten vor dem Export verwalten und anordnen</li>
+        <li><strong>Letzte Scans</strong>: Schnell auf die zuletzt erstellten Scans zugreifen und sie wiederverwenden</li>
         <li><strong>Teilen & Speichern</strong>: Lokal exportieren oder mit anderen Apps teilen</li>
         <li><strong>Dunkelmodus</strong>: Material 3-Design mit Tag/Nacht-Unterstützung</li>
         <li><strong>Datenschutzorientiert</strong>: 100% Offline-Funktionalität, keine Internetverbindung erforderlich</li>
@@ -69,7 +77,12 @@
     
     <h2>Screenshots</h2>
     
-    <p><em>Screenshots werden in Kürze hinzugefügt</em></p>
+    <p align="center">
+        <img src="https://raw.githubusercontent.com/egdels/makeacopy/main/fastlane/metadata/android/en-US/images/phoneScreenshots/1_en-US.png" alt="MakeACopy Screenshot 1" width="110" />
+        <img src="https://raw.githubusercontent.com/egdels/makeacopy/main/fastlane/metadata/android/en-US/images/phoneScreenshots/2_en-US.png" alt="MakeACopy Screenshot 2" width="110" />
+        <img src="https://raw.githubusercontent.com/egdels/makeacopy/main/fastlane/metadata/android/en-US/images/phoneScreenshots/3_en-US.png" alt="MakeACopy Screenshot 3" width="110" />
+        <img src="https://raw.githubusercontent.com/egdels/makeacopy/main/fastlane/metadata/android/en-US/images/phoneScreenshots/4_en-US.png" alt="MakeACopy Screenshot 4" width="110" />
+    </p>
     
     <h2>Verwendung</h2>
     
@@ -99,7 +112,11 @@
     
     <h3>F-Droid</h3>
     
-    <p>MakeACopy wird bald auf F-Droid verfügbar sein.</p>
+    <p>MakeACopy ist auf F-Droid verfügbar: <a href="https://f-droid.org/packages/de.schliweb.makeacopy/">f-droid.org/packages/de.schliweb.makeacopy</a>.
+        Für die F-Droid-Konformität werden alle nativen Komponenten aus dem Quellcode gebaut: OpenCV-Bibliotheken (aus dem
+        Submodul <code>external/opencv</code>) und ONNX Runtime (nur CPU, Java-Bindings) aus <code>external/onnxruntime</code>.
+        Die resultierenden Bibliotheken werden während des Builds in die App integriert; es werden keine vorcompilierten
+        Binärdateien im Repository gespeichert.</p>
     
     <h3>GitHub Releases</h3>
     

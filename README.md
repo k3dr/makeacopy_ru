@@ -36,24 +36,40 @@ apksigner verify --print-certs MakeACopy-vX.Y.Z.apk
 - **Image Enhancement**: Apply filters (grayscale, contrast, sharpening)
 - **OCR**: Offline text recognition with Tesseract
 - **PDF Export**: Save as searchable PDF with recognized text
+- **JPEG Export**: Export scans as high-quality JPEG images (configurable quality, color/BW)
+- **Multi-page Scanning**: Combine multiple pages into one document; reorder and manage pages before export
+- **Last Scans**: Quickly access and reuse your most recent scans
 - **Share & Save**: Export locally or share with other apps
 - **Dark Mode**: Material 3 theme with day/night support
 - **Privacy-Focused**: 100% offline functionality, no internet connection required
 
+### OCR Languages
+
+MakeACopy supports OCR via Tesseract. You can choose the OCR language during the OCR step.
+
+Supported out of the box:
+- English (eng), German (deu), French (fra), Italian (ita), Spanish (spa)
+
 ## Screenshots
 
-*Screenshots will be added soon*
+<p align="center">
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/1_en-US.png" alt="MakeACopy screenshot 1" width="110" />
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/2_en-US.png" alt="MakeACopy screenshot 2" width="110" />
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/3_en-US.png" alt="MakeACopy screenshot 3" width="110" />
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/4_en-US.png" alt="MakeACopy screenshot 4" width="110" />
+</p>
 
 ## Installation
 
 ### F-Droid
 
-MakeACopy is F-Droid compliant and will be available on F-Droid soon. The app uses a two-part approach for OpenCV integration:
+MakeACopy is F-Droid compliant and will be available on F-Droid soon. The app builds all required native components from source during CI/local builds:
 
-1. **Java Classes**: The required OpenCV Java wrapper classes are directly included in the app's source tree (copied from OpenCV but now part of this project). They are no longer used from the submodule.
-2. **Native Libraries**: All native libraries are built from source during the build process using the official OpenCV source code provided via Git submodule at `external/opencv`.
+1. **OpenCV Java Classes**: The required OpenCV Java wrapper classes are directly included in the app's source tree (copied from OpenCV but now part of this project). They are no longer used from the submodule.
+2. **OpenCV Native Libraries**: All OpenCV native libraries are built from source using the official OpenCV code provided via the Git submodule at `external/opencv`.
+3. **ONNX Runtime Native Libraries**: For ML-assisted edge detection, ONNX Runtime is built from source (CPU-only, Java bindings) using the submodule at `external/onnxruntime` via `scripts/build_onnxruntime_android.sh`. The resulting artifacts are integrated into `app/src/main/jniLibs/<ABI>/` (e.g., `libonnxruntime.so`, `libonnxruntime4j_jni.so`) and `app/libs/` (`onnxruntime-*.jar`).
 
-This approach ensures F-Droid compatibility by not including any pre-compiled binaries in the repository and building all native components from source.
+This approach ensures F-Droid compatibility by not including any pre-compiled binaries in the repository and building OpenCV and ONNX Runtime native components from source.
 
 ### GitHub Releases
 
@@ -61,113 +77,42 @@ You can download the latest APK from the [Releases](https://github.com/egdels/ma
 
 #### Automated Builds
 
-The project includes two GitHub workflows for automated builds:
+All automated builds are handled by a single GitHub Actions workflow:
 
-##### Release Builds
+- Workflow: .github/workflows/build-release.yml
+- Triggers: on push to main, pull_request to main, and tags starting with v*
 
-This workflow automatically builds APK and AAB files when a new tag is created:
+What the workflow does on every run (aligned with CI):
+- Sets up JDK 17 (Temurin) and installs Android NDK 28.0.13004108
+- Pins CMake 3.31.6 and Python 3.11.2 for deterministic native builds
+- Checks out submodules (external/opencv and external/onnxruntime)
+- Builds OpenCV native libraries from source via scripts/build_opencv_android.sh
+- Collects reproducibility evidence for native builds (scripts/collect_repro_evidence.sh)
+- Integrates OpenCV artifacts into the app via scripts/prepare_opencv.sh
+- Builds ONNX Runtime for Android (CPU-only, Java bindings) via scripts/build_onnxruntime_android.sh
+- Builds the Android app with Gradle (AAB and ABI-split APKs)
 
-1. Create a new tag starting with 'v' (e.g., `v1.0.0`)
+Behavior by event type:
+- Push/PR to main (non-tag):
+  - Builds unsigned artifacts (Release AAB and per-ABI Release APKs)
+  - Uploads all artifacts for download from the workflow run
+- Tag (refs/tags/vX.Y.Z):
+  - Optionally decodes a keystore from repository secrets and signs the builds
+  - Verifies APK signatures using apksigner
+  - Renames artifacts to MakeACopy-vX.Y.Z-<abi>-release.apk and MakeACopy-vX.Y.Z-release.aab
+  - Generates SHA-256 checksum files for each artifact
+  - Loads release notes from fastlane/metadata/android/en-US/changelogs/<versionCode>.txt
+  - Creates a GitHub Release and attaches all APKs, the AAB, and their .sha256 files
+  - Uploads artifacts to the workflow as well
+
+How to trigger a release build:
+1. Create a tag starting with v (e.g., v1.0.0)
 2. Push the tag to GitHub
-3. The workflow will automatically:
-    - Set up JDK 21 and Android NDK 27.3.13750724
-    - Initialize OpenCV source (via Git submodule)
-    - Build OpenCV native libraries for all architectures
-    - Integrate the built native libraries into the app
-    - Build Debug APK, Release APK (unsigned), and Android App Bundle (AAB)
-4. Artifacts will be attached to the GitHub Release
+3. The workflow will build native libraries (OpenCV, ONNX Runtime) from source, build the app, sign (if secrets provided), verify, checksum, and publish a GitHub Release with artifacts
 
-This ensures that release builds are 100% F-Droid compatible, with all native libraries built from source and the required OpenCV Java classes bundled statically.
-
-##### OpenCV Integration Builds
-
-This workflow builds the app on every push to main and pull request:
-
-1. Sets up JDK 21 and Android NDK 27.3.13750724
-2. Uses OpenCV submodule source
-3. Builds OpenCV native libraries for all architectures
-4. Integrates the built native libraries into the app
-5. Builds the app with the integrated OpenCV components
-6. Uploads the built APK as an artifact
-
-This ensures that the OpenCV integration is tested with each code change, building all native libraries from source.
-
-### Building from Source
-
-1. Clone the repository with submodules:
-   ```bash
-   git clone --recurse-submodules https://github.com/egdels/makeacopy.git
-   ```
-
-2. The build process will automatically:
-    - Build OpenCV native libraries for all architectures
-    - Integrate the built native libraries into the app
-
-   This is handled by Gradle tasks that run the following scripts:
-    - `scripts/build_opencv_android.sh`: Builds OpenCV native libraries
-    - `scripts/prepare_opencv.sh`: Integrates the built native libraries into the app
-
-3. Build the app using Gradle:
-   ```bash
-   ./gradlew assembleDebug
-   ```
-
-4. Install the generated APK on your device.
-
-> **F-Droid Compatibility Note**: This project is 100% F-Droid compatible. It uses a two-part approach for OpenCV integration:
-> 1. Java classes are copied directly into the source tree (not from submodule)
-> 2. Native libraries are built from source using the OpenCV submodule
->
-> This ensures no pre-compiled binaries are included in the repository or final APK.
-
-#### Setting up the Android NDK
-
-1. **Install the NDK using Android Studio**:
-    - Open Android Studio > Settings/Preferences > Appearance & Behavior > System Settings > Android SDK
-    - Select the 'SDK Tools' tab
-    - Check 'NDK (Side by side)' and click 'Apply'
-
-2. **Set the ANDROID_NDK_HOME environment variable** (optional):
-    - The build script will attempt to locate the NDK automatically
-    - If automatic detection fails, you can set it manually:
-      ```bash
-      export ANDROID_NDK_HOME=/path/to/android-sdk/ndk/27.3.13750724
-      ```
-
-#### Maintaining the OpenCV Integration
-
-The OpenCV integration uses a Git submodule for native code and directly included Java classes.
-
-##### Updating the Java Classes (manually copied)
-
-1. Update the OpenCV submodule:
-   ```bash
-   git submodule update --remote --checkout external/opencv
-   ```
-2. Copy over the needed Java wrapper classes manually into your project directory
-3. Remove any unused or unnecessary files (especially any prebuilt binaries)
-4. Commit the updated code:
-   ```bash
-   git add path/to/java/classes
-   git commit -m "Update OpenCV Java classes to version X.Y.Z"
-   ```
-
-##### Updating the Native Libraries Build Process
-
-1. Update the OpenCV version in `.gitmodules` or in the `scripts/build_opencv_android.sh` logic
-2. Run the build process to verify:
-   ```bash
-   ./gradlew clean assembleDebug
-   ```
-3. Update version references if needed (e.g., in Gradle files or docs)
-
-## Usage
-
-1. **Scan Document**: Open the app and tap the scan button
-2. **Adjust Corners**: Fine-tune document edge detection
-3. **Crop & Enhance**: Crop and apply enhancements
-4. **OCR Processing**: Recognize text
-5. **Export & Share**: Save as PDF or share
+Notes:
+- All native components are built from source to stay F-Droid compatible; no prebuilt binaries are stored in the repo.
+- A look at .github/workflows/build-release.yml shows you how the build process works and how you can reproduce it in your own development environment.
 
 ## Architecture
 
@@ -194,7 +139,7 @@ MakeACopy follows the Single-Activity + Multi-Fragment pattern with MVVM archite
 - external/onnxruntime — ONNX Runtime source used optionally for ML-assisted corner detection; MIT License.
   - Built from source via scripts/build_onnxruntime_android.sh (CPU-only, Java bindings).
   - Artifacts integrated into app/src/main/jniLibs/<ABI>/ (libonnxruntime.so, libonnxruntime4j_jni.so) and app/libs/ (onnxruntime-*.jar).
-  - See NOTICE.md for attributions.
+  - See [NOTICE](NOTICE) for attributions.
 
 ## Privacy
 
@@ -219,10 +164,9 @@ Contributions welcome!
 ## Future Enhancements
 
 - OCR for multiple languages
-- Multi-page scanning
 - Editable OCR text export
-- Integration with cloud storage
-- ML-based scan enhancements
+- Add more languages to OCR detection
+- Further ML-based scan enhancements (quality and speed)
 
 ## ❤️ Support this project
 MakeACopy is free and open source.
@@ -251,4 +195,4 @@ limitations under the License.
 
 ## Technical Documentation
 
-For a complete technical overview of the project, see docs/TECHNICAL_DOCUMENTATION.md.
+For a complete technical overview of the project, see [TECHNICAL_DOCUMENTATION.md](docs/TECHNICAL_DOCUMENTATION.md).

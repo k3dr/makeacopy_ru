@@ -8,16 +8,18 @@
     <string name="title_export">Esporta</string>
 
     <!-- Button labels -->
-    <string name="btn_scan">Scansiona documento</string>
+    <string name="btn_scan">Scansiona</string>
     <string name="btn_crop">Ritaglia</string>
     <string name="btn_process">Elabora</string>
     <string name="btn_export">Esporta</string>
     <string name="btn_share">Condividi</string>
+    <string name="next">Avanti</string>
+    <string name="back">Indietro</string>
 
     <!-- Messages -->
     <string name="msg_camera_permission_required">L’autorizzazione della fotocamera è necessaria per acquisire i documenti</string>
     <string name="confirm">Conferma</string>
-    <string name="review_your_scan_tap_confirm_to_proceed_or_retake_to_try_again">Controlla la scansione. Tocca Conferma per procedere o Rifai per riprovare.</string>
+    <string name="review_your_scan_tap_confirm_to_proceed_or_retake_to_try_again">Controlla la scansione. Tocca Avanti per procedere o Indietro per riprovare.</string>
     <string name="camera_ready_tap_the_button_to_scan_a_document">Fotocamera pronta. Tocca il pulsante per scansionare un documento.</string>
     <string name="captured_image">Immagine acquisita</string>
     <string name="retake">Rifai</string>
@@ -30,7 +32,7 @@
     <string name="ocr_results_will_appear_here">I risultati OCR verranno visualizzati qui</string>
     <string name="no_image_loaded_capture_an_image_first">Nessuna immagine caricata. Acquisisci prima un’immagine.</string>
     <string name="adjust_the_trapezoid_corners_to_select_the_area_to_crop_then_tap_the_crop_button">Regola gli angoli del trapezio per selezionare l’area da ritagliare, quindi tocca il pulsante Ritaglia.</string>
-    <string name="review_your_cropped_image_tap_confirm_to_proceed_or_recrop_to_try_again">Controlla l’immagine ritagliata. Tocca Conferma per procedere o Ritaglia di nuovo per riprovare.</string>
+    <string name="review_your_cropped_image_tap_confirm_to_proceed_or_recrop_to_try_again">Controlla l’immagine ritagliata. Tocca Avanti per procedere o Indietro per riprovare.</string>
     <string name="no_document_ready_process_ocr_first">Nessun documento pronto. Esegui prima l’OCR.</string>
     <string name="document_ready_for_export">Documento pronto per l’esportazione</string>
     <string name="processing_image">Elaborazione dell’immagine…</string>
@@ -46,10 +48,13 @@
     <string name="error_displaying_image">Errore durante la visualizzazione dell’immagine: %1$s</string>
     <string name="error_resetting_camera">Errore durante il ripristino della fotocamera: %1$s</string>
     <string name="error_toggling_flashlight">Errore durante l’attivazione della torcia: %1$s</string>
+    <string name="error_camera_preview_failed">Impossibile avviare l’anteprima della fotocamera. Riprova.</string>
 
     <!-- Export options -->
     <string name="convert_to_grayscale">Converti in scala di grigi</string>
+    <string name="convert_to_blackwhite_pdf">Converti in B/N</string>
     <string name="export_as_jpeg">Esporta come JPEG</string>
+    <string name="export_as_pdf">Esporta come PDF (predefinito)</string>
 
     <!-- Flashlight options -->
     <string name="toggle_flashlight">Attiva/disattiva torcia</string>
@@ -63,8 +68,8 @@
     <string name="jpeg_mode_auto">Miglioramento automatico (JPEG)</string>
     <string name="jpeg_mode_bw_text">Bianco e nero (testo) (JPEG)</string>
     <string name="skip_ocr_export_only">Salta OCR (solo esportazione)</string>
-    <string name="btn_pick_image">Scegli immagine</string>
-    <string name="pick_image_cd">Scegli un\'immagine esistente</string>
+    <string name="btn_pick_image">Carica</string>
+    <string name="pick_image_cd">Carica immagine esistente</string>
     <string name="error_selected_file_is_not_an_image">Il file selezionato non è un\'immagine</string>
     
     <!-- Multipage Export (v1 increment) -->
@@ -90,7 +95,7 @@
     <!-- Registry Picker -->
     <string name="picker_title_completed_scans">Scegli dalle scansioni completate</string>
     <string name="picker_empty">Nessuna scansione completata trovata</string>
-    <string name="done">Fatto</string>
+    <string name="done">Avanti</string>
     <string name="thumbnail">Miniatura</string>
 
     <string name="added_pages_from_registry">Aggiunte %1$d pagina/e dal registro</string>
@@ -120,4 +125,7 @@
     <string name="pdf_preset_very_small">Molto piccola (110 dpi, q52)</string>
     <string name="export_options_title">Opzioni di esportazione</string>
     <string name="jpeg_enhancement_title">Miglioramento JPEG</string>
+    <string name="btn_options">Opzioni</string>
+    <string name="btn_save">Salva</string>
+    <string name="btn_new">Nuovo</string>
 </resources>

@@ -88,9 +88,10 @@ public class CropFragment extends Fragment {
                     showReviewMode(bitmap);
                 } else {
                     showCropMode();
-                    binding.imageToCrop.setImageBitmap(bitmap);
+                    Bitmap safe = de.schliweb.makeacopy.utils.BitmapUtils.ensureDisplaySafe(bitmap);
+                    binding.imageToCrop.setImageBitmap(safe);
                     if (binding.trapezoidSelection != null)
-                        binding.trapezoidSelection.setImageBitmap(bitmap);
+                        binding.trapezoidSelection.setImageBitmap(safe);
                     // With a new bitmap, recompute and wire the magnifier mapping
                     tryUpdateMagnifierMapping();
                 }
@@ -236,7 +237,8 @@ public class CropFragment extends Fragment {
         if (binding.trapezoidSelection != null)
             binding.trapezoidSelection.setVisibility(View.GONE);
         binding.croppedImage.setVisibility(View.VISIBLE);
-        binding.croppedImage.setImageBitmap(croppedBitmap);
+        Bitmap safe = de.schliweb.makeacopy.utils.BitmapUtils.ensureDisplaySafe(croppedBitmap);
+        binding.croppedImage.setImageBitmap(safe);
         binding.cropButtonContainer.setVisibility(View.GONE);
         binding.buttonContainer.setVisibility(View.VISIBLE);
         binding.textCrop.setText(R.string.review_your_cropped_image_tap_confirm_to_proceed_or_recrop_to_try_again);
@@ -272,7 +274,10 @@ public class CropFragment extends Fragment {
                 && Boolean.FALSE.equals(cropViewModel.isImageCropped().getValue())) {
             showCropMode();
             Bitmap bitmap = cropViewModel.getImageBitmap().getValue();
-            if (bitmap != null) binding.trapezoidSelection.setImageBitmap(bitmap);
+            if (bitmap != null) {
+                Bitmap safe = de.schliweb.makeacopy.utils.BitmapUtils.ensureDisplaySafe(bitmap);
+                binding.trapezoidSelection.setImageBitmap(safe);
+            }
         }
     }
 

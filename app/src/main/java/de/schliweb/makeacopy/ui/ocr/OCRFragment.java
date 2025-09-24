@@ -73,7 +73,11 @@ public class OCRFragment extends Fragment {
 
         // State-Observer
         ocrViewModel.getState().observe(getViewLifecycleOwner(), state -> {
-            binding.buttonProcess.setEnabled(!state.processing());
+            // Next button is disabled while processing or when nothing to proceed with
+            boolean canProceed = state.imageProcessed() && !state.processing();
+            binding.buttonProcess.setEnabled(canProceed);
+            binding.buttonProcess.setText(R.string.next);
+
             binding.textOcr.setText(state.processing()
                     ? getString(R.string.processing_image)
                     : (state.imageProcessed() ? getString(R.string.ocr_processing_complete_tap_the_button_to_proceed_to_export)
@@ -83,14 +87,8 @@ public class OCRFragment extends Fragment {
                     ? getString(R.string.ocr_results_will_appear_here)
                     : state.ocrText());
 
-            if (state.imageProcessed()) {
-                binding.buttonProcess.setText(R.string.btn_export);
-                binding.buttonProcess.setOnClickListener(v ->
-                        Navigation.findNavController(requireView()).navigate(R.id.navigation_export));
-            } else {
-                binding.buttonProcess.setText(R.string.btn_process);
-                binding.buttonProcess.setOnClickListener(v -> performOCR());
-            }
+            binding.buttonProcess.setOnClickListener(v ->
+                    Navigation.findNavController(requireView()).navigate(R.id.navigation_export));
         });
 
         // Error-Events
@@ -124,6 +122,12 @@ public class OCRFragment extends Fragment {
             UIUtils.adjustMarginForSystemInsets(binding.buttonContainer, 12);
             return insets;
         });
+
+        // Back button navigates to Crop
+        if (binding.buttonBack != null) {
+            binding.buttonBack.setOnClickListener(v ->
+                    Navigation.findNavController(requireView()).navigateUp());
+        }
 
         // select language
         setupLanguageSpinner();

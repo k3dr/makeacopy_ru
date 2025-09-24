@@ -6,6 +6,7 @@ import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.CheckBox;
 import android.widget.RadioButton;
 import android.widget.RadioGroup;
@@ -51,6 +52,7 @@ public class ExportOptionsDialogFragment extends DialogFragment {
     public static final String BUNDLE_CONVERT_TO_GRAYSCALE = "convert_to_grayscale";
     public static final String BUNDLE_JPEG_MODE = "jpeg_mode"; // enum name
     public static final String BUNDLE_PDF_PRESET = "pdf_preset"; // enum name
+    public static final String BUNDLE_CONVERT_TO_BLACKWHITE = "convert_to_blackwhite";
 
     public static void show(@NonNull FragmentManager fm) {
         new ExportOptionsDialogFragment().show(fm, "ExportOptionsDialogFragment");
@@ -64,9 +66,11 @@ public class ExportOptionsDialogFragment extends DialogFragment {
         View view = inflater.inflate(R.layout.dialog_export_options, null);
 
         CheckBox cbIncludeOcr = view.findViewById(R.id.dialog_checkbox_include_ocr);
-        CheckBox cbExportJpeg = view.findViewById(R.id.dialog_checkbox_export_jpeg);
+        RadioButton rbExportPdf = view.findViewById(R.id.dialog_checkbox_export_pdf);
+        RadioButton rbExportJpeg = view.findViewById(R.id.dialog_checkbox_export_jpeg);
         View pdfGroup = view.findViewById(R.id.dialog_pdf_group);
         CheckBox cbGray = view.findViewById(R.id.dialog_checkbox_grayscale);
+        CheckBox cbBw = view.findViewById(R.id.dialog_checkbox_blackwhite);
         RadioGroup pdfPresetGroup = view.findViewById(R.id.dialog_pdf_preset_group);
         RadioButton rbHigh = view.findViewById(R.id.dialog_radio_pdf_high);
         RadioButton rbStandard = view.findViewById(R.id.dialog_radio_pdf_standard);
@@ -83,6 +87,7 @@ public class ExportOptionsDialogFragment extends DialogFragment {
         boolean includeOcr = prefs.getBoolean("include_ocr", false);
         boolean exportAsJpeg = prefs.getBoolean("export_as_jpeg", false);
         boolean toGray = prefs.getBoolean("convert_to_grayscale", false);
+        boolean toBw = prefs.getBoolean("convert_to_blackwhite", false);
         String jpegModeSaved = prefs.getString("jpeg_mode", JpegExportOptions.Mode.AUTO.name());
         JpegExportOptions.Mode jpegMode;
         try {
@@ -93,8 +98,14 @@ public class ExportOptionsDialogFragment extends DialogFragment {
         String presetSaved = prefs.getString("pdf_preset", null);
 
         cbIncludeOcr.setChecked(includeOcr);
-        cbExportJpeg.setChecked(exportAsJpeg);
+        // Initialize format selection from preference (PDF default)
+        if (exportAsJpeg) {
+            rbExportJpeg.setChecked(true);
+        } else {
+            rbExportPdf.setChecked(true);
+        }
         cbGray.setChecked(toGray);
+        if (cbBw != null) cbBw.setChecked(toBw);
 
         // pick default preset if none saved: High for single page, Standard for multi (ExportFragment will compute page count; here fallback Standard)
         PdfQualityPreset preset = presetSaved != null ? PdfQualityPreset.fromName(presetSaved, PdfQualityPreset.STANDARD) : PdfQualityPreset.STANDARD;
@@ -107,9 +118,15 @@ public class ExportOptionsDialogFragment extends DialogFragment {
         else if (jpegMode == JpegExportOptions.Mode.AUTO) rbJpegAuto.setChecked(true);
         else if (jpegMode == JpegExportOptions.Mode.BW_TEXT) rbJpegBw.setChecked(true);
 
-        // Visibility toggle between PDF and JPEG groups
-        updateGroups(cbExportJpeg.isChecked(), pdfGroup, jpegGroup);
-        cbExportJpeg.setOnCheckedChangeListener((buttonView, isChecked) -> updateGroups(isChecked, pdfGroup, jpegGroup));
+        // Visibility toggle between PDF and JPEG groups based on selected format
+        updateGroups(exportAsJpeg, pdfGroup, jpegGroup);
+        RadioGroup formatGroup = view.findViewById(R.id.dialog_format_group);
+        if (formatGroup != null) {
+            formatGroup.setOnCheckedChangeListener((group, checkedId) -> {
+                boolean jpegSelected = checkedId == rbExportJpeg.getId();
+                updateGroups(jpegSelected, pdfGroup, jpegGroup);
+            });
+        }
 
         // JPEG modes use RadioGroup; mutual exclusivity is handled by the group.
 
@@ -119,8 +136,9 @@ public class ExportOptionsDialogFragment extends DialogFragment {
                 .setNegativeButton(R.string.cancel, (d, w) -> d.dismiss())
                 .setPositiveButton(R.string.confirm, (d, w) -> {
                     boolean incOcr = cbIncludeOcr.isChecked();
-                    boolean asJpeg = cbExportJpeg.isChecked();
+                    boolean asJpeg = rbExportJpeg.isChecked();
                     boolean gray = cbGray.isChecked();
+                    boolean bw = cbBw != null && cbBw.isChecked();
 
                     // determine jpeg mode from RadioGroup
                     JpegExportOptions.Mode mode = JpegExportOptions.Mode.AUTO;
@@ -142,6 +160,7 @@ public class ExportOptionsDialogFragment extends DialogFragment {
                             .putBoolean("include_ocr", incOcr)
                             .putBoolean("export_as_jpeg", asJpeg)
                             .putBoolean("convert_to_grayscale", gray)
+                            .putBoolean("convert_to_blackwhite", bw)
                             .putString("jpeg_mode", mode.name())
                             .putString("pdf_preset", sel.name())
                             .apply();
@@ -150,6 +169,7 @@ public class ExportOptionsDialogFragment extends DialogFragment {
                     result.putBoolean(BUNDLE_INCLUDE_OCR, incOcr);
                     result.putBoolean(BUNDLE_EXPORT_AS_JPEG, asJpeg);
                     result.putBoolean(BUNDLE_CONVERT_TO_GRAYSCALE, gray);
+                    result.putBoolean(BUNDLE_CONVERT_TO_BLACKWHITE, bw);
                     result.putString(BUNDLE_JPEG_MODE, mode.name());
                     result.putString(BUNDLE_PDF_PRESET, sel.name());
                     getParentFragmentManager().setFragmentResult(REQUEST_KEY, result);

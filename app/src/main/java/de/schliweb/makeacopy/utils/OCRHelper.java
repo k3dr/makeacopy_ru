@@ -30,6 +30,10 @@ public class OCRHelper {
     private TessBaseAPI tessBaseAPI;
     private String language;
     private boolean isInitialized = false;
+    // Use a fixed Page Segmentation Mode by default to stabilize OCR results
+    private int pageSegMode = TessBaseAPI.PageSegMode.PSM_SINGLE_BLOCK;
+    // Option to reinitialize Tesseract engine per OCR run to avoid internal state carry-over
+    private boolean reinitPerRun = true;
 
     /**
      * Constructs an instance of the OCRHelper class.
@@ -65,7 +69,7 @@ public class OCRHelper {
             }
             applyDefaultsForLanguage(language);
             isInitialized = true;
-            Log.i(TAG, "Tesseract initialized");
+            Log.i(TAG, "Tesseract initialized: lang=" + language + ", psm=" + pageSegMode + ", dpi=" + DEFAULT_DPI);
             return true;
         } catch (Exception e) {
             Log.e(TAG, "Error initializing Tesseract", e);
@@ -101,6 +105,17 @@ public class OCRHelper {
     }
 
     /* ==================== Language / Data ==================== */
+
+    public int getPageSegMode() { return pageSegMode; }
+
+    /**
+     * Enables/disables reinitialization of Tesseract before each OCR run.
+     * Default is true to reduce variability across runs.
+     */
+    public void setReinitPerRun(boolean enable) {
+        this.reinitPerRun = enable;
+        Log.i(TAG, "setReinitPerRun: " + enable);
+    }
 
     /**
      * Sets the language for the OCR engine. If the specified language is null or empty,
@@ -147,7 +162,7 @@ public class OCRHelper {
     public void applyDefaultsForLanguage(String langSpec) {
         if (!isInitialized) return;
         try {
-            tessBaseAPI.setPageSegMode(TessBaseAPI.PageSegMode.PSM_AUTO);
+            tessBaseAPI.setPageSegMode(pageSegMode);
         } catch (Throwable ignored) {
         }
         try {
@@ -162,6 +177,7 @@ public class OCRHelper {
             setWhitelist(OCRWhitelist.getWhitelistForLangSpec(langSpec));
         } catch (Throwable ignored) {
         }
+        Log.i(TAG, "applyDefaultsForLanguage: langSpec=" + langSpec + ", psm=" + pageSegMode + ", dpi=" + DEFAULT_DPI);
     }
 
     /**
@@ -287,11 +303,17 @@ public class OCRHelper {
      *             Refer to the Tesseract documentation for details on available modes.
      */
     public void setPageSegMode(int mode) {
+        this.pageSegMode = mode;
         if (!isInitialized) {
-            Log.e(TAG, "Tesseract not initialized");
+            Log.w(TAG, "setPageSegMode: Engine not initialized yet; will apply on init. psm=" + mode);
             return;
         }
-        tessBaseAPI.setPageSegMode(mode);
+        try {
+            tessBaseAPI.setPageSegMode(mode);
+        } catch (Throwable t) {
+            Log.e(TAG, "Failed to set PSM on engine", t);
+        }
+        Log.i(TAG, "setPageSegMode: applied psm=" + mode);
     }
 
     /**
@@ -377,12 +399,26 @@ public class OCRHelper {
      * is not initialized, the result will contain empty text and default values.
      */
     public OcrResultWords runOcrWithWords(Bitmap bitmap) {
-        if (!isTesseractInitialized()) {
-            Log.e(TAG, "Tesseract not initialized");
+        if (bitmap == null) {
+            Log.e(TAG, "runOcrWithWords: bitmap is null");
             return new OcrResultWords("", null, new ArrayList<>());
         }
         try {
+            // Optionally reinitialize engine to avoid non-deterministic internal state
+            if (!isInitialized) {
+                initTesseract();
+            } else if (reinitPerRun) {
+                Log.i(TAG, "runOcrWithWords: reinitializing engine per run");
+                shutdown();
+                initTesseract();
+            }
+            if (!isInitialized) {
+                Log.e(TAG, "Tesseract not initialized after (re)init");
+                return new OcrResultWords("", null, new ArrayList<>());
+            }
+
             Bitmap src = bitmap.getConfig() == Bitmap.Config.ARGB_8888 ? bitmap : bitmap.copy(Bitmap.Config.ARGB_8888, false);
+            Log.i(TAG, "runOcrWithWords: start OCR lang=" + language + ", psm=" + pageSegMode + ", dpi=" + DEFAULT_DPI + ", img=" + src.getWidth() + "x" + src.getHeight());
 
             tessBaseAPI.setImage(src);
             String text = tessBaseAPI.getUTF8Text();
@@ -390,12 +426,13 @@ public class OCRHelper {
             try {
                 hocr = tessBaseAPI.getHOCRText(0); // Seite 0
             } catch (Throwable t) {
-                Log.e(TAG, "getHOCRText not available", t);
+                Log.w(TAG, "getHOCRText not available", t);
             }
             Integer conf = getMeanConfidenceSafe();
             tessBaseAPI.clear();
 
             List<RecognizedWord> words = parseHocrWords(hocr, conf);
+            Log.i(TAG, "runOcrWithWords: done textLen=" + (text != null ? text.length() : 0) + ", words=" + (words != null ? words.size() : 0) + ", meanConf=" + conf);
             return new OcrResultWords(text, conf, words);
         } catch (Exception e) {
             Log.e(TAG, "Error performing OCR with HOCR", e);

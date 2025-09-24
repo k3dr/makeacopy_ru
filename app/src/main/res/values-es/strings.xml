@@ -8,16 +8,18 @@
     <string name="title_export">Exportar</string>
 
     <!-- Button labels -->
-    <string name="btn_scan">Escanear documento</string>
+    <string name="btn_scan">Escanear</string>
     <string name="btn_crop">Recortar</string>
     <string name="btn_process">Procesar</string>
     <string name="btn_export">Exportar</string>
     <string name="btn_share">Compartir</string>
+    <string name="next">Siguiente</string>
+    <string name="back">Atrás</string>
 
     <!-- Messages -->
     <string name="msg_camera_permission_required">Se requiere el permiso de la cámara para escanear documentos</string>
     <string name="confirm">Confirmar</string>
-    <string name="review_your_scan_tap_confirm_to_proceed_or_retake_to_try_again">Revisa tu escaneo. Toca Confirmar para continuar o Repetir para intentarlo de nuevo.</string>
+    <string name="review_your_scan_tap_confirm_to_proceed_or_retake_to_try_again">Revisa tu escaneo. Toca Siguiente para continuar o Atrás para intentarlo de nuevo.</string>
     <string name="camera_ready_tap_the_button_to_scan_a_document">Cámara lista. Toca el botón para escanear un documento.</string>
     <string name="captured_image">Imagen capturada</string>
     <string name="retake">Repetir</string>
@@ -30,7 +32,7 @@
     <string name="ocr_results_will_appear_here">Los resultados de OCR aparecerán aquí</string>
     <string name="no_image_loaded_capture_an_image_first">No hay imagen cargada. Captura una primero.</string>
     <string name="adjust_the_trapezoid_corners_to_select_the_area_to_crop_then_tap_the_crop_button">Ajusta las esquinas del trapecio para seleccionar el área a recortar y luego toca el botón Recortar.</string>
-    <string name="review_your_cropped_image_tap_confirm_to_proceed_or_recrop_to_try_again">Revisa tu imagen recortada. Toca Confirmar para continuar o Volver a recortar para intentarlo de nuevo.</string>
+    <string name="review_your_cropped_image_tap_confirm_to_proceed_or_recrop_to_try_again">Revisa tu imagen recortada. Toca Siguiente para continuar o Atrás para intentarlo de nuevo.</string>
     <string name="no_document_ready_process_ocr_first">Ningún documento listo. Realiza primero el OCR.</string>
     <string name="document_ready_for_export">Documento listo para exportar</string>
     <string name="processing_image">Procesando la imagen…</string>
@@ -46,10 +48,13 @@
     <string name="error_displaying_image">Error al mostrar la imagen: %1$s</string>
     <string name="error_resetting_camera">Error al restablecer la cámara: %1$s</string>
     <string name="error_toggling_flashlight">Error al activar la linterna: %1$s</string>
+    <string name="error_camera_preview_failed">No se pudo iniciar la vista previa de la cámara. Por favor, inténtalo de nuevo.</string>
 
     <!-- Export options -->
     <string name="convert_to_grayscale">Convertir a escala de grises</string>
+    <string name="convert_to_blackwhite_pdf">Convertir a B/N</string>
     <string name="export_as_jpeg">Exportar como JPEG</string>
+    <string name="export_as_pdf">Exportar como PDF (predeterminado)</string>
 
     <!-- Flashlight options -->
     <string name="toggle_flashlight">Activar/desactivar linterna</string>
@@ -63,8 +68,8 @@
     <string name="jpeg_mode_auto">Mejora automática (JPEG)</string>
     <string name="jpeg_mode_bw_text">Blanco y negro (texto) (JPEG)</string>
     <string name="skip_ocr_export_only">Omitir OCR (solo exportar)</string>
-    <string name="btn_pick_image">Elegir imagen</string>
-    <string name="pick_image_cd">Elegir imagen existente</string>
+    <string name="btn_pick_image">Cargar</string>
+    <string name="pick_image_cd">Cargar imagen existente</string>
     <string name="error_selected_file_is_not_an_image">El archivo seleccionado no es una imagen</string>
     
     <!-- Multipage Export (v1 increment) -->
@@ -90,7 +95,7 @@
     <!-- Registry Picker -->
     <string name="picker_title_completed_scans">Elegir de escaneos completados</string>
     <string name="picker_empty">No se encontraron escaneos completados</string>
-    <string name="done">Listo</string>
+    <string name="done">Siguiente</string>
     <string name="thumbnail">Miniatura</string>
 
     <string name="added_pages_from_registry">Se añadieron %1$d página(s) del registro</string>
@@ -120,4 +125,7 @@
     <string name="pdf_preset_very_small">Muy pequeño (110 dpi, q52)</string>
     <string name="export_options_title">Opciones de exportación</string>
     <string name="jpeg_enhancement_title">Mejora de JPEG</string>
+    <string name="btn_options">Opciones</string>
+    <string name="btn_save">Guardar</string>
+    <string name="btn_new">Nuevo</string>
 </resources>

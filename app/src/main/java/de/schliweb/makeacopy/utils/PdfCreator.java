@@ -1,7 +1,8 @@
 package de.schliweb.makeacopy.utils;
 
 import android.content.Context;
-import android.graphics.*;
+import android.graphics.Bitmap;
+import android.graphics.RectF;
 import android.net.Uri;
 import android.util.Log;
 import com.tom_roush.pdfbox.android.PDFBoxResourceLoader;
@@ -45,11 +46,25 @@ public class PdfCreator {
                                           Uri outputUri,
                                           int jpegQuality,
                                           boolean convertToGrayscale) {
-        // Default 300 dpi behavior
-        return createSearchablePdf(context, bitmap, words, outputUri, jpegQuality, convertToGrayscale, 300);
+        // Backward-compatible overload: no black-and-white flag -> false
+        return createSearchablePdf(context, bitmap, words, outputUri, jpegQuality, convertToGrayscale, false, 300);
+    }
+
+    /**
+     * Creates a searchable PDF from bitmap + OCR words with explicit black-and-white option.
+     */
+    public static Uri createSearchablePdf(Context context,
+                                          Bitmap bitmap,
+                                          List<RecognizedWord> words,
+                                          Uri outputUri,
+                                          int jpegQuality,
+                                          boolean convertToGrayscale,
+                                          boolean convertToBlackWhite) {
+        return createSearchablePdf(context, bitmap, words, outputUri, jpegQuality, convertToGrayscale, convertToBlackWhite, 300);
     }
 
     // Phase 1: Overload with target DPI
+    // Backward-compatible: target DPI overload without BW flag delegates to BW=false
     public static Uri createSearchablePdf(Context context,
                                           Bitmap bitmap,
                                           List<RecognizedWord> words,
@@ -57,11 +72,27 @@ public class PdfCreator {
                                           int jpegQuality,
                                           boolean convertToGrayscale,
                                           int targetDpi) {
+        return createSearchablePdf(context, bitmap, words, outputUri, jpegQuality, convertToGrayscale, false, targetDpi);
+    }
+
+    // Phase 1: Overload with target DPI and black-white flag
+    public static Uri createSearchablePdf(Context context,
+                                          Bitmap bitmap,
+                                          List<RecognizedWord> words,
+                                          Uri outputUri,
+                                          int jpegQuality,
+                                          boolean convertToGrayscale,
+                                          boolean convertToBlackWhite,
+                                          int targetDpi) {
         Log.d(TAG, "createSearchablePdf: uri=" + outputUri + ", words=" + (words == null ? 0 : words.size()));
         if (bitmap == null || outputUri == null) return null;
 
         try {
             PDFBoxResourceLoader.init(context);
+            try {
+                OpenCVUtils.init(context);
+            } catch (Throwable ignore) {
+            }
         } catch (Throwable t) {
             Log.e(TAG, "PDFBox init failed", t);
             return null;
@@ -69,7 +100,11 @@ public class PdfCreator {
 
         Bitmap prepared = null;
         try {
-            prepared = processImageForPdf(bitmap, convertToGrayscale, targetDpi);
+            prepared = processImageForPdf(bitmap, convertToGrayscale, convertToBlackWhite, targetDpi);
+            if (prepared == null) {
+                Log.e(TAG, "Image preparation via OpenCV failed");
+                return null;
+            }
 
             try (PDDocument document = new PDDocument()) {
                 try {
@@ -272,11 +307,16 @@ public class PdfCreator {
 
     private static Bitmap processImageForPdf(Bitmap original, boolean toGray) {
         // Backward-compatible: default to 300 dpi A4 target
-        return processImageForPdf(original, toGray, 300);
+        return processImageForPdf(original, toGray, false, 300);
     }
 
-    // Phase 1: allow target DPI control for A4 placement pre-scaling
+    // Backward-compatible: target DPI control without BW flag
     private static Bitmap processImageForPdf(Bitmap original, boolean toGray, int targetDpi) {
+        return processImageForPdf(original, toGray, false, targetDpi);
+    }
+
+    // New: allow BW conversion with precedence over grayscale
+    private static Bitmap processImageForPdf(Bitmap original, boolean toGray, boolean toBw, int targetDpi) {
         if (original == null) return null;
 
         int[] a4px = a4PixelsForDpi(targetDpi <= 0 ? 300 : targetDpi);
@@ -304,24 +344,29 @@ public class PdfCreator {
             }
         }
 
+        if (toBw) {
+            Bitmap viaCv = OpenCVUtils.toBw(base);
+            if (base != original) {
+                try {
+                    base.recycle();
+                } catch (Throwable ignore) {
+                }
+            }
+            return viaCv; // may be null → caller will handle
+        }
+
         if (!toGray) return base;
 
-        Bitmap gray = Bitmap.createBitmap(base.getWidth(), base.getHeight(), Bitmap.Config.ARGB_8888);
-        Canvas canvas = new Canvas(gray);
-        Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        ColorMatrix cm = new ColorMatrix();
-        cm.setSaturation(0);
-        paint.setColorFilter(new ColorMatrixColorFilter(cm));
-        canvas.drawBitmap(base, 0, 0, paint);
-
+        Bitmap viaCvGray = OpenCVUtils.toGray(base);
         if (base != original) {
             try {
                 base.recycle();
             } catch (Throwable ignore) {
             }
         }
-        return gray;
+        return viaCvGray; // may be null → caller will handle
     }
+
 
     private static int[] a4PixelsForDpi(int dpi) {
         // A4 size in inches: 8.27 x 11.69
@@ -361,7 +406,19 @@ public class PdfCreator {
                                           Uri outputUri,
                                           int jpegQuality,
                                           boolean convertToGrayscale) {
-        return createSearchablePdf(context, bitmaps, perPageWords, outputUri, jpegQuality, convertToGrayscale, null);
+        // Backward-compatible: no BW flag
+        return createSearchablePdf(context, bitmaps, perPageWords, outputUri, jpegQuality, convertToGrayscale, false);
+    }
+
+    public static Uri createSearchablePdf(Context context,
+                                          List<Bitmap> bitmaps,
+                                          List<List<RecognizedWord>> perPageWords,
+                                          Uri outputUri,
+                                          int jpegQuality,
+                                          boolean convertToGrayscale,
+                                          boolean convertToBlackWhite) {
+        // Default 300 dpi behavior
+        return createSearchablePdf(context, bitmaps, perPageWords, outputUri, jpegQuality, convertToGrayscale, convertToBlackWhite, 300, null);
     }
 
     public static Uri createSearchablePdf(Context context,
@@ -371,8 +428,8 @@ public class PdfCreator {
                                           int jpegQuality,
                                           boolean convertToGrayscale,
                                           ProgressListener listener) {
-        // Default 300 dpi behavior
-        return createSearchablePdf(context, bitmaps, perPageWords, outputUri, jpegQuality, convertToGrayscale, 300, listener);
+        // Default 300 dpi behavior without BW flag
+        return createSearchablePdf(context, bitmaps, perPageWords, outputUri, jpegQuality, convertToGrayscale, false, 300, listener);
     }
 
     // Phase 1: Overload with target DPI + progress listener
@@ -384,9 +441,25 @@ public class PdfCreator {
                                           boolean convertToGrayscale,
                                           int targetDpi,
                                           ProgressListener listener) {
+        return createSearchablePdf(context, bitmaps, perPageWords, outputUri, jpegQuality, convertToGrayscale, false, targetDpi, listener);
+    }
+
+    public static Uri createSearchablePdf(Context context,
+                                          List<Bitmap> bitmaps,
+                                          List<List<RecognizedWord>> perPageWords,
+                                          Uri outputUri,
+                                          int jpegQuality,
+                                          boolean convertToGrayscale,
+                                          boolean convertToBlackWhite,
+                                          int targetDpi,
+                                          ProgressListener listener) {
         if (bitmaps == null || bitmaps.isEmpty() || outputUri == null) return null;
         try {
             PDFBoxResourceLoader.init(context);
+            try {
+                OpenCVUtils.init(context);
+            } catch (Throwable ignore) {
+            }
         } catch (Throwable t) {
             Log.e(TAG, "PDFBox init failed", t);
             return null;
@@ -418,7 +491,11 @@ public class PdfCreator {
                 }
                 Bitmap prepared = null;
                 try {
-                    prepared = processImageForPdf(src, convertToGrayscale, targetDpi);
+                    prepared = processImageForPdf(src, convertToGrayscale, convertToBlackWhite, targetDpi);
+                    if (prepared == null) {
+                        Log.e(TAG, "Image preparation via OpenCV failed for page " + (i + 1));
+                        return null;
+                    }
 
                     PDPage page = new PDPage(pageSize);
                     document.addPage(page);

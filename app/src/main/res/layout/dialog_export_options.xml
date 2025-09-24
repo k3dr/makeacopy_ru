@@ -15,11 +15,25 @@
             android:layout_height="wrap_content"
             android:text="@string/include_ocr_text" />
 
-        <CheckBox
-            android:id="@+id/dialog_checkbox_export_jpeg"
+        <RadioGroup
+            android:id="@+id/dialog_format_group"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="@string/export_as_jpeg" />
+            android:orientation="vertical">
+
+            <RadioButton
+                android:id="@+id/dialog_checkbox_export_pdf"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:checked="true"
+                android:text="@string/export_as_pdf" />
+
+            <RadioButton
+                android:id="@+id/dialog_checkbox_export_jpeg"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/export_as_jpeg" />
+        </RadioGroup>
 
         <!-- PDF options group (shown when NOT exporting as JPEG) -->
         <LinearLayout
@@ -30,16 +44,22 @@
             android:paddingTop="8dp"
             android:visibility="visible">
 
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/pdf_quality_title" />
+
             <CheckBox
                 android:id="@+id/dialog_checkbox_grayscale"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="@string/convert_to_grayscale" />
 
-            <TextView
+            <CheckBox
+                android:id="@+id/dialog_checkbox_blackwhite"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="@string/pdf_quality_title" />
+                android:text="@string/convert_to_blackwhite_pdf" />
 
             <RadioGroup
                 android:id="@+id/dialog_pdf_preset_group"

@@ -93,25 +93,38 @@
                 android:contentDescription="@string/toggle_flashlight"
                 android:src="@drawable/ic_flash_off"/>
 
-        <!-- Scan -->
-        <Button
-                android:id="@+id/button_scan"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="@string/btn_scan"/>
-
-        <Space
-                android:layout_width="16dp"
-                android:layout_height="0dp" />
-
+        <!-- Pick Image (Left) -->
         <Button
                 android:id="@+id/button_pick_image"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:text="@string/btn_pick_image"
-                android:contentDescription="@string/pick_image_cd"/>
+                android:contentDescription="@string/pick_image_cd"
+                android:maxLines="1"
+                android:ellipsize="end"
+                app:autoSizeTextType="uniform"
+                app:autoSizeMinTextSize="10sp"
+                app:autoSizeMaxTextSize="16sp"
+                app:autoSizeStepGranularity="1sp"/>
+
+        <Space
+                android:layout_width="16dp"
+                android:layout_height="0dp" />
+
+        <!-- Scan (Right) -->
+        <Button
+                android:id="@+id/button_scan"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/btn_scan"
+                android:maxLines="1"
+                android:ellipsize="end"
+                app:autoSizeTextType="uniform"
+                app:autoSizeMinTextSize="10sp"
+                app:autoSizeMaxTextSize="16sp"
+                app:autoSizeStepGranularity="1sp"/>
     </LinearLayout>
 
     <!-- Review-Buttons -->
@@ -138,14 +151,26 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:layout_marginEnd="12dp"
-                android:text="@string/retake"/>
+                android:text="@string/back"
+                android:maxLines="1"
+                android:ellipsize="end"
+                app:autoSizeTextType="uniform"
+                app:autoSizeMinTextSize="10sp"
+                app:autoSizeMaxTextSize="16sp"
+                app:autoSizeStepGranularity="1sp"/>
 
         <Button
                 android:id="@+id/button_confirm"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="@string/confirm"/>
+                android:text="@string/next"
+                android:maxLines="1"
+                android:ellipsize="end"
+                app:autoSizeTextType="uniform"
+                app:autoSizeMinTextSize="10sp"
+                app:autoSizeMaxTextSize="16sp"
+                app:autoSizeStepGranularity="1sp"/>
     </LinearLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

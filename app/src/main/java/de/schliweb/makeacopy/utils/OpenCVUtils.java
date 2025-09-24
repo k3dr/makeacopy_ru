@@ -362,6 +362,57 @@ public class OpenCVUtils {
     }
 
     /**
+     * Converts a given color {@link Bitmap} image to a grayscale {@link Bitmap}.
+     *
+     * @param src the source {@link Bitmap} to be converted; must be non-null and not recycled
+     * @return a new {@link Bitmap} object in grayscale, or null if the conversion fails
+     */
+    public static Bitmap toGray(Bitmap src) {
+        if (src == null || src.isRecycled()) return null;
+        Mat rgba = new Mat();
+        Mat gray = new Mat();
+        try {
+            Utils.bitmapToMat(src, rgba);
+            Imgproc.cvtColor(rgba, gray, Imgproc.COLOR_RGBA2GRAY);
+            Bitmap out = Bitmap.createBitmap(src.getWidth(), src.getHeight(), Bitmap.Config.ARGB_8888);
+            Utils.matToBitmap(gray, out);
+            return out;
+        } catch (Throwable t) {
+            Log.d(TAG, "toGray failed: " + t.getMessage());
+            return null;
+        } finally {
+            release(rgba, gray);
+        }
+    }
+
+    /**
+     * Converts the given bitmap to a binary (black and white) image using Otsu's thresholding method.
+     *
+     * @param src The source bitmap to be converted. Must not be null or recycled.
+     * @return A new bitmap representing the binary (black and white) image, or null if the source
+     * bitmap is invalid or an error occurs during conversion.
+     */
+    public static Bitmap toBw(Bitmap src) {
+        if (src == null || src.isRecycled()) return null;
+        Mat rgba = new Mat();
+        Mat gray = new Mat();
+        Mat bw = new Mat();
+        try {
+            Utils.bitmapToMat(src, rgba);
+            Imgproc.cvtColor(rgba, gray, Imgproc.COLOR_RGBA2GRAY);
+            Imgproc.threshold(gray, bw, 0, 255, Imgproc.THRESH_BINARY | Imgproc.THRESH_OTSU);
+            Bitmap out = Bitmap.createBitmap(src.getWidth(), src.getHeight(), Bitmap.Config.ARGB_8888);
+            Utils.matToBitmap(bw, out);
+            return out;
+        } catch (Throwable t) {
+            Log.d(TAG, "toBw failed: " + t.getMessage());
+            return null;
+        } finally {
+            release(rgba, gray, bw);
+        }
+    }
+
+    /**
      * Executes inference on the provided input tensor using the ONNX runtime.
      * The input tensor is expected to be in BGR format and NCHW order.
      *

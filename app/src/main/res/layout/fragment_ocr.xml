@@ -67,7 +67,7 @@
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent" />
 
-    <!-- Button-Container -->
+    <!-- Bottom button bar (mirror CropFragment positioning) -->
     <LinearLayout
             android:id="@+id/button_container"
             android:layout_width="match_parent"
@@ -85,9 +85,18 @@
             app:layout_constraintEnd_toEndOf="parent">
 
         <Button
-                android:id="@+id/button_process"
-                android:layout_width="wrap_content"
+                android:id="@+id/button_back"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:text="@string/btn_process"/>
+                android:layout_weight="1"
+                android:layout_marginEnd="12dp"
+                android:text="@string/back"/>
+
+        <Button
+                android:id="@+id/button_process"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/next"/>
     </LinearLayout>
 </androidx.constraintlayout.widget.ConstraintLayout>

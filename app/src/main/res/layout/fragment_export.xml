@@ -75,6 +75,18 @@
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintBottom_toTopOf="@id/export_options_group">
 
+        <!-- Options (gear) to the left of Plus -->
+        <ImageButton
+                android:id="@+id/button_options"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:padding="8dp"
+                android:contentDescription="@string/btn_options"
+                android:src="@drawable/ic_build"
+                app:tint="?attr/colorControlNormal"
+                android:background="@android:color/transparent"/>
+
         <ImageButton
                 android:id="@+id/button_add_page"
                 android:layout_width="0dp"
@@ -105,38 +117,71 @@
             android:layout_height="wrap_content"
             android:orientation="vertical"
             android:background="@color/button_container_background"
-            android:padding="16dp"
+            android:padding="12dp"
             android:elevation="8dp"
+            android:layout_marginStart="16dp"
+            android:layout_marginEnd="16dp"
+            android:layout_marginBottom="8dp"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent">
 
-        <!-- Button Container for Export and Share -->
+        <!-- Button Container for Options, Export and Share -->
         <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="16dp"
+                android:layout_marginBottom="16dp"
                 android:orientation="horizontal">
-                
-            <!-- Export-Button -->
+
+
+            <!-- Back-Button (New) -->
             <Button
-                    android:id="@+id/button_export"
+                    android:id="@+id/button_back"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:layout_marginEnd="4dp"
-                    android:text="@string/btn_export"
-                    android:enabled="false" />
-                    
-            <!-- Share-Button -->
+                    android:text="@string/btn_new"
+                    android:maxLines="1"
+                    android:ellipsize="end"
+                    app:autoSizeTextType="uniform"
+                    app:autoSizeMinTextSize="10sp"
+                    app:autoSizeMaxTextSize="16sp"
+                    app:autoSizeStepGranularity="1sp" />
+
+            <!-- Share-Button (Middle) -->
             <Button
                     android:id="@+id/button_share"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:layout_marginStart="4dp"
+                    android:layout_marginEnd="4dp"
                     android:text="@string/btn_share"
-                    android:enabled="false" />
+                    android:enabled="false"
+                    android:maxLines="1"
+                    android:ellipsize="end"
+                    app:autoSizeTextType="uniform"
+                    app:autoSizeMinTextSize="10sp"
+                    app:autoSizeMaxTextSize="16sp"
+                    app:autoSizeStepGranularity="1sp" />
+
+            <!-- Export-Button (Right) -->
+            <Button
+                    android:id="@+id/button_export"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginStart="4dp"
+                    android:text="@string/btn_save"
+                    android:enabled="false"
+                    android:maxLines="1"
+                    android:ellipsize="end"
+                    app:autoSizeTextType="uniform"
+                    app:autoSizeMinTextSize="10sp"
+                    app:autoSizeMaxTextSize="16sp"
+                    app:autoSizeStepGranularity="1sp" />
         </LinearLayout>
 
         <!-- Progress indicator for long exports (multi-page PDF/JPEG) -->

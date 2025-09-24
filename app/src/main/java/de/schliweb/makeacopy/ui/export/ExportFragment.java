@@ -129,6 +129,70 @@ public class ExportFragment extends Fragment {
     }
 
     /**
+     * Renders the preview image based on user-selected options such as grayscale, black-and-white, or JPEG BW mode.
+     * This method fetches user preferences for export options, processes the provided bitmap accordingly,
+     * and updates the preview image in the user interface.
+     *
+     * @param source The source bitmap image to be processed and displayed in the preview.
+     */
+    private void renderPreview(Bitmap source) {
+        if (binding == null || binding.documentPreview == null || source == null) return;
+        try {
+            Context ctx = requireContext();
+            android.content.SharedPreferences prefs = ctx.getSharedPreferences("export_options", Context.MODE_PRIVATE);
+            boolean toGray = prefs.getBoolean("convert_to_grayscale", false);
+            boolean toBw = prefs.getBoolean("convert_to_blackwhite", false);
+            boolean exportAsJpeg = prefs.getBoolean("export_as_jpeg", false);
+
+            if (exportAsJpeg) {
+                // If JPEG BW_TEXT mode is selected, prefer showing BW preview
+                try {
+                    JpegExportOptions.Mode mode = JpegExportOptions.Mode.valueOf(prefs.getString("jpeg_mode", JpegExportOptions.Mode.AUTO.name()));
+                    if (mode == JpegExportOptions.Mode.BW_TEXT) {
+                        toBw = true;
+                    }
+                } catch (Exception ignored) {
+                }
+            }
+
+            Bitmap safe = de.schliweb.makeacopy.utils.BitmapUtils.ensureDisplaySafe(source);
+            Bitmap out = safe;
+
+            if (toBw || toGray) {
+                // Initialize OpenCV if needed for conversion helpers
+                try {
+                    if (!de.schliweb.makeacopy.utils.OpenCVUtils.isInitialized()) {
+                        de.schliweb.makeacopy.utils.OpenCVUtils.init(ctx.getApplicationContext());
+                    }
+                } catch (Throwable t) {
+                    // If initialization fails, fall back to showing the original
+                }
+                try {
+                    if (toBw) {
+                        Bitmap bw = de.schliweb.makeacopy.utils.OpenCVUtils.toBw(safe);
+                        if (bw != null) out = bw;
+                    } else if (toGray) {
+                        Bitmap gr = de.schliweb.makeacopy.utils.OpenCVUtils.toGray(safe);
+                        if (gr != null) out = gr;
+                    }
+                } catch (Throwable ignored) {
+                }
+            }
+
+            binding.documentPreview.setImageBitmap(out);
+            binding.documentPreview.setVisibility(View.VISIBLE);
+        } catch (Throwable ignore) {
+            // As a last resort, keep previous image state
+        }
+    }
+
+    private void renderPreviewFromCurrent() {
+        if (exportViewModel == null) return;
+        Bitmap cur = exportViewModel.getDocumentBitmap().getValue();
+        if (cur != null) renderPreview(cur);
+    }
+
+    /**
      * Creates and initializes the view hierarchy associated with this fragment.
      * This method handles view inflation, view model setup, event listeners, and initializes
      * shared preferences for maintaining user selections.
@@ -201,6 +265,15 @@ public class ExportFragment extends Fragment {
             });
         }
 
+        // Back button: navigate to OCR (if not skipping OCR) or Crop (if skipping OCR)
+        View backBtn = root.findViewById(R.id.button_back);
+        if (backBtn != null) {
+            backBtn.setOnClickListener(v -> {
+                // Delegate to the same back handling as system Back to ensure identical behavior
+                requireActivity().getOnBackPressedDispatcher().onBackPressed();
+            });
+        }
+
         cropViewModel = new ViewModelProvider(requireActivity()).get(CropViewModel.class);
         ocrViewModel = new ViewModelProvider(requireActivity()).get(OCRViewModel.class);
         cameraViewModel = new ViewModelProvider(requireActivity()).get(CameraViewModel.class);
@@ -235,14 +308,18 @@ public class ExportFragment extends Fragment {
                     // Apply rotation for preview if needed
                     if (bmp != null) {
                         int deg = 0;
-                        try { deg = sel.rotationDeg(); } catch (Throwable ignore) {}
+                        try {
+                            deg = sel.rotationDeg();
+                        } catch (Throwable ignore) {
+                        }
                         if (deg % 360 != 0) {
                             try {
                                 android.graphics.Matrix m = new android.graphics.Matrix();
                                 m.postRotate(deg);
                                 Bitmap rotated = android.graphics.Bitmap.createBitmap(bmp, 0, 0, bmp.getWidth(), bmp.getHeight(), m, true);
                                 if (rotated != null) bmp = rotated;
-                            } catch (Throwable ignore) {}
+                            } catch (Throwable ignore) {
+                            }
                         }
                     }
                 } catch (Throwable t) {
@@ -303,7 +380,8 @@ public class ExportFragment extends Fragment {
             }
             // Show "Clear all" only when more than one page exists
             if (binding.buttonClearPages != null) {
-                binding.buttonClearPages.setVisibility(n > 1 ? View.VISIBLE : View.GONE);
+                // Keep the button slot occupied to maintain fixed placement (Settings left, Plus center, Trash right)
+                binding.buttonClearPages.setVisibility(n > 1 ? View.VISIBLE : View.INVISIBLE);
             }
             // If current preview points to a removed page, auto-select a remaining one
             Bitmap curPreview = exportViewModel.getDocumentBitmap().getValue();
@@ -662,31 +740,45 @@ public class ExportFragment extends Fragment {
         // No inline option listeners: options are managed exclusively via ExportOptionsDialogFragment.
 
         binding.buttonExport.setOnClickListener(v -> {
-            // Show dedicated export options dialog instead of inline selection
-            getParentFragmentManager().setFragmentResultListener(ExportOptionsDialogFragment.REQUEST_KEY, getViewLifecycleOwner(), (requestKey, bundle) -> {
-                // Apply selections from dialog to ViewModel only (no inline UI updates)
-                boolean includeOcrSel = bundle.getBoolean(ExportOptionsDialogFragment.BUNDLE_INCLUDE_OCR, false);
-                boolean exportAsJpegSel = bundle.getBoolean(ExportOptionsDialogFragment.BUNDLE_EXPORT_AS_JPEG, false);
-                boolean graySel = bundle.getBoolean(ExportOptionsDialogFragment.BUNDLE_CONVERT_TO_GRAYSCALE, false);
-                // Persisted choices like jpeg_mode and pdf_preset are already saved by the dialog to SharedPreferences
+            // Use last saved options directly to save a click
+            Context ctx = requireContext();
+            android.content.SharedPreferences p = ctx.getSharedPreferences("export_options", Context.MODE_PRIVATE);
+            boolean includeOcrSel = p.getBoolean("include_ocr", false);
+            boolean exportAsJpegSel = p.getBoolean("export_as_jpeg", false);
+            boolean graySel = p.getBoolean("convert_to_grayscale", false);
 
-                // Update ViewModel
-                exportViewModel.setIncludeOcr(includeOcrSel);
-                exportViewModel.setConvertToGrayscale(graySel);
-                exportViewModel.setExportFormat(exportAsJpegSel ? "JPEG" : "PDF");
+            // Update ViewModel to reflect the options used for this export
+            exportViewModel.setIncludeOcr(includeOcrSel);
+            exportViewModel.setConvertToGrayscale(graySel);
+            exportViewModel.setExportFormat(exportAsJpegSel ? "JPEG" : "PDF");
 
-                // Now go to file location selection
-                if (exportAsJpegSel) {
-                    selectJpegFileLocation();
-                } else {
-                    selectFileLocation();
-                }
-
-                // Remove listener after one-time use in this click
-                getParentFragmentManager().clearFragmentResultListener(ExportOptionsDialogFragment.REQUEST_KEY);
-            });
-            ExportOptionsDialogFragment.show(getParentFragmentManager());
+            // Proceed to file location selection based on format
+            if (exportAsJpegSel) {
+                selectJpegFileLocation();
+            } else {
+                selectFileLocation();
+            }
         });
+
+        // Options button opens the export options dialog without starting export
+        if (binding.buttonOptions != null) {
+            binding.buttonOptions.setOnClickListener(v -> {
+                getParentFragmentManager().setFragmentResultListener(ExportOptionsDialogFragment.REQUEST_KEY, getViewLifecycleOwner(), (requestKey, bundle) -> {
+                    // Update ViewModel with new choices for immediate feedback and re-render preview
+                    boolean includeOcrSel = bundle.getBoolean(ExportOptionsDialogFragment.BUNDLE_INCLUDE_OCR, false);
+                    boolean exportAsJpegSel = bundle.getBoolean(ExportOptionsDialogFragment.BUNDLE_EXPORT_AS_JPEG, false);
+                    boolean graySel = bundle.getBoolean(ExportOptionsDialogFragment.BUNDLE_CONVERT_TO_GRAYSCALE, false);
+                    exportViewModel.setIncludeOcr(includeOcrSel);
+                    exportViewModel.setConvertToGrayscale(graySel);
+                    exportViewModel.setExportFormat(exportAsJpegSel ? "JPEG" : "PDF");
+                    // Re-render preview to reflect grayscale/BW selections immediately
+                    renderPreviewFromCurrent();
+                    // No export kickoff here
+                    getParentFragmentManager().clearFragmentResultListener(ExportOptionsDialogFragment.REQUEST_KEY);
+                });
+                ExportOptionsDialogFragment.show(getParentFragmentManager());
+            });
+        }
         binding.buttonShare.setOnClickListener(v -> shareDocument());
 
         ViewCompat.setOnApplyWindowInsetsListener(root, (v, insets) -> {
@@ -704,8 +796,7 @@ public class ExportFragment extends Fragment {
 
         exportViewModel.getDocumentBitmap().observe(getViewLifecycleOwner(), bitmap -> {
             if (bitmap != null) {
-                binding.documentPreview.setImageBitmap(bitmap);
-                binding.documentPreview.setVisibility(View.VISIBLE);
+                renderPreview(bitmap);
             } else {
                 binding.documentPreview.setVisibility(View.INVISIBLE);
             }
@@ -815,9 +906,11 @@ public class ExportFragment extends Fragment {
             try {
                 // Determine PDF quality preset from SharedPreferences (set by dialog)
                 de.schliweb.makeacopy.utils.PdfQualityPreset preset;
+                boolean convertBwEffective = false;
                 try {
                     android.content.SharedPreferences p = requireContext().getSharedPreferences("export_options", Context.MODE_PRIVATE);
                     String presetSaved = p.getString("pdf_preset", null);
+                    convertBwEffective = p.getBoolean("convert_to_blackwhite", false);
                     java.util.List<de.schliweb.makeacopy.ui.export.session.CompletedScan> pgs = exportSessionViewModel != null ? exportSessionViewModel.getPages().getValue() : null;
                     int pageCount = (pgs == null) ? 0 : pgs.size();
                     de.schliweb.makeacopy.utils.PdfQualityPreset def = (pageCount > 1) ? de.schliweb.makeacopy.utils.PdfQualityPreset.STANDARD : de.schliweb.makeacopy.utils.PdfQualityPreset.HIGH;
@@ -920,6 +1013,7 @@ public class ExportFragment extends Fragment {
                             selectedLocation,
                             jpegQuality,
                             convertGrayEffective,
+                            convertBwEffective,
                             preset.targetDpi,
                             (pageIndex, total) -> postToUiSafe(() -> exportViewModel.setExportProgress(pageIndex))
                     );
@@ -972,6 +1066,7 @@ public class ExportFragment extends Fragment {
                                 selectedLocation,
                                 jpegQuality,
                                 convertGrayEffective,
+                                convertBwEffective,
                                 preset.targetDpi
                         );
                     } finally {

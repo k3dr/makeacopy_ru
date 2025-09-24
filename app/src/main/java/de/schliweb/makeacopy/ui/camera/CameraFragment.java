@@ -25,7 +25,9 @@ import androidx.activity.OnBackPressedCallback;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
+import androidx.annotation.OptIn;
 import androidx.appcompat.app.AlertDialog;
+import androidx.camera.camera2.interop.ExperimentalCamera2Interop;
 import androidx.camera.core.*;
 import androidx.camera.lifecycle.ProcessCameraProvider;
 import androidx.camera.view.PreviewView;
@@ -378,127 +380,285 @@ public class CameraFragment extends Fragment implements SensorEventListener {
     }
 
     /**
-     * Initializes the camera and configures the necessary use cases such as preview and image capture.
-     * This method ensures that the camera is correctly set up and bound to the fragment's lifecycle.
-     * It handles different scenarios, such as verifying prerequisites, initializing the required
-     * camera components, and managing orientation changes.
+     * Retrieves the value of a system property identified by the given key.
+     * If the property is not found, the specified default value is returned.
+     *
+     * @param key the name of the system property to retrieve
+     * @param def the default value to return if the system property is not found
+     * @return the value of the system property, or the default value if not found
+     */
+    private static String getSystemProperty(String key, String def) {
+        try {
+            Class<?> sp = Class.forName("android.os.SystemProperties");
+            return (String) sp.getMethod("get", String.class, String.class).invoke(null, key, def);
+        } catch (Throwable t) {
+            return def;
+        }
+    }
+
+    /**
+     * Extracts and returns the major version number from the EMUI version string.
+     * The EMUI version string is retrieved from the system property "ro.build.version.emui".
+     * If the version string is not in a recognizable format or is unavailable, -1 is returned.
+     *
+     * @return The major version number of EMUI, or -1 if the version string is invalid or unavailable.
+     */
+    private static int getEmuiMajor() {
+        // Examples: "EmotionUI_10.1.0", "EmotionUI_11.0.0"
+        String emui = getSystemProperty("ro.build.version.emui", "");
+        if (emui == null) return -1;
+        // extract first number after underscore
+        int us = emui.indexOf('_');
+        if (us >= 0 && us + 1 < emui.length()) {
+            String rest = emui.substring(us + 1);
+            String num = rest.split("\\.")[0];
+            try {
+                return Integer.parseInt(num);
+            } catch (NumberFormatException ignored) {
+            }
+        }
+        return -1;
+    }
+
+    /**
+     * Determines if the current device is a Huawei device running EMUI 10
+     * and is part of specific device families such as P30 or P40.
+     * <p>
+     * The method checks the manufacturer and model strings to confirm the device
+     * is a Huawei device and matches the patterns for P30 or P40 series. Additionally,
+     * it validates that the EMUI version is 10.
+     *
+     * @return true if the device is a Huawei device from the P30 or P40 family running EMUI 10,
+     * false otherwise.
+     */
+    private boolean isHuaweiEmui10QuirkDevice() {
+        String manufacturer = android.os.Build.MANUFACTURER;
+        String model = android.os.Build.MODEL;
+        if (manufacturer == null || model == null) return false;
+        if (!manufacturer.equalsIgnoreCase("HUAWEI")) return false;
+        String m = model.toUpperCase(Locale.ROOT);
+        boolean isP30Fam = m.contains("ELE-") || m.contains("VOG-"); // P30 / P30 Pro
+        boolean isP40Fam = m.contains("ANA-") || m.contains("ELS-") || m.contains("JNY-"); // P40 / Pro / Lite
+        int emui = getEmuiMajor();
+        return (isP30Fam || isP40Fam) && emui == 10;
+    }
+
+    private Preview preview; // make field to update rotation later
+
+    private boolean streamObserverAttached = false;
+
+    private boolean alreadyReboundCompatibleOnce = false;
+
+    /**
+     * Binds the camera use cases to the lifecycle and configures the preview and image capture
+     * settings. Includes setup for target aspect ratio, rotation and FPS range adjustments using
+     * Camera2 interop. Handles fallback to compatible preview mode if needed.
+     *
+     * @param forceCompatiblePreview Flag to force the use of compatible preview mode. If true, the
+     *                               viewfinder's implementation mode is set to compatible; otherwise,
+     *                               it is set to performance. This parameter is used during binding
+     *                               retries when initial binding fails.
+     */
+    @OptIn(markerClass = ExperimentalCamera2Interop.class)
+    private void bindUseCases(boolean forceCompatiblePreview) {
+        if (binding == null || cameraProvider == null || !isAdded()) return;
+
+        if (!forceCompatiblePreview) alreadyReboundCompatibleOnce = false;
+
+        // 1) ImplementationMode vor SurfaceProvider setzen
+        if (forceCompatiblePreview) {
+            binding.viewFinder.setImplementationMode(PreviewView.ImplementationMode.COMPATIBLE);
+        } else {
+            binding.viewFinder.setImplementationMode(PreviewView.ImplementationMode.PERFORMANCE);
+        }
+        binding.viewFinder.setScaleType(PreviewView.ScaleType.FIT_CENTER);
+
+        int rotation = getViewFinderRotation();
+
+        boolean useConservativeRes = forceCompatiblePreview || isHuaweiEmui10QuirkDevice();
+
+        // 2) Conservative FPS via Camera2Interop
+
+        // Use ResolutionSelector to avoid deprecated setTargetAspectRatio()/setTargetResolution()
+        androidx.camera.core.resolutionselector.ResolutionSelector.Builder rsBuilderPreview =
+                new androidx.camera.core.resolutionselector.ResolutionSelector.Builder()
+                        .setAspectRatioStrategy(
+                                new androidx.camera.core.resolutionselector.AspectRatioStrategy(
+                                        AspectRatio.RATIO_4_3,
+                                        androidx.camera.core.resolutionselector.AspectRatioStrategy.FALLBACK_RULE_AUTO
+                                )
+                        );
+        androidx.camera.core.resolutionselector.ResolutionSelector.Builder rsBuilderCapture =
+                new androidx.camera.core.resolutionselector.ResolutionSelector.Builder()
+                        .setAspectRatioStrategy(
+                                new androidx.camera.core.resolutionselector.AspectRatioStrategy(
+                                        AspectRatio.RATIO_4_3,
+                                        androidx.camera.core.resolutionselector.AspectRatioStrategy.FALLBACK_RULE_AUTO
+                                )
+                        );
+
+        if (useConservativeRes) {
+            // Prefer 1440x1080 in conservative mode; fall back to the closest lower, then higher
+            android.util.Size preferred = new android.util.Size(1440, 1080);
+            rsBuilderPreview.setResolutionStrategy(
+                    new androidx.camera.core.resolutionselector.ResolutionStrategy(
+                            preferred,
+                            androidx.camera.core.resolutionselector.ResolutionStrategy.FALLBACK_RULE_CLOSEST_LOWER_THEN_HIGHER
+                    )
+            );
+            rsBuilderCapture.setResolutionStrategy(
+                    new androidx.camera.core.resolutionselector.ResolutionStrategy(
+                            preferred,
+                            androidx.camera.core.resolutionselector.ResolutionStrategy.FALLBACK_RULE_CLOSEST_LOWER_THEN_HIGHER
+                    )
+            );
+        }
+
+        androidx.camera.core.resolutionselector.ResolutionSelector previewSelector = rsBuilderPreview.build();
+        androidx.camera.core.resolutionselector.ResolutionSelector captureSelector = rsBuilderCapture.build();
+
+        Preview.Builder previewBuilder = new Preview.Builder()
+                .setResolutionSelector(previewSelector)
+                .setTargetRotation(rotation);
+
+        ImageCapture.Builder captureBuilder = new ImageCapture.Builder()
+                .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
+                .setResolutionSelector(captureSelector)
+                .setTargetRotation(rotation);
+
+        androidx.camera.camera2.interop.Camera2Interop.Extender<Preview> pExt =
+                new androidx.camera.camera2.interop.Camera2Interop.Extender<>(previewBuilder);
+        androidx.camera.camera2.interop.Camera2Interop.Extender<ImageCapture> cExt =
+                new androidx.camera.camera2.interop.Camera2Interop.Extender<>(captureBuilder);
+
+        // AE_TARGET_FPS_RANGE = 15–30 (adjust if needed)
+        android.util.Range<Integer> fps = new android.util.Range<>(15, 30);
+        pExt.setCaptureRequestOption(android.hardware.camera2.CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, fps);
+        cExt.setCaptureRequestOption(android.hardware.camera2.CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, fps);
+
+        imageCapture = captureBuilder
+                //.setJpegQuality(90) // optional
+                .build();
+
+        preview = previewBuilder.build();
+
+        CameraSelector cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA;
+
+        try {
+            cameraProvider.unbindAll();
+            camera = cameraProvider.bindToLifecycle(getViewLifecycleOwner(), cameraSelector, preview, imageCapture);
+            preview.setSurfaceProvider(binding.viewFinder.getSurfaceProvider());
+        } catch (IllegalArgumentException e) {
+            Log.e(TAG, "bindToLifecycle failed: " + e.getMessage(), e);
+            // Last resort: try compatible once
+            if (!forceCompatiblePreview) {
+                bindUseCases(true);
+                return;
+            }
+            throw e;
+        }
+
+        // 3) Orientation listener updates BOTH capture + preview
+        if (orientationListener == null) {
+            orientationListener = new OrientationEventListener(requireContext()) {
+                @Override
+                public void onOrientationChanged(int orientation) {
+                    if (!isAdded() || imageCapture == null || binding == null) return;
+                    int rot = getViewFinderRotation();
+                    try {
+                        imageCapture.setTargetRotation(rot);
+                        if (preview != null) preview.setTargetRotation(rot);
+                    } catch (Exception ignored) {
+                    }
+                }
+            };
+            orientationListener.enable();
+        }
+
+        // 4) StreamState-Watchdog: wenn nach 1500ms nicht STREAMING -> COMPATIBLE Rebind
+        if (!streamObserverAttached) {
+            binding.viewFinder.getPreviewStreamState()
+                    .observe(getViewLifecycleOwner(), state -> Log.d(TAG, "Preview stream state: " + state));
+            streamObserverAttached = true;
+        }
+
+        binding.viewFinder.postDelayed(() -> {
+            if (!isAdded() || binding == null) return;
+            PreviewView.StreamState s = binding.viewFinder.getPreviewStreamState().getValue();
+            boolean streaming = (s == PreviewView.StreamState.STREAMING);
+            if (!streaming) {
+                if (!alreadyReboundCompatibleOnce) {
+                    Log.w(TAG, "Preview watchdog: not STREAMING → rebinding in COMPATIBLE mode");
+                    alreadyReboundCompatibleOnce = true;
+                    bindUseCases(true);
+                } else {
+                    Log.e(TAG, "Still not STREAMING after COMPATIBLE rebind – please collect logs");
+                    UIUtils.showToast(requireContext(), R.string.error_camera_preview_failed, Toast.LENGTH_SHORT);
+                }
+            }
+        }, 1500);
+    }
+
+    /**
+     * Initializes the camera for the fragment with proper configuration and bindings.
+     * This method ensures that necessary prerequisites (like binding and fragment attachment)
+     * are satisfied before proceeding. It retrieves an instance of the {@link ProcessCameraProvider},
+     * binds required use cases, and configures the flash functionality if available.
+     * <br>
+     * If the initialization is successful, the camera is set up and ready to scan. Otherwise,
+     * appropriate error messages or warnings are displayed to the user.
+     * <br>
+     * The behavior of this method includes:
+     * - Setting up camera use cases and verifying the availability of a flash unit.
+     * - Displaying appropriate UI updates during initialization and completion.
+     * - Handling various errors and exceptions during the camera setup process.
+     * <br>
+     * The execution relies on asynchronous callbacks provided by the {@link ListenableFuture}
+     * to properly manage the camera provider setup.
      * <p>
      * Preconditions:
-     * - The fragment is added to its host activity.
-     * - The binding and view hierarchy are not null.
+     * - The method checks if `binding` is null or if the fragment is not currently attached. If either condition is true, it skips the initialization process.
      * <p>
-     * Behavior:
-     * - Configures the `PreviewView` for performance mode and scale type.
-     * - Fetches an instance of `ProcessCameraProvider` asynchronously to manage camera lifecycle.
-     * - Unbinds any existing use cases before binding new preview and image capture use cases.
-     * - Initializes the `Preview` with the appropriate target rotation.
-     * - Sets up the `ImageCapture` use case with target rotation, flash mode, and minimal latency.
-     * - Sets the surface provider for preview and dynamically updates the target rotation based on
-     * device orientation using an orientation change listener.
-     * - Manages the availability of the flash unit and updates the UI accordingly.
+     * Error Handling:
+     * - If the camera provider is unavailable or null, the user is notified via a toast message and an appropriate status message is displayed in the UI.
+     * - If any unexpected errors occur during initialization, they are handled gracefully by calling the {@code handleCameraInitializationError(Exception e)} method.
      * <p>
-     * Exception Handling:
-     * - Catches and logs `ExecutionException` and `InterruptedException` during camera provider retrieval.
-     * - Logs and handles any unexpected exceptions that occur during the initialization process.
-     * - Displays a user-facing message if camera initialization fails.
+     * Threading:
+     * - Uses {@link ContextCompat#getMainExecutor} for executing asynchronous callback tasks on the main thread.
      * <p>
-     * Note:
-     * - The camera initialization will be skipped if the fragment is not attached, the binding is null,
-     * or the view is null.
-     * - This method is designed to dynamically configure and handle camera-related states for optimal
-     * performance and user experience.
+     * Flashlight:
+     * - Checks for the presence of a flash unit in the camera. If available, updates the flash button visibility and its associated state.
      */
     private void initializeCamera() {
         if (binding == null || !isAdded()) {
             Log.d(TAG, "initializeCamera: Skipping - binding is null or fragment not attached");
             return;
         }
-
         binding.textCamera.setText(R.string.initializing_camera);
 
-        PreviewView viewFinder = binding.viewFinder;
-        viewFinder.setImplementationMode(PreviewView.ImplementationMode.PERFORMANCE);
-        viewFinder.setScaleType(PreviewView.ScaleType.FIT_CENTER);
+        ListenableFuture<ProcessCameraProvider> cameraProviderFuture =
+                ProcessCameraProvider.getInstance(requireContext());
 
-        ListenableFuture<ProcessCameraProvider> cameraProviderFuture = ProcessCameraProvider.getInstance(requireContext());
+        final boolean forceCompatible = isHuaweiEmui10QuirkDevice();
 
         cameraProviderFuture.addListener(() -> {
             try {
-                if (binding == null || !isAdded() || getView() == null) {
-                    Log.d(TAG, "Camera init callback: Skipping - binding null, fragment not attached, or view null");
-                    return;
-                }
-
-                Log.d(TAG, "Getting camera provider from future");
+                if (binding == null || !isAdded() || getView() == null) return;
                 cameraProvider = cameraProviderFuture.get();
                 if (cameraProvider == null) {
-                    Log.e(TAG, "Failed to get camera provider - provider is null");
-                    if (isAdded()) {
-                        UIUtils.showToast(requireContext(), R.string.error_camera_provider_null, Toast.LENGTH_SHORT);
-                        binding.textCamera.setText(R.string.camera_ready_tap_the_button_to_scan_a_document);
-                    }
+                    UIUtils.showToast(requireContext(), R.string.error_camera_provider_null, Toast.LENGTH_SHORT);
+                    binding.textCamera.setText(R.string.camera_ready_tap_the_button_to_scan_a_document);
                     return;
                 }
-
-                Log.d(TAG, "Creating preview and image capture use cases");
-
-                int rotation = getViewFinderRotation();
-
-                Preview preview = new Preview.Builder()
-                        .setTargetRotation(rotation)
-                        .build();
-
-                // (4) Capture-Flash-Modus explizit setzen (Torch bleibt separat)
-                imageCapture = new ImageCapture.Builder()
-                        .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
-                        .setTargetRotation(rotation)
-                        .setFlashMode(ImageCapture.FLASH_MODE_OFF)
-                        .build();
-
-                CameraSelector cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA;
-
-                Log.d(TAG, "Unbinding any existing use cases");
-                cameraProvider.unbindAll();
-
-                Log.d(TAG, "Binding use cases to lifecycle");
-                camera = cameraProvider.bindToLifecycle(getViewLifecycleOwner(), cameraSelector, preview, imageCapture);
-
-                // (2) Flash-Verfügbarkeit über CameraInfo (präziser als PM Feature)
+                bindUseCases(forceCompatible);
                 hasFlash = camera.getCameraInfo().hasFlashUnit();
                 if (binding.buttonFlash != null) {
                     binding.buttonFlash.setVisibility(hasFlash ? View.VISIBLE : View.GONE);
                     isFlashlightOn = false;
                     binding.buttonFlash.setImageResource(R.drawable.ic_flash_off);
                 }
-
-                // Set surface provider for preview
-                preview.setSurfaceProvider(viewFinder.getSurfaceProvider());
-
-                // (1) Orientation listener setzt TargetRotation dynamisch
-                if (orientationListener == null) {
-                    orientationListener = new OrientationEventListener(requireContext()) {
-                        @Override
-                        public void onOrientationChanged(int orientation) {
-                            if (imageCapture == null || binding == null || !isAdded()) return;
-                            int rot = getViewFinderRotation();
-                            imageCapture.setTargetRotation(rot);
-                        }
-                    };
-                    orientationListener.enable();
-                }
-
-                Log.d(TAG, "Camera initialized successfully");
                 binding.textCamera.setText(R.string.camera_ready_tap_the_button_to_scan_a_document);
-
-            } catch (ExecutionException e) {
-                Log.e(TAG, "Error initializing camera (ExecutionException): " + e.getMessage(), e);
-                handleCameraInitializationError(e);
-            } catch (InterruptedException e) {
-                Log.e(TAG, "Error initializing camera (InterruptedException): " + e.getMessage(), e);
-                Thread.currentThread().interrupt();
-                handleCameraInitializationError(e);
             } catch (Exception e) {
-                Log.e(TAG, "Unexpected error initializing camera: " + e.getMessage(), e);
                 handleCameraInitializationError(e);
             }
         }, ContextCompat.getMainExecutor(requireContext()));
@@ -570,21 +730,8 @@ public class CameraFragment extends Fragment implements SensorEventListener {
                     new ImageCapture.OnImageSavedCallback() {
                         @Override
                         public void onImageSaved(@NonNull ImageCapture.OutputFileResults outputFileResults) {
-                            // Wait until file is non-empty (≤1s)
-                            long start = System.currentTimeMillis();
-                            long waited = 0;
-                            long size = photoFile.length();
-                            while (size == 0 && waited < 1000) {
-                                try {
-                                    Thread.sleep(50);
-                                } catch (InterruptedException ignored) {
-                                }
-                                size = photoFile.length();
-                                waited = System.currentTimeMillis() - start;
-                            }
-                            Log.d(TAG, "Image saved to: " + photoFile.getAbsolutePath() + ", size=" + size + ", waitedMs=" + waited);
+                            Log.d(TAG, "Image saved to: " + photoFile.getAbsolutePath() + ", size=" + photoFile.length());
 
-                            // FileProvider URI (for sharing)
                             Uri imageUri = FileProvider.getUriForFile(
                                     requireContext(),
                                     BuildConfig.APPLICATION_ID + ".fileprovider",
@@ -593,10 +740,7 @@ public class CameraFragment extends Fragment implements SensorEventListener {
 
                             if (cameraViewModel != null && isAdded()) {
                                 int captureDeg = toDegrees(getViewFinderRotation());
-                                if (cropViewModel != null) {
-                                    cropViewModel.setCaptureRotationDegrees(captureDeg);
-                                }
-                                // Set path first so observer can pick it up reliably, then set URI to trigger the observer
+                                if (cropViewModel != null) cropViewModel.setCaptureRotationDegrees(captureDeg);
                                 cameraViewModel.setImagePath(photoFile.getAbsolutePath());
                                 cameraViewModel.setImageUri(imageUri);
                             }
@@ -643,7 +787,8 @@ public class CameraFragment extends Fragment implements SensorEventListener {
                     @Override
                     public void onLoaded(Bitmap bitmap) {
                         if (binding == null || !isAdded()) return;
-                        binding.capturedImage.setImageBitmap(bitmap);
+                        Bitmap safe = de.schliweb.makeacopy.utils.BitmapUtils.ensureDisplaySafe(bitmap);
+                        binding.capturedImage.setImageBitmap(safe);
                         showReviewMode();
                     }
 
@@ -687,6 +832,10 @@ public class CameraFragment extends Fragment implements SensorEventListener {
         if (binding.scanButtonContainer != null) {
             binding.scanButtonContainer.setVisibility(View.VISIBLE);
         }
+        // Show Skip OCR toggle only in camera mode
+        if (binding.checkboxSkipOcrCamera != null) {
+            binding.checkboxSkipOcrCamera.setVisibility(View.VISIBLE);
+        }
         binding.textCamera.setText(R.string.camera_ready_tap_the_button_to_scan_a_document);
 
         lowLightPromptShown = false;
@@ -715,6 +864,10 @@ public class CameraFragment extends Fragment implements SensorEventListener {
         binding.buttonScan.setVisibility(View.GONE);
         if (binding.scanButtonContainer != null) {
             binding.scanButtonContainer.setVisibility(View.GONE);
+        }
+        // Hide Skip OCR toggle in review/confirm mode
+        if (binding.checkboxSkipOcrCamera != null) {
+            binding.checkboxSkipOcrCamera.setVisibility(View.GONE);
         }
         binding.textCamera.setText(R.string.review_your_scan_tap_confirm_to_proceed_or_retake_to_try_again);
     }
@@ -891,6 +1044,7 @@ public class CameraFragment extends Fragment implements SensorEventListener {
         if (orientationListener != null) {
             orientationListener.disable();
         }
+        streamObserverAttached = false;
         binding = null;
     }
 

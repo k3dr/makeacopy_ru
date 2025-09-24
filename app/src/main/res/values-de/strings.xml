@@ -8,16 +8,18 @@
     <string name="title_export">Exportieren</string>
 
     <!-- Button labels -->
-    <string name="btn_scan">Dokument scannen</string>
+    <string name="btn_scan">Scannen</string>
     <string name="btn_crop">Zuschneiden</string>
     <string name="btn_process">Verarbeiten</string>
     <string name="btn_export">Exportieren</string>
     <string name="btn_share">Teilen</string>
+    <string name="next">Weiter</string>
+    <string name="back">Zurück</string>
 
     <!-- Messages -->
     <string name="msg_camera_permission_required">Kamerazugriff ist erforderlich, um Dokumente zu scannen</string>
     <string name="confirm">Bestätigen</string>
-    <string name="review_your_scan_tap_confirm_to_proceed_or_retake_to_try_again">Überprüfe deinen Scan. Tippe auf Bestätigen, um fortzufahren, oder auf Erneut aufnehmen, um es noch einmal zu versuchen.</string>
+    <string name="review_your_scan_tap_confirm_to_proceed_or_retake_to_try_again">Überprüfe deinen Scan. Tippe auf Weiter, um fortzufahren, oder auf Zurück, um es noch einmal zu versuchen.</string>
     <string name="camera_ready_tap_the_button_to_scan_a_document">Kamera bereit. Tippe auf die Schaltfläche, um ein Dokument zu scannen.</string>
     <string name="captured_image">Aufgenommenes Bild</string>
     <string name="retake">Erneut aufnehmen</string>
@@ -30,7 +32,7 @@
     <string name="ocr_results_will_appear_here">OCR-Ergebnisse werden hier angezeigt</string>
     <string name="no_image_loaded_capture_an_image_first">Kein Bild geladen. Nimm zuerst ein Bild auf.</string>
     <string name="adjust_the_trapezoid_corners_to_select_the_area_to_crop_then_tap_the_crop_button">Passe die Trapezecken an, um den zuzuschneidenden Bereich auszuwählen, und tippe dann auf Zuschneiden.</string>
-    <string name="review_your_cropped_image_tap_confirm_to_proceed_or_recrop_to_try_again">Überprüfe dein zugeschnittenes Bild. Tippe auf Bestätigen, um fortzufahren, oder auf Erneut zuschneiden, um es noch einmal zu versuchen.</string>
+    <string name="review_your_cropped_image_tap_confirm_to_proceed_or_recrop_to_try_again">Überprüfe dein zugeschnittenes Bild. Tippe auf Weiter, um fortzufahren, oder auf Zurück, um es noch einmal zu versuchen.</string>
     <string name="no_document_ready_process_ocr_first">Kein Dokument bereit. Führe zuerst OCR aus.</string>
     <string name="document_ready_for_export">Dokument zum Export bereit</string>
     <string name="processing_image">Bild wird verarbeitet…</string>
@@ -46,10 +48,13 @@
     <string name="error_displaying_image">Fehler beim Anzeigen des Bildes: %1$s</string>
     <string name="error_resetting_camera">Fehler beim Zurücksetzen der Kamera: %1$s</string>
     <string name="error_toggling_flashlight">Fehler beim Umschalten der Taschenlampe: %1$s</string>
+    <string name="error_camera_preview_failed">Kameravorschau konnte nicht gestartet werden. Bitte versuche es erneut.</string>
 
     <!-- Export options -->
     <string name="convert_to_grayscale">In Graustufen konvertieren</string>
+    <string name="convert_to_blackwhite_pdf">In S/W konvertieren</string>
     <string name="export_as_jpeg">Als JPEG exportieren</string>
+    <string name="export_as_pdf">Als PDF exportieren (Standard)</string>
 
     <!-- Flashlight options -->
     <string name="toggle_flashlight">Taschenlampe umschalten</string>
@@ -62,8 +67,8 @@
     <string name="jpeg_mode_auto">Automatisch verbessern (JPEG)</string>
     <string name="jpeg_mode_bw_text">Schwarz-Weiß (Text) (JPEG)</string>
     <string name="skip_ocr_export_only">OCR überspringen (nur Export)</string>
-    <string name="btn_pick_image">Bild wählen</string>
-    <string name="pick_image_cd">Vorhandenes Bild wählen</string>
+    <string name="btn_pick_image">Laden</string>
+    <string name="pick_image_cd">Vorhandenes Bild laden</string>
     <string name="error_selected_file_is_not_an_image">Ausgewählte Datei ist kein Bild</string>
     
     <!-- Mehrseiten-Export (v1 Inkrement) -->
@@ -89,7 +94,7 @@
     <!-- Registry Picker -->
     <string name="picker_title_completed_scans">Aus fertigen Scans wählen</string>
     <string name="picker_empty">Keine fertigen Scans gefunden</string>
-    <string name="done">Fertig</string>
+    <string name="done">Weiter</string>
     <string name="thumbnail">Miniaturansicht</string>
 
     <string name="added_pages_from_registry">%1$d Seite(n) aus Registry hinzugefügt</string>
@@ -119,4 +124,7 @@
     <string name="pdf_preset_very_small">Sehr klein (110 dpi, q52)</string>
     <string name="export_options_title">Export-Optionen</string>
     <string name="jpeg_enhancement_title">JPEG-Verbesserung</string>
+    <string name="btn_options">Optionen</string>
+    <string name="btn_save">Speichern</string>
+    <string name="btn_new">Neu</string>
 </resources>

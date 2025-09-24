@@ -167,6 +167,17 @@ Contributions welcome!
 - Add more languages to OCR detection
 - Further ML-based scan enhancements (quality and speed)
 
+## 🙌 Community Hall of Fame
+
+A big thank you to the people who make *MakeACopy* better:
+
+- Our very first supporter — created an issue, helped with a fix, and even made a donation 🎉  
+  This is the spirit of open source: collaboration, improvement, and appreciation. ❤️
+
+
+Want to join the Hall of Fame?  
+Contribute code, file helpful issues, or support the project.
+
 ## ❤️ Support this project
 MakeACopy is free and open source.
 If you find it useful, please consider supporting development:

@@ -210,22 +210,42 @@ public class ExportPagesAdapter extends RecyclerView.Adapter<ExportPagesAdapter.
                 new SimpleDateFormat("HH:mm", Locale.getDefault()).format(new Date(s.createdAt())));
         h.title.setText(title);
 
-        // Thumbnail strategy: prefer in-memory bitmap; else decode sampled from thumbPath or filePath
+        // Thumbnail strategy: prefer in-memory bitmap; else decode sampled from thumbPath or filePath.
+        // Apply rotationDeg consistently (like the large preview) and key cache by path+rotation.
+        int deg = 0;
+        try {
+            deg = s.rotationDeg();
+        } catch (Throwable ignore) {
+        }
+
         Bitmap bmp = s.inMemoryBitmap();
         if (bmp != null) {
+            // Rotate in-memory bitmap according to rotationDeg (in-memory is not yet rotated)
+            if ((deg % 360) != 0) {
+                try {
+                    android.graphics.Matrix m = new android.graphics.Matrix();
+                    m.postRotate(deg);
+                    Bitmap rotated = android.graphics.Bitmap.createBitmap(bmp, 0, 0, bmp.getWidth(), bmp.getHeight(), m, true);
+                    if (rotated != null) bmp = rotated;
+                } catch (Throwable ignore) {
+                }
+            }
             h.thumb.setImageBitmap(bmp);
         } else {
-            Bitmap cached = ThumbCache_get(s.thumbPath() != null ? s.thumbPath() : s.filePath());
+            String basePath = (s.thumbPath() != null) ? s.thumbPath() : s.filePath();
+            String cacheKey = basePath; // Decoded thumbnails are already oriented on disk; do not include rotation in key
+            Bitmap cached = ThumbCache_get(cacheKey);
             if (cached != null) {
                 h.thumb.setImageBitmap(cached);
             } else {
                 h.thumb.setImageResource(R.drawable.ic_image);
-                String path = (s.thumbPath() != null) ? s.thumbPath() : s.filePath();
+                String path = basePath;
                 if (path != null) {
                     // decode sampled to roughly view size
                     Bitmap decoded = decodeSampled(path, 96, 128);
                     if (decoded != null) {
-                        ThumbCache_put(path, decoded);
+                        // Do not rotate decoded bitmaps; CompletedScans are already stored with correct orientation
+                        ThumbCache_put(cacheKey, decoded);
                         h.thumb.setImageBitmap(decoded);
                     }
                 }

@@ -124,7 +124,14 @@ public class CropFragment extends Fragment {
         });
 
         cameraViewModel.getImageUri().observe(getViewLifecycleOwner(), uri -> {
-            if (uri != null) loadImageFromUri(uri);
+            if (uri == null) return;
+            // Do not reload the original image if we already have a cropped image.
+            Boolean alreadyCropped = cropViewModel.isImageCropped().getValue();
+            if (Boolean.TRUE.equals(alreadyCropped)) {
+                // Keep the current cropped bitmap in the CropViewModel.
+                return;
+            }
+            loadImageFromUri(uri);
         });
 
         // Window Insets

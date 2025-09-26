@@ -31,7 +31,7 @@ apksigner verify --print-certs MakeACopy-vX.Y.Z.apk
 ## Features
 
 - **Camera Scanning**: Capture documents using the device camera
-- **Edge Detection**: Automatic document edge detection using OpenCV, optionally enhanced with a machine learning model ([ONNX, from DocAligner](https://github.com/DocsaidLab/DocAligner) – Apache 2.0)
+- **Edge Detection**: Automatic document edge detection using OpenCV, enhanced with a machine learning model ([ONNX, from DocAligner](https://github.com/DocsaidLab/DocAligner) – Apache 2.0)
 - **Perspective Correction**: Adjust and crop documents with manual or automatic perspective correction
 - **Image Enhancement**: Apply filters (grayscale, contrast, sharpening)
 - **OCR**: Offline text recognition with Tesseract
@@ -136,7 +136,7 @@ MakeACopy follows the Single-Activity + Multi-Fragment pattern with MVVM archite
 ## Submodules
 
 - external/opencv — OpenCV source used to build native libraries during the build; Apache 2.0.
-- external/onnxruntime — ONNX Runtime source used optionally for ML-assisted corner detection; MIT License.
+- external/onnxruntime — ONNX Runtime source required for ML-assisted corner detection; MIT License.
   - Built from source via scripts/build_onnxruntime_android.sh (CPU-only, Java bindings).
   - Artifacts integrated into app/src/main/jniLibs/<ABI>/ (libonnxruntime.so, libonnxruntime4j_jni.so) and app/libs/ (onnxruntime-*.jar).
   - See [NOTICE](NOTICE) for attributions.

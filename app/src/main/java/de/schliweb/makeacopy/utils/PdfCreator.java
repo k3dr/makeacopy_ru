@@ -119,6 +119,15 @@ public class PdfCreator {
                 float pageH = pageSize.getHeight();
 
                 PDPage page = new PDPage(pageSize);
+                // Harmonize page boxes to avoid viewer-specific cropping/offset interpretations
+                try {
+                    page.setMediaBox(pageSize);
+                    page.setCropBox(pageSize);
+                    page.setBleedBox(pageSize);
+                    page.setTrimBox(pageSize);
+                    page.setArtBox(pageSize);
+                } catch (Throwable ignore) {
+                }
                 document.addPage(page);
 
                 // Fit image into page while preserving aspect ratio (letterboxing if needed)
@@ -144,8 +153,20 @@ public class PdfCreator {
                     if (words != null && !words.isEmpty()) {
                         cs.saveGraphicsState();
                         cs.transform(new Matrix(scale, 0, 0, scale, offsetX, offsetY)); // identical CTM
+                        // Normalize OCR boxes from source bitmap space to prepared bitmap space if needed
+                        List<RecognizedWord> normWords;
+                        if (bitmap.getWidth() != prepared.getWidth() || bitmap.getHeight() != prepared.getHeight()) {
+                            float sxImg = (float) prepared.getWidth() / (float) bitmap.getWidth();
+                            float syImg = (float) prepared.getHeight() / (float) bitmap.getHeight();
+                            normWords = new ArrayList<>(words.size());
+                            for (RecognizedWord w : words) {
+                                normWords.add(w.transform(sxImg, syImg, 0f, 0f).clipTo(prepared.getWidth(), prepared.getHeight()));
+                            }
+                        } else {
+                            normWords = words;
+                        }
                         // now output text in IMAGE coordinates (0..imgW / 0..imgH)
-                        addTextLayerImageSpace(cs, words, fonts, prepared.getWidth(), prepared.getHeight());
+                        addTextLayerImageSpace(cs, normWords, fonts, prepared.getWidth(), prepared.getHeight());
                         cs.restoreGraphicsState();
                     }
                 }
@@ -498,6 +519,15 @@ public class PdfCreator {
                     }
 
                     PDPage page = new PDPage(pageSize);
+                    // Harmonize page boxes to avoid viewer-specific cropping/offset interpretations
+                    try {
+                        page.setMediaBox(pageSize);
+                        page.setCropBox(pageSize);
+                        page.setBleedBox(pageSize);
+                        page.setTrimBox(pageSize);
+                        page.setArtBox(pageSize);
+                    } catch (Throwable ignore) {
+                    }
                     document.addPage(page);
 
                     float scale = calculateScale(prepared.getWidth(), prepared.getHeight(), pageW, pageH);
@@ -517,7 +547,19 @@ public class PdfCreator {
                         if (words != null && !words.isEmpty()) {
                             cs.saveGraphicsState();
                             cs.transform(new Matrix(scale, 0, 0, scale, offsetX, offsetY));
-                            addTextLayerImageSpace(cs, words, fonts, prepared.getWidth(), prepared.getHeight());
+                            // Normalize OCR boxes from source bitmap space to prepared bitmap space if needed
+                            List<RecognizedWord> normWords;
+                            if (src.getWidth() != prepared.getWidth() || src.getHeight() != prepared.getHeight()) {
+                                float sxImg = (float) prepared.getWidth() / (float) src.getWidth();
+                                float syImg = (float) prepared.getHeight() / (float) src.getHeight();
+                                normWords = new ArrayList<>(words.size());
+                                for (RecognizedWord w : words) {
+                                    normWords.add(w.transform(sxImg, syImg, 0f, 0f).clipTo(prepared.getWidth(), prepared.getHeight()));
+                                }
+                            } else {
+                                normWords = words;
+                            }
+                            addTextLayerImageSpace(cs, normWords, fonts, prepared.getWidth(), prepared.getHeight());
                             cs.restoreGraphicsState();
                         }
                     }

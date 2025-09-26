@@ -16,14 +16,13 @@ includes third‑party components under their respective licenses as noted below
     - Notes: The FastViT-based document corner detection model is included as an
       application asset for fully offline inference.
 
-3) ONNX Runtime (submodule, optional runtime)
+3) ONNX Runtime (submodule, required runtime)
     - Project: https://github.com/microsoft/onnxruntime
     - Path: external/onnxruntime (Git submodule)
     - License: MIT License
     - Notes: Built from source for Android (CPU-only, Java bindings) via
       scripts/build_onnxruntime_android.sh. The resulting native libraries and
-      Java JAR are integrated into app/jniLibs and app/libs respectively when you
-      opt-in to ONNX Runtime support.
+      Java JAR are integrated into app/jniLibs and app/libs respectively as part of the required ONNX Runtime support.
 
 For full license texts, see the corresponding upstream repositories and their
 LICENSE files. The Apache License 2.0 for this project is provided in LICENSE.

@@ -18,6 +18,17 @@ public class OCRViewModel extends ViewModel {
     private static final String TAG = "OCRViewModel";
 
     /**
+     * Retrieves the currently selected language from the application state.
+     * The returned language is derived from the `mState` LiveData object
+     * and defaults to "eng" (English) if the language is not set or if the state is null.
+     *
+     * @return A LiveData<String> representing the language code. Defaults to "eng" if unavailable.
+     */
+    public LiveData<String> getLanguage() {
+        return androidx.lifecycle.Transformations.map(mState, s -> s != null && s.language() != null ? s.language() : "eng");
+    }
+
+    /**
      * @param offsetY letterboxing, else 0
      */ // Transform Original → Target (for example A4)
     public record OcrTransform(int srcW, int srcH, int dstW, int dstH, float scaleX, float scaleY, int offsetX,

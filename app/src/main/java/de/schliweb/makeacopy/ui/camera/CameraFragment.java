@@ -40,7 +40,6 @@ import androidx.lifecycle.ViewModelProvider;
 import androidx.navigation.Navigation;
 import com.google.common.util.concurrent.ListenableFuture;
 import de.schliweb.makeacopy.BuildConfig;
-import de.schliweb.makeacopy.MainActivity;
 import de.schliweb.makeacopy.R;
 import de.schliweb.makeacopy.databinding.FragmentCameraBinding;
 import de.schliweb.makeacopy.ui.crop.CropViewModel;
@@ -49,7 +48,6 @@ import de.schliweb.makeacopy.utils.UIUtils;
 import java.io.File;
 import java.text.SimpleDateFormat;
 import java.util.Locale;
-import java.util.concurrent.ExecutionException;
 
 /**
  * CameraFragment is responsible for handling the camera functionality and user interactions
@@ -180,6 +178,14 @@ public class CameraFragment extends Fragment implements SensorEventListener {
                     } catch (Exception ignored) {
                     }
                     if (cameraViewModel != null) {
+                        // Reset rotations for a new scan imported from storage
+                        try {
+                            if (cropViewModel != null) {
+                                cropViewModel.setUserRotationDegrees(0);
+                                cropViewModel.setCaptureRotationDegrees(0);
+                            }
+                        } catch (Throwable ignored) {
+                        }
                         cameraViewModel.setImagePath(null);
                         cameraViewModel.setImageUri(uri);
                     }
@@ -420,6 +426,66 @@ public class CameraFragment extends Fragment implements SensorEventListener {
         return -1;
     }
 
+
+    /**
+     * Extracts the major version number of Magic UI from system properties or build display information.
+     * The method first attempts to retrieve the version from the system property "ro.build.version.magic".
+     * If the property is found, it parses the major version from the string. If not, it falls back to
+     * parsing the version from the `Build.DISPLAY` field using a regex pattern.
+     *
+     * @return The major version number of Magic UI as an integer. Returns -1 if the version cannot be determined.
+     */
+    private static int getMagicUiMajor() {
+        String magic = getSystemProperty("ro.build.version.magic", "");
+        if (magic != null && !magic.isEmpty()) {
+            int us = magic.indexOf('_');
+            if (us >= 0 && us + 1 < magic.length()) {
+                String rest = magic.substring(us + 1);
+                String num = rest.split("\\.")[0];
+                try {
+                    return Integer.parseInt(num);
+                } catch (NumberFormatException ignored) {
+                }
+            }
+        }
+        // Fallback: try Build.DISPLAY
+        try {
+            String disp = android.os.Build.DISPLAY;
+            if (disp != null) {
+                String up = disp.toUpperCase(java.util.Locale.ROOT);
+                java.util.regex.Matcher m = java.util.regex.Pattern
+                        .compile("MAGIC\\s?UI[_\\s-]?(\\d+)").matcher(up);
+                if (m.find()) return Integer.parseInt(m.group(1));
+            }
+        } catch (Throwable ignored) {
+        }
+        return -1;
+    }
+
+
+    /**
+     * Determines if the device has a known quirk where the preview screen shows as a black screen.
+     * Specifically checks for Huawei devices running EMUI 10 and Honor devices with certain Android and Magic UI/EMUI configurations.
+     *
+     * @return true if the device is identified as having the black screen preview quirk; false otherwise.
+     */
+    private boolean isPreviewBlackScreenQuirkDevice() {
+        if (isHuaweiEmui10QuirkDevice()) return true;
+
+        String manufacturer = android.os.Build.MANUFACTURER;
+        String brand = android.os.Build.BRAND;
+        if (manufacturer == null && brand == null) return false;
+        boolean isHonorBrand = "HONOR".equalsIgnoreCase(manufacturer) || "HONOR".equalsIgnoreCase(brand);
+        if (!isHonorBrand) return false;
+
+        int sdk = android.os.Build.VERSION.SDK_INT;            // Android 10 == 29
+        int magic = getMagicUiMajor();                         // e.g., 4 for Magic UI 4.x
+        int emui = getEmuiMajor();                             // often 11 on Magic UI 4
+        boolean onAndroid10 = (sdk == 29);
+        boolean magicOrEmuiNew = (magic >= 4) || (emui >= 11);
+        return onAndroid10 && magicOrEmuiNew;
+    }
+
     /**
      * Determines if the current device is a Huawei device running EMUI 10
      * and is part of specific device families such as P30 or P40.
@@ -475,7 +541,7 @@ public class CameraFragment extends Fragment implements SensorEventListener {
 
         int rotation = getViewFinderRotation();
 
-        boolean useConservativeRes = forceCompatiblePreview || isHuaweiEmui10QuirkDevice();
+        boolean useConservativeRes = forceCompatiblePreview || isPreviewBlackScreenQuirkDevice();
 
         // 2) Conservative FPS via Camera2Interop
 
@@ -639,7 +705,7 @@ public class CameraFragment extends Fragment implements SensorEventListener {
         ListenableFuture<ProcessCameraProvider> cameraProviderFuture =
                 ProcessCameraProvider.getInstance(requireContext());
 
-        final boolean forceCompatible = isHuaweiEmui10QuirkDevice();
+        final boolean forceCompatible = isPreviewBlackScreenQuirkDevice();
 
         cameraProviderFuture.addListener(() -> {
             try {
@@ -739,8 +805,15 @@ public class CameraFragment extends Fragment implements SensorEventListener {
                             );
 
                             if (cameraViewModel != null && isAdded()) {
-                                int captureDeg = toDegrees(getViewFinderRotation());
-                                if (cropViewModel != null) cropViewModel.setCaptureRotationDegrees(captureDeg);
+                                // Reset user rotation for the new page; set capture orientation
+                                try {
+                                    if (cropViewModel != null) {
+                                        cropViewModel.setUserRotationDegrees(0);
+                                        int captureDeg = toDegrees(getViewFinderRotation());
+                                        cropViewModel.setCaptureRotationDegrees(captureDeg);
+                                    }
+                                } catch (Throwable ignored) {
+                                }
                                 cameraViewModel.setImagePath(photoFile.getAbsolutePath());
                                 cameraViewModel.setImageUri(imageUri);
                             }
@@ -837,6 +910,15 @@ public class CameraFragment extends Fragment implements SensorEventListener {
             binding.checkboxSkipOcrCamera.setVisibility(View.VISIBLE);
         }
         binding.textCamera.setText(R.string.camera_ready_tap_the_button_to_scan_a_document);
+
+        // Reset rotations for a new scan/page
+        try {
+            if (cropViewModel != null) {
+                cropViewModel.setUserRotationDegrees(0);
+                cropViewModel.setCaptureRotationDegrees(0);
+            }
+        } catch (Throwable ignored) {
+        }
 
         lowLightPromptShown = false;
     }

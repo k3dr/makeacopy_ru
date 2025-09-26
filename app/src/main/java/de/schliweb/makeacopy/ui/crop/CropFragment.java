@@ -8,6 +8,8 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageView;
 import androidx.annotation.NonNull;
+import androidx.constraintlayout.widget.ConstraintLayout;
+import androidx.constraintlayout.widget.ConstraintSet;
 import androidx.core.view.ViewCompat;
 import androidx.fragment.app.Fragment;
 import androidx.lifecycle.ViewModelProvider;
@@ -31,14 +33,17 @@ public class CropFragment extends Fragment {
     private CameraViewModel cameraViewModel;
 
     /**
-     * Called to have the fragment create its view object hierarchy and initialize the UI.
-     * This method sets up data binding, observes LiveData objects for UI updates, configures window inset handling,
-     * and defines behavior for UI interactions with cropping functionalities.
+     * Inflates the layout for this fragment and initializes all necessary components including
+     * ViewModels, UI bindings, and View listeners. It also observes various LiveData objects
+     * to dynamically update the UI based on changes in app state.
      *
      * @param inflater           The LayoutInflater object that can be used to inflate any views in the fragment.
-     * @param container          The parent view that this fragment's UI should be attached to, or null if it's not attached to a parent.
-     * @param savedInstanceState If non-null, this fragment is being re-constructed from a previous saved state as given here.
-     * @return The root View for the fragment's layout.
+     * @param container          If non-null, this is the parent view that the fragment's UI should be attached to.
+     *                           The fragment should not add the view itself, but this can be used to generate
+     *                           the LayoutParams of the view.
+     * @param savedInstanceState If non-null, this fragment is being re-constructed from a previous
+     *                           saved state as given here.
+     * @return The root View for the fragment's UI, or null if the fragment does not provide a UI.
      */
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
@@ -74,6 +79,13 @@ public class CropFragment extends Fragment {
 
         // Recrop/Confirm-Buttons
         binding.buttonRecrop.setOnClickListener(v -> resetCrop());
+        // Rotation buttons (post-crop)
+        if (binding.buttonRotateLeft != null) {
+            binding.buttonRotateLeft.setOnClickListener(v -> cropViewModel.rotateLeft());
+        }
+        if (binding.buttonRotateRight != null) {
+            binding.buttonRotateRight.setOnClickListener(v -> cropViewModel.rotateRight());
+        }
         binding.buttonConfirmCrop.setOnClickListener(v -> {
             android.content.SharedPreferences prefs = requireContext().getSharedPreferences("export_options", android.content.Context.MODE_PRIVATE);
             boolean skipOcr = prefs.getBoolean("skip_ocr", false);
@@ -101,6 +113,13 @@ public class CropFragment extends Fragment {
         cropViewModel.isImageCropped().observe(getViewLifecycleOwner(), isCropped -> {
             if (Boolean.TRUE.equals(isCropped) && cropViewModel.getImageBitmap().getValue() != null) {
                 showReviewMode(cropViewModel.getImageBitmap().getValue());
+            }
+        });
+        // React to rotation changes by updating the review preview if applicable
+        cropViewModel.getUserRotationDegrees().observe(getViewLifecycleOwner(), degObj -> {
+            if (Boolean.TRUE.equals(cropViewModel.isImageCropped().getValue())) {
+                Bitmap bmp = cropViewModel.getImageBitmap().getValue();
+                if (bmp != null) showReviewMode(bmp);
             }
         });
 
@@ -219,29 +238,65 @@ public class CropFragment extends Fragment {
             binding.trapezoidSelection.setVisibility(View.VISIBLE);
         binding.cropButtonContainer.setVisibility(View.VISIBLE);
         binding.buttonContainer.setVisibility(View.GONE);
+        if (binding.rotationButtonBar != null) binding.rotationButtonBar.setVisibility(View.GONE);
+        // Ensure in crop mode the cropped_image (when later shown) would anchor to button_container to avoid overlap
+        relinkCroppedImageBottomTo(binding.buttonContainer);
         binding.textCrop.setText(R.string.adjust_the_trapezoid_corners_to_select_the_area_to_crop_then_tap_the_crop_button);
     }
 
     /**
-     * Configures the UI to display the review mode after an image has been cropped.
+     * Configures the UI for review mode after a cropping operation.
      * <p>
-     * This method adjusts the visibility of various UI components to allow the user
-     * to review the cropped image. It hides the cropping UI, shows the cropped image,
-     * and displays buttons for confirming or re-cropping the image. Additionally,
-     * it updates the instructional text to guide the user in the review process.
+     * This method adjusts the visibility of relevant UI components for reviewing the cropped image.
+     * It hides the image to be cropped and the trapezoid selection UI elements, displays the cropped image,
+     * applies any user-defined rotation to the cropped image, and updates the button container for review actions.
      *
-     * @param croppedBitmap The bitmap of the cropped image to be displayed in review mode.
+     * @param croppedBitmap The bitmap image resulting from the cropping operation, to be displayed in review mode.
      */
     private void showReviewMode(Bitmap croppedBitmap) {
         binding.imageToCrop.setVisibility(View.GONE);
         if (binding.trapezoidSelection != null)
             binding.trapezoidSelection.setVisibility(View.GONE);
         binding.croppedImage.setVisibility(View.VISIBLE);
+        // Apply current user rotation for review display (display-safe copy)
         Bitmap safe = de.schliweb.makeacopy.utils.BitmapUtils.ensureDisplaySafe(croppedBitmap);
+        Integer rot = (cropViewModel != null && cropViewModel.getUserRotationDegrees() != null)
+                ? cropViewModel.getUserRotationDegrees().getValue() : 0;
+        int deg = rot == null ? 0 : ((rot % 360) + 360) % 360;
+        if (deg != 0 && safe != null && !safe.isRecycled()) {
+            try {
+                android.graphics.Matrix m = new android.graphics.Matrix();
+                m.postRotate(deg);
+                Bitmap rotated = android.graphics.Bitmap.createBitmap(safe, 0, 0, safe.getWidth(), safe.getHeight(), m, true);
+                if (rotated != null) safe = rotated;
+            } catch (Throwable ignore) {
+            }
+        }
         binding.croppedImage.setImageBitmap(safe);
         binding.cropButtonContainer.setVisibility(View.GONE);
         binding.buttonContainer.setVisibility(View.VISIBLE);
+        if (binding.rotationButtonBar != null) binding.rotationButtonBar.setVisibility(View.VISIBLE);
+        // In review mode, anchor the preview above the rotation button bar to avoid overlap
+        relinkCroppedImageBottomTo(binding.rotationButtonBar != null ? binding.rotationButtonBar : binding.buttonContainer);
         binding.textCrop.setText(R.string.review_your_cropped_image_tap_confirm_to_proceed_or_recrop_to_try_again);
+    }
+
+    /**
+     * Re-links the bottom constraint of the cropped preview image to the provided target view's top.
+     * This prevents the rotation icon bar from overlaying the preview by reserving space above it.
+     */
+    private void relinkCroppedImageBottomTo(View targetTop) {
+        if (binding == null || targetTop == null) return;
+        View root = binding.getRoot();
+        if (!(root instanceof ConstraintLayout cl)) return;
+        ConstraintSet set = new ConstraintSet();
+        set.clone(cl);
+        try {
+            set.clear(R.id.cropped_image, ConstraintSet.BOTTOM);
+        } catch (Throwable ignore) {
+        }
+        set.connect(R.id.cropped_image, ConstraintSet.BOTTOM, targetTop.getId(), ConstraintSet.TOP);
+        set.applyTo(cl);
     }
 
     /**

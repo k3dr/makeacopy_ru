@@ -42,10 +42,15 @@ public class CompletedScansPickerFragment extends Fragment implements CompletedS
     private RecyclerView recyclerView;
     private ProgressBar progressBar;
     private TextView emptyView;
+    private Button buttonBack;
+    private Button buttonDelete;
     private Button buttonDone;
+    private android.widget.ImageButton buttonSelectAll;
+    private android.widget.ImageButton buttonSelectNone;
 
     private final Set<String> selectedIds = new HashSet<>();
     private final Set<String> disabledIds = new HashSet<>();
+    private final List<CompletedScan> currentItems = new ArrayList<>();
     private CompletedScansPickerAdapter adapter;
 
     @Nullable
@@ -55,7 +60,11 @@ public class CompletedScansPickerFragment extends Fragment implements CompletedS
         recyclerView = root.findViewById(R.id.recycler);
         progressBar = root.findViewById(R.id.progress);
         emptyView = root.findViewById(R.id.empty);
+        buttonBack = root.findViewById(R.id.button_back);
+        buttonDelete = root.findViewById(R.id.button_delete);
         buttonDone = root.findViewById(R.id.button_done);
+        buttonSelectAll = root.findViewById(R.id.button_select_all);
+        buttonSelectNone = root.findViewById(R.id.button_select_none);
 
         recyclerView.setLayoutManager(new LinearLayoutManager(requireContext()));
         recyclerView.setHasFixedSize(true);
@@ -70,7 +79,11 @@ public class CompletedScansPickerFragment extends Fragment implements CompletedS
         adapter = new CompletedScansPickerAdapter(this);
         recyclerView.setAdapter(adapter);
 
+        buttonBack.setOnClickListener(v -> navigateBackWithoutResult());
+        buttonDelete.setOnClickListener(v -> deleteSelectedAndRefresh());
         buttonDone.setOnClickListener(v -> returnResultAndClose());
+        if (buttonSelectAll != null) buttonSelectAll.setOnClickListener(v -> selectAllEligible(true));
+        if (buttonSelectNone != null) buttonSelectNone.setOnClickListener(v -> selectAllEligible(false));
 
         loadItems();
         return root;
@@ -90,6 +103,7 @@ public class CompletedScansPickerFragment extends Fragment implements CompletedS
         List<CompletedScan> items = CompletedScansRegistry.get(requireContext()).listAllOrderedByDateDesc();
 
         progressBar.setVisibility(View.GONE);
+        currentItems.clear();
         if (items == null || items.isEmpty()) {
             emptyView.setVisibility(View.VISIBLE);
             recyclerView.setVisibility(View.GONE);
@@ -97,13 +111,16 @@ public class CompletedScansPickerFragment extends Fragment implements CompletedS
         } else {
             emptyView.setVisibility(View.GONE);
             recyclerView.setVisibility(View.VISIBLE);
+            currentItems.addAll(items);
             adapter.submitList(items);
         }
         updateDoneEnabled();
     }
 
     private void updateDoneEnabled() {
-        buttonDone.setEnabled(!selectedIds.isEmpty());
+        boolean hasSelection = !selectedIds.isEmpty();
+        if (buttonDone != null) buttonDone.setEnabled(hasSelection);
+        if (buttonDelete != null) buttonDelete.setEnabled(hasSelection);
     }
 
     private void returnResultAndClose() {
@@ -116,6 +133,38 @@ public class CompletedScansPickerFragment extends Fragment implements CompletedS
         } catch (Throwable t) {
             getParentFragmentManager().popBackStack();
         }
+    }
+
+    private void navigateBackWithoutResult() {
+        // Do not pass any selection back; simply navigate back to Export
+        try {
+            androidx.navigation.Navigation.findNavController(requireView()).popBackStack();
+        } catch (Throwable t) {
+            getParentFragmentManager().popBackStack();
+        }
+    }
+
+    private void deleteSelectedAndRefresh() {
+        if (selectedIds.isEmpty()) return;
+        // Copy to avoid ConcurrentModification
+        ArrayList<String> toDelete = new ArrayList<>(selectedIds);
+        int removed = 0;
+        for (String id : toDelete) {
+            try {
+                de.schliweb.makeacopy.data.RegistryCleaner.removeEntryAndFiles(requireContext().getApplicationContext(), id);
+                removed++;
+            } catch (Throwable ignore) {
+            }
+        }
+        selectedIds.clear();
+        if (removed > 0) {
+            try {
+                android.widget.Toast.makeText(requireContext(), R.string.removed_from_registry_toast, android.widget.Toast.LENGTH_SHORT).show();
+            } catch (Throwable ignore) {
+            }
+        }
+        // Refresh UI
+        loadItems();
     }
 
     // Callbacks from adapter
@@ -134,6 +183,36 @@ public class CompletedScansPickerFragment extends Fragment implements CompletedS
     @Override
     public boolean isDisabled(@NonNull String id) {
         return disabledIds.contains(id);
+    }
+
+    /**
+     * Selects or deselects all eligible items in the current list based on the given parameter.
+     * If selecting, only items that are not disabled and are not missing are added to the selection.
+     * If deselecting, the selection is cleared entirely. The UI is updated accordingly.
+     *
+     * @param select A boolean indicating whether to select all eligible items (true) or deselect all (false).
+     */
+    private void selectAllEligible(boolean select) {
+        if (currentItems.isEmpty()) return;
+        if (!select) {
+            // Deselect all: clear selection entirely
+            selectedIds.clear();
+            adapter.notifyDataSetChanged();
+            updateDoneEnabled();
+            return;
+        }
+        // Select all items that are not disabled and not missing
+        for (CompletedScan s : currentItems) {
+            String id = s.id();
+            boolean hasThumb = s.thumbPath() != null && new java.io.File(s.thumbPath()).exists();
+            boolean hasFile = s.filePath() != null && new java.io.File(s.filePath()).exists();
+            boolean missing = !hasThumb && !hasFile;
+            if (!disabledIds.contains(id) && !missing) {
+                selectedIds.add(id);
+            }
+        }
+        adapter.notifyDataSetChanged();
+        updateDoneEnabled();
     }
 
     /**

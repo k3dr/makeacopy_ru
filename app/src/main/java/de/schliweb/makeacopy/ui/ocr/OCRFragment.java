@@ -22,39 +22,36 @@ import de.schliweb.makeacopy.databinding.FragmentOcrBinding;
 import de.schliweb.makeacopy.ui.crop.CropViewModel;
 import de.schliweb.makeacopy.utils.*;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.IntStream;
 
 /**
  * OCRFragment handles the Optical Character Recognition (OCR) functionality within the application.
- * This fragment is responsible for managing the lifecycle, user interface, and integration with OCR processing logic.
- * It interacts with OCRViewModel and CropViewModel to manage image processing states and updates.
- * The OCRHelper class is used to perform OCR on given images.
+ * This fragment manages UI and orchestration; the actual OCR work is done on a dedicated single-thread executor
+ * with a fresh TessBaseAPI instance per job to ensure thread-safety.
+ * <p>
+ * Flow: Crop -> (optional) User Rotation -> OCR -> Export
  */
 public class OCRFragment extends Fragment {
     private static final String TAG = "OCRFragment";
+
     private FragmentOcrBinding binding;
     private OCRViewModel ocrViewModel;
     private CropViewModel cropViewModel;
-    private OCRHelper ocrHelper;
-    private final AtomicBoolean internalImageUpdate = new AtomicBoolean(false);
 
-    /**
-     * Inflates and initializes the OCRFragment's view and its components.
-     * Sets up the ViewModel observers, initializes the OCR engine, assigns
-     * UI event handlers, and applies window insets for proper layout adjustments.
-     *
-     * @param inflater           The LayoutInflater object that can be used to inflate
-     *                           any views in the fragment.
-     * @param container          The parent view to which the fragment's UI should be attached,
-     *                           or null if it should not be attached to any parent.
-     * @param savedInstanceState If non-null, this fragment is being re-created from
-     *                           a previous saved state as given here.
-     * @return The root View for the fragment's UI, or null if no UI is provided.
-     */
+    // Language helper for listing/availability checks (no long-lived TessBaseAPI instance)
+    private OCRHelper langHelper;
+
+    // Concurrency: serialize OCR jobs, 1 job ↔ 1 TessBaseAPI instance
+    private final ExecutorService ocrExecutor = Executors.newSingleThreadExecutor();
+    private volatile Future<?> runningOcr = null;
+    private final AtomicBoolean ocrCancelled = new AtomicBoolean(false);
+
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
         ocrViewModel = new ViewModelProvider(requireActivity()).get(OCRViewModel.class);
@@ -62,100 +59,76 @@ public class OCRFragment extends Fragment {
         binding = FragmentOcrBinding.inflate(inflater, container, false);
         View root = binding.getRoot();
 
-        // init OCR-Engine
-        ocrHelper = new OCRHelper(requireContext());
-        if (!ocrHelper.initTesseract()) {
-            UIUtils.showToast(requireContext(), "Failed to initialize Tesseract", Toast.LENGTH_SHORT);
-        } else {
-            ocrHelper.applyDefaultsForLanguage("eng");
-            ocrHelper.setWhitelist(OCRWhitelist.DEFAULT);
-        }
+        // Language helper (no initTesseract() here!)
+        langHelper = new OCRHelper(requireContext().getApplicationContext());
 
-        // State-Observer
+        // State observer
         ocrViewModel.getState().observe(getViewLifecycleOwner(), state -> {
-            // Next button is disabled while processing or when nothing to proceed with
             boolean canProceed = state.imageProcessed() && !state.processing();
             binding.buttonProcess.setEnabled(canProceed);
             binding.buttonProcess.setText(R.string.next);
 
             binding.textOcr.setText(state.processing()
                     ? getString(R.string.processing_image)
-                    : (state.imageProcessed() ? getString(R.string.ocr_processing_complete_tap_the_button_to_proceed_to_export)
+                    : (state.imageProcessed()
+                    ? getString(R.string.ocr_processing_complete_tap_the_button_to_proceed_to_export)
                     : getString(R.string.no_image_processed_crop_an_image_first)));
 
             binding.ocrResultText.setText((state.ocrText() == null || state.ocrText().isEmpty())
                     ? getString(R.string.ocr_results_will_appear_here)
                     : state.ocrText());
 
+            // Proceed to Export
             binding.buttonProcess.setOnClickListener(v ->
                     Navigation.findNavController(requireView()).navigate(R.id.navigation_export));
         });
 
-        // Error-Events
+        // Error events
         ocrViewModel.getErrorEvents().observe(getViewLifecycleOwner(), ev -> {
             if (ev == null) return;
             String msg = ev.getContentIfNotHandled();
             if (msg != null) UIUtils.showToast(requireContext(), "OCR failed: " + msg, Toast.LENGTH_LONG);
         });
 
-        // On image change (only trigger reset)
+        // When image changes in Crop VM, reset OCR state (no write-back during OCR)
         cropViewModel.getImageBitmap().observe(getViewLifecycleOwner(), bitmap -> {
             if (bitmap != null) {
-                if (internalImageUpdate.getAndSet(false)) return; // internes Update ignorieren
                 ocrViewModel.resetForNewImage();
             }
         });
 
-        // Insets (Statusbar)
+        // Insets (status bar)
         ViewCompat.setOnApplyWindowInsetsListener(root, (v, insets) -> {
             int topInset = insets.getInsets(WindowInsetsCompat.Type.systemBars()).top;
-            ViewGroup.MarginLayoutParams textParams = (ViewGroup.MarginLayoutParams) binding.textOcr.getLayoutParams();
+            ViewGroup.MarginLayoutParams textParams =
+                    (ViewGroup.MarginLayoutParams) binding.textOcr.getLayoutParams();
             textParams.topMargin = (int) (8 * getResources().getDisplayMetrics().density) + topInset;
             binding.textOcr.setLayoutParams(textParams);
             return insets;
         });
 
-        // Ensure bottom button bar stays above the navigation bar (e.g., on API 29)
-        // Apply system bottom inset + base margin (12dp) to the button container
+        // Bottom inset for button container
         UIUtils.adjustMarginForSystemInsets(binding.buttonContainer, 12);
         ViewCompat.setOnApplyWindowInsetsListener(binding.buttonContainer, (v, insets) -> {
             UIUtils.adjustMarginForSystemInsets(binding.buttonContainer, 12);
             return insets;
         });
 
-        // Back button navigates to Crop
+        // Back navigates up (to Crop)
         if (binding.buttonBack != null) {
             binding.buttonBack.setOnClickListener(v ->
                     Navigation.findNavController(requireView()).navigateUp());
         }
 
-        // select language
+        // Language selection
         setupLanguageSpinner();
 
         return root;
     }
 
     /**
-     * Initializes and configures the language selection spinner for the OCR functionality.
-     * <p>
-     * The spinner is populated with the list of available OCR languages retrieved from the
-     * `getAvailableLanguages()` method and sets the system language as the default selected option if it is
-     * available. If the system language is not available, the spinner defaults to the first language in the list.
-     * <p>
-     * Sets a listener to handle language selection events. When a new language is selected, it validates
-     * the language availability using `ocrHelper.isLanguageAvailable`, updates the OCR engine configuration,
-     * and triggers appropriate UI updates or OCR processing events based on the selection state.
-     * <p>
-     * If the selected language is not available, the spinner reverts to the default language, and a toast
-     * message is shown to notify the user about the unavailability of the selected language.
-     * <p>
-     * The selected language is applied to the OCR engine using `ocrHelper.setLanguage`, and default settings
-     * for the language are configured using `ocrHelper.applyDefaultsForLanguage`. The OCR whitelist is updated
-     * using `OCRWhitelist.getWhitelistForLangSpec`.
-     * <p>
-     * For the first language selection during the fragment's lifecycle, if an image is already loaded, the OCR
-     * operation is triggered immediately by calling `performOCR`. On subsequent selections, the UI is updated
-     * to allow the user to manually trigger OCR once the language is changed.
+     * Language spinner now only updates ViewModel language and UI.
+     * We do NOT touch any long-lived TessBaseAPI here.
      */
     private void setupLanguageSpinner() {
         Spinner spinner = binding.languageSpinner;
@@ -175,18 +148,14 @@ public class OCRFragment extends Fragment {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int pos, long id) {
                 String lang = (String) parent.getItemAtPosition(pos);
-                if (!ocrHelper.isLanguageAvailable(lang)) {
+
+                if (!isLanguageAvailableSafe(lang)) {
                     UIUtils.showToast(requireContext(), "Language " + lang + " not available.", Toast.LENGTH_LONG);
                     spinner.setSelection(defaultPos, false);
                     return;
                 }
-                try {
-                    ocrHelper.setLanguage(lang);
-                    ocrHelper.applyDefaultsForLanguage(lang);
-                    ocrHelper.setWhitelist(OCRWhitelist.getWhitelistForLangSpec(lang));
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
+
+                // Only update ViewModel; real OCR init happens inside the OCR job per run
                 ocrViewModel.setLanguage(lang);
 
                 if (firstSelection[0]) {
@@ -195,133 +164,191 @@ public class OCRFragment extends Fragment {
                     if (bitmap != null) performOCR();
                 } else if (ocrViewModel.getState().getValue() != null
                         && ocrViewModel.getState().getValue().imageProcessed()) {
+                    // Allow re-run with new language
                     binding.buttonProcess.setText(R.string.btn_process);
                     binding.buttonProcess.setOnClickListener(v -> performOCR());
                 }
             }
 
             @Override
-            public void onNothingSelected(AdapterView<?> parent) {
-            }
+            public void onNothingSelected(AdapterView<?> parent) { /* no-op */ }
         });
     }
 
-    /**
-     * Retrieves the list of available OCR languages based on the OCR engine's language data.
-     * If no languages are available, a default set of languages is returned.
-     *
-     * @return An array of strings representing the available OCR languages.
-     * If unavailable, the default languages are ["eng", "deu", "fra", "ita", "spa"].
-     */
-    private String[] getAvailableLanguages() {
-        String[] langs = ocrHelper.getAvailableLanguages();
-        if (langs == null || langs.length == 0) return new String[]{"eng", "deu", "fra", "ita", "spa"};
-        return langs;
+    private boolean isLanguageAvailableSafe(String lang) {
+        try {
+            return langHelper != null && langHelper.isLanguageAvailable(lang);
+        } catch (Throwable t) {
+            return false;
+        }
     }
 
     /**
-     * Executes the Optical Character Recognition (OCR) process on the currently loaded image.
-     * <p>
-     * This method performs multiple tasks including:
-     * 1. Verifies if an image is available for processing and if the OCR engine is properly initialized.
-     * 2. Prepares the image by scaling it to A4 dimensions.
-     * 3. Updates the user interface with the scaled image and transformation details.
-     * 4. Runs the OCR process in a background thread to ensure smooth UI performance.
-     * 5. Processes the OCR results, including recognized text and word box data, and updates
-     * the ViewModel with the results.
-     * 6. Handles exceptions and errors by notifying the ViewModel and displaying appropriate messages.
-     * <p>
-     * The method checks the initialization state of the OCR engine and the presence of a valid image to
-     * process. If any of these conditions are not met, the method returns early with an appropriate user
-     * notification.
-     * <p>
-     * Time taken for the OCR process is captured and included in the result. The recognized text, word boxes,
-     * and confidence levels are processed and provided to the ViewModel for further handling.
-     * <p>
-     * This method uses multi-threading to ensure that computationally intensive OCR processing does not block
-     * the main thread, and UI updates are performed on the main/UI thread as required.
+     * Get available languages without keeping a long-lived TessBaseAPI.
+     */
+    private String[] getAvailableLanguages() {
+        try {
+            if (langHelper != null) {
+                String[] langs = langHelper.getAvailableLanguages();
+                if (langs != null && langs.length > 0) return langs;
+            }
+        } catch (Throwable ignore) {
+        }
+        return new String[]{"eng", "deu", "fra", "ita", "spa"};
+    }
+
+    /**
+     * Executes OCR in a single-thread executor with a fresh TessBaseAPI per job.
+     * Rotation handling: capture-rotation compensation, then user rotation (after crop, before OCR).
+     * No write-back to CropViewModel from OCR thread.
      */
     private void performOCR() {
+        if (ocrExecutor.isShutdown()) {
+            UIUtils.showToast(requireContext(), "Screen is closing, cannot start OCR", Toast.LENGTH_SHORT);
+            return;
+        }
+
         Bitmap imageBitmap = cropViewModel.getImageBitmap().getValue();
         if (imageBitmap == null) {
             UIUtils.showToast(requireContext(), "No image to process", Toast.LENGTH_SHORT);
             return;
         }
-        if (!ocrHelper.isTesseractInitialized()) {
-            UIUtils.showToast(requireContext(), "Tesseract not initialized. Please restart the app.", Toast.LENGTH_LONG);
-            ocrViewModel.finishError("Engine not initialized");
+
+        // Prevent parallel runs
+        if (runningOcr != null && !runningOcr.isDone()) {
+            UIUtils.showToast(requireContext(), "OCR already running", Toast.LENGTH_SHORT);
             return;
         }
 
         ocrViewModel.startProcessing();
+        ocrCancelled.set(false);
 
-        new Thread(() -> {
-            long t0 = System.nanoTime();
-            try {
+        try {
+            runningOcr = ocrExecutor.submit(() -> {
+                long t0 = System.nanoTime();
+                OCRHelper localHelper = null;
+                try {
+                    // Prepare bitmap (orientation corrections)
+                    Log.d(TAG, "performOCR: Preparing image for OCR - change orientation");
+                    Bitmap src = imageBitmap;
 
-                Log.d(TAG, "performOCR: Preparing image for OCR - change orientation");
-                Bitmap src = imageBitmap;
+                    int capDeg = 0;
+                    Integer v = cropViewModel.getCaptureRotationDegrees().getValue();
+                    if (v != null) capDeg = v;
 
-                int capDeg = 0;
-                Integer v = cropViewModel.getCaptureRotationDegrees().getValue();
-                if (v != null) capDeg = v;
+                    int rotateCW = (360 - (capDeg % 360)) % 360;
+                    if (rotateCW != 0) {
+                        src = rotateBitmap(src, rotateCW);
+                    }
 
-                int rotateCW = (360 - (capDeg % 360)) % 360;
-                if (rotateCW != 0) {
-                    src = rotateBitmap(src, rotateCW);
+                    // Apply user-requested rotation (after crop, before OCR)
+                    int userDeg = 0;
+                    Integer ur = cropViewModel.getUserRotationDegrees().getValue();
+                    if (ur != null) userDeg = ((ur % 360) + 360) % 360;
+                    if (userDeg != 0) {
+                        src = rotateBitmap(src, userDeg);
+                    }
+
+                    Log.d(TAG, "performOCR: Pre-scaling image to A4 dimensions before OCR");
+                    Bitmap scaledBitmap = ImageScaler.scaleToA4(src);
+                    // Optional robustness: feed immutable ARGB_8888 copy to Tesseract
+                    Bitmap inputForOcr = scaledBitmap.copy(Bitmap.Config.ARGB_8888, /*mutable*/ false);
+
+                    // Build transform (used for word boxes mapping); do not write scaled bitmap back to Crop VM
+                    OCRViewModel.OcrTransform tx = new OCRViewModel.OcrTransform(
+                            src.getWidth(), src.getHeight(),
+                            scaledBitmap.getWidth(), scaledBitmap.getHeight(),
+                            scaledBitmap.getWidth() / (float) src.getWidth(),
+                            scaledBitmap.getHeight() / (float) src.getHeight(),
+                            0, 0
+                    );
+
+                    // Push transform to VM on UI thread
+                    runOnUiThreadSafe(() -> ocrViewModel.setTransform(tx));
+
+                    if (ocrCancelled.get()) {
+                        postError("Cancelled");
+                        return;
+                    }
+
+                    // Fresh Tesseract per job
+                    localHelper = new OCRHelper(requireContext().getApplicationContext());
+                    if (!localHelper.initTesseract()) {
+                        postError("Engine not initialized");
+                        return;
+                    }
+
+                    String lang = ocrViewModel.getLanguage().getValue();
+                    if (lang == null) lang = "eng";
+                    localHelper.applyDefaultsForLanguage(lang);
+                    localHelper.setWhitelist(OCRWhitelist.getWhitelistForLangSpec(lang));
+
+                    // OCR with words
+                    OCRHelper.OcrResultWords r = localHelper.runOcrWithWords(inputForOcr);
+
+                    if (ocrCancelled.get()) {
+                        postError("Cancelled");
+                        return;
+                    }
+
+                    long durMs = (System.nanoTime() - t0) / 1_000_000L;
+                    String finalText = (r.text == null || r.text.trim().isEmpty())
+                            ? getString(R.string.ocr_results_will_appear_here)
+                            : r.text;
+                    List<RecognizedWord> words = (r.words != null) ? r.words : new ArrayList<>();
+
+                    runOnUiThreadSafe(() -> {
+                        ocrViewModel.setWords(words);
+                        ocrViewModel.finishSuccess(finalText, words, durMs, r.meanConfidence, tx);
+                    });
+
+                } catch (Throwable e) {
+                    postError(e.getMessage() != null ? e.getMessage() : e.toString());
+                } finally {
+                    // Release Tesseract in the same thread that used it
+                    try {
+                        if (localHelper != null) localHelper.shutdown();
+                    } catch (Throwable ignored) {
+                    }
                 }
+            });
+        } catch (java.util.concurrent.RejectedExecutionException ex) {
+            UIUtils.showToast(requireContext(), "OCR service is shutting down", Toast.LENGTH_SHORT);
+            ocrViewModel.finishError("Executor shutdown");
+        }
+    }
 
-                Log.d(TAG, "performOCR: Pre-scaling image to A4 dimensions before OCR");
-                Bitmap scaledBitmap = ImageScaler.scaleToA4(src);
+    private void postError(String msg) {
+        runOnUiThreadSafe(() -> {
+            ocrViewModel.finishError(msg);
+        });
+    }
 
-                // calculate transform
-                OCRViewModel.OcrTransform tx = new OCRViewModel.OcrTransform(
-                        src.getWidth(), src.getHeight(),
-                        scaledBitmap.getWidth(), scaledBitmap.getHeight(),
-                        scaledBitmap.getWidth() / (float) src.getWidth(),
-                        scaledBitmap.getHeight() / (float) src.getHeight(),
-                        0, 0
-                );
-
-                // UI-Thread: set bitmap and transform
-                internalImageUpdate.set(true);
-                requireActivity().runOnUiThread(() -> {
-                    if (!isAdded() || binding == null) return;
-                    cropViewModel.setImageBitmap(scaledBitmap);
-                    ocrViewModel.setTransform(tx); // UI-Thread
-                });
-
-                // OCR with word boxes
-                OCRHelper.OcrResultWords r = ocrHelper.runOcrWithWords(scaledBitmap);
-                long durMs = (System.nanoTime() - t0) / 1_000_000L;
-
-                String finalText = (r.text == null || r.text.trim().isEmpty())
-                        ? getString(R.string.ocr_results_will_appear_here)
-                        : r.text;
-
-                List<RecognizedWord> words = (r.words != null) ? r.words : new ArrayList<>();
-
-                // UI-Thread: Result
-                requireActivity().runOnUiThread(() -> {
-                    if (!isAdded() || binding == null) return;
-                    ocrViewModel.setWords(words);
-                    ocrViewModel.finishSuccess(finalText, words, durMs, r.meanConfidence, tx);
-                });
-
-            } catch (Exception e) {
-                requireActivity().runOnUiThread(() -> {
-                    if (!isAdded() || binding == null) return;
-                    ocrViewModel.finishError(e.getMessage() != null ? e.getMessage() : e.toString());
-                });
-            }
-        }).start();
+    private void runOnUiThreadSafe(Runnable r) {
+        if (!isAdded()) return;
+        try {
+            requireActivity().runOnUiThread(() -> {
+                if (!isAdded() || binding == null) return;
+                r.run();
+            });
+        } catch (Throwable ignored) {
+        }
     }
 
     @Override
     public void onDestroyView() {
         super.onDestroyView();
-        if (ocrHelper != null) ocrHelper.shutdown();
+        // Signal cancel; do NOT forcibly interrupt the running job (avoid tearing down Tesseract mid-call)
+        ocrCancelled.set(true);
+
         binding = null;
+    }
+
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+        // Fragment is going away for good: now it's safe to shut down the executor
+        ocrExecutor.shutdown();
     }
 
     /**
@@ -358,10 +385,10 @@ public class OCRFragment extends Fragment {
      * @return A new rotated Bitmap object, or the original Bitmap if no rotation is applied.
      */
     private static Bitmap rotateBitmap(Bitmap src, int degreesCW) {
-        if (degreesCW % 360 == 0) return src;
+        int deg = ((degreesCW % 360) + 360) % 360;
+        if (deg == 0) return src;
         Matrix m = new Matrix();
-        m.postRotate(degreesCW);
-        Bitmap out = Bitmap.createBitmap(src, 0, 0, src.getWidth(), src.getHeight(), m, true);
-        return out;
+        m.postRotate(deg);
+        return Bitmap.createBitmap(src, 0, 0, src.getWidth(), src.getHeight(), m, true);
     }
 }

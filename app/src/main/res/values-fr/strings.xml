@@ -96,6 +96,11 @@
     <string name="picker_empty">Aucune numérisation terminée trouvée</string>
     <string name="done">Suivant</string>
     <string name="thumbnail">Vignette</string>
+    <string name="delete">Supprimer</string>
+
+    <!-- Actions groupées du sélecteur -->
+    <string name="select_all">Tout sélectionner</string>
+    <string name="deselect_all">Tout désélectionner</string>
 
     <string name="added_pages_from_registry">Ajout de %1$d page(s) depuis le registre</string>
     
@@ -127,4 +132,8 @@
     <string name="btn_options">Options</string>
     <string name="btn_save">Enregistrer</string>
     <string name="btn_new">Nouveau</string>
+    
+    <!-- Rotation (post-crop) -->
+    <string name="rotate_left_cd">Faire pivoter la page de 90° dans le sens antihoraire</string>
+    <string name="rotate_right_cd">Faire pivoter la page de 90° dans le sens horaire</string>
 </resources>

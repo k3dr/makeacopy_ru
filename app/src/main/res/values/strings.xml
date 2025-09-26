@@ -96,6 +96,11 @@
     <string name="picker_empty">No completed scans found</string>
     <string name="done">Next</string>
     <string name="thumbnail">Thumbnail</string>
+    <string name="delete">Delete</string>
+    
+    <!-- Picker bulk actions -->
+    <string name="select_all">Select all</string>
+    <string name="deselect_all">Deselect all</string>
 
     <string name="added_pages_from_registry">Added %1$d page(s) from registry</string>
     
@@ -127,5 +132,9 @@
     <string name="btn_options">Options</string>
     <string name="btn_save">Save</string>
     <string name="btn_new">New</string>
+
+    <!-- Rotation (post-crop) -->
+    <string name="rotate_left_cd">Rotate page 90 degrees counter-clockwise</string>
+    <string name="rotate_right_cd">Rotate page 90 degrees clockwise</string>
 
 </resources>

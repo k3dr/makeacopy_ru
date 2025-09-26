@@ -17,6 +17,11 @@ public class CropViewModel extends BaseViewModel {
     private final MutableLiveData<Bitmap> mOriginalImageBitmap;
     private final MutableLiveData<Boolean> mImageCropped;
 
+    // Rotation inferred from capture/EXIF (pre-crop)
+    private final MutableLiveData<Integer> captureRotationDegrees = new MutableLiveData<>(0);
+    // User-requested rotation after cropping (applied before OCR/export)
+    private final MutableLiveData<Integer> userRotationDegrees = new MutableLiveData<>(0);
+
     public CropViewModel() {
         super("Crop Fragment");
 
@@ -93,8 +98,6 @@ public class CropViewModel extends BaseViewModel {
         mOriginalImageBitmap.setValue(bitmap);
     }
 
-    private final MutableLiveData<Integer> captureRotationDegrees = new MutableLiveData<>(0);
-
     /**
      * Retrieves the rotation degrees applied to the captured image.
      *
@@ -112,6 +115,38 @@ public class CropViewModel extends BaseViewModel {
      */
     public void setCaptureRotationDegrees(int deg) {
         captureRotationDegrees.setValue(((deg % 360) + 360) % 360);
+    }
+
+    /**
+     * Returns the user-requested rotation degrees (applied after crop, before OCR/export).
+     */
+    public LiveData<Integer> getUserRotationDegrees() {
+        return userRotationDegrees;
+    }
+
+    /**
+     * Sets an absolute user rotation value in degrees (normalized to [0, 360)).
+     */
+    public void setUserRotationDegrees(int deg) {
+        userRotationDegrees.setValue(((deg % 360) + 360) % 360);
+    }
+
+    /**
+     * Convenience: rotate 90° clockwise (right).
+     */
+    public void rotateRight() {
+        Integer v = userRotationDegrees.getValue();
+        int cur = (v == null ? 0 : v);
+        setUserRotationDegrees(cur + 90);
+    }
+
+    /**
+     * Convenience: rotate 90° counter-clockwise (left).
+     */
+    public void rotateLeft() {
+        Integer v = userRotationDegrees.getValue();
+        int cur = (v == null ? 0 : v);
+        setUserRotationDegrees(cur - 90);
     }
 
 }

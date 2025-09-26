@@ -1,3 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
 <androidx.constraintlayout.widget.ConstraintLayout
         xmlns:android="http://schemas.android.com/apk/res/android"
         xmlns:app="http://schemas.android.com/apk/res-auto"
@@ -82,6 +83,45 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="@string/btn_crop"/>
+    </LinearLayout>
+
+    <!-- Rotation Icons (über dem Button-Container, nur nach Crop sichtbar) -->
+    <LinearLayout
+            android:id="@+id/rotation_button_bar"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center"
+            android:padding="8dp"
+            android:layout_marginBottom="8dp"
+            android:visibility="gone"
+            app:layout_constraintBottom_toTopOf="@id/button_container"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent">
+
+        <ImageButton
+                android:id="@+id/button_rotate_left"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:background="@android:color/transparent"
+                android:contentDescription="@string/rotate_left_cd"
+                android:padding="8dp"
+                android:src="@drawable/ic_rotate_left"
+                app:tint="?attr/colorControlNormal"/>
+
+        <Space
+                android:layout_width="12dp"
+                android:layout_height="1dp"/>
+
+        <ImageButton
+                android:id="@+id/button_rotate_right"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:background="@android:color/transparent"
+                android:contentDescription="@string/rotate_right_cd"
+                android:padding="8dp"
+                android:src="@drawable/ic_rotate_right"
+                app:tint="?attr/colorControlNormal"/>
     </LinearLayout>
 
     <!-- Review/Bestätigungs-Buttons (nur nach Crop sichtbar) -->

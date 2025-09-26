@@ -97,6 +97,11 @@
     <string name="picker_empty">Nessuna scansione completata trovata</string>
     <string name="done">Avanti</string>
     <string name="thumbnail">Miniatura</string>
+    <string name="delete">Elimina</string>
+
+    <!-- Azioni massive del selettore -->
+    <string name="select_all">Seleziona tutto</string>
+    <string name="deselect_all">Deseleziona tutto</string>
 
     <string name="added_pages_from_registry">Aggiunte %1$d pagina/e dal registro</string>
     
@@ -128,4 +133,8 @@
     <string name="btn_options">Opzioni</string>
     <string name="btn_save">Salva</string>
     <string name="btn_new">Nuovo</string>
+    
+    <!-- Rotazione (post-crop) -->
+    <string name="rotate_left_cd">Ruota la pagina di 90 gradi in senso antiorario</string>
+    <string name="rotate_right_cd">Ruota la pagina di 90 gradi in senso orario</string>
 </resources>

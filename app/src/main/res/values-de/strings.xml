@@ -96,6 +96,11 @@
     <string name="picker_empty">Keine fertigen Scans gefunden</string>
     <string name="done">Weiter</string>
     <string name="thumbnail">Miniaturansicht</string>
+    <string name="delete">Löschen</string>
+
+    <!-- Picker bulk actions -->
+    <string name="select_all">Alle auswählen</string>
+    <string name="deselect_all">Alle abwählen</string>
 
     <string name="added_pages_from_registry">%1$d Seite(n) aus Registry hinzugefügt</string>
     
@@ -127,4 +132,8 @@
     <string name="btn_options">Optionen</string>
     <string name="btn_save">Speichern</string>
     <string name="btn_new">Neu</string>
+
+    <!-- Rotation (post-crop) -->
+    <string name="rotate_left_cd">Seite um 90 Grad gegen den Uhrzeigersinn drehen</string>
+    <string name="rotate_right_cd">Seite um 90 Grad im Uhrzeigersinn drehen</string>
 </resources>

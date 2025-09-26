@@ -257,8 +257,7 @@ public class ExportFragment extends Fragment {
             exportViewModel.getExportProgressMax().observe(getViewLifecycleOwner(), max -> {
                 Integer m = (max == null) ? 0 : max;
                 binding.exportProgress.setMax((m <= 0) ? 100 : m);
-                if (m != null && m > 0) binding.exportProgress.setIndeterminate(false);
-                else binding.exportProgress.setIndeterminate(true);
+                binding.exportProgress.setIndeterminate(m == null || m <= 0);
             });
             exportViewModel.getExportProgress().observe(getViewLifecycleOwner(), value -> {
                 if (value != null) binding.exportProgress.setProgress(value);
@@ -397,7 +396,23 @@ public class ExportFragment extends Fragment {
             if (!found && pages != null && !pages.isEmpty()) {
                 de.schliweb.makeacopy.ui.export.session.CompletedScan first = pages.get(0);
                 if (first != null && first.inMemoryBitmap() != null) {
-                    exportViewModel.setDocumentBitmap(first.inMemoryBitmap());
+                    Bitmap bmp = first.inMemoryBitmap();
+                    try {
+                        int deg = 0;
+                        try {
+                            deg = first.rotationDeg();
+                        } catch (Throwable ignore) {
+                        }
+                        deg = ((deg % 360) + 360) % 360;
+                        if (deg != 0 && bmp != null) {
+                            android.graphics.Matrix m = new android.graphics.Matrix();
+                            m.postRotate(deg);
+                            Bitmap rotated = android.graphics.Bitmap.createBitmap(bmp, 0, 0, bmp.getWidth(), bmp.getHeight(), m, true);
+                            if (rotated != null) bmp = rotated;
+                        }
+                    } catch (Throwable ignore) {
+                    }
+                    exportViewModel.setDocumentBitmap(bmp);
                     exportViewModel.setDocumentReady(true);
                 }
             }
@@ -412,10 +427,16 @@ public class ExportFragment extends Fragment {
         if (curSize == 0) {
             // First time opening Export in this session: seed with current cropped bitmap if available
             if (initBmp != null) {
+                int userDeg = 0;
+                try {
+                    Integer v = cropViewModel.getUserRotationDegrees().getValue();
+                    if (v != null) userDeg = ((v % 360) + 360) % 360;
+                } catch (Throwable ignore) {
+                }
                 de.schliweb.makeacopy.ui.export.session.CompletedScan initial = new de.schliweb.makeacopy.ui.export.session.CompletedScan(
                         java.util.UUID.randomUUID().toString(),
                         null,
-                        0,
+                        userDeg,
                         null,
                         null,
                         null,
@@ -446,10 +467,16 @@ public class ExportFragment extends Fragment {
                     }
                 }
                 if (!alreadyPresent) {
+                    int userDeg = 0;
+                    try {
+                        Integer v = cropViewModel.getUserRotationDegrees().getValue();
+                        if (v != null) userDeg = ((v % 360) + 360) % 360;
+                    } catch (Throwable ignore) {
+                    }
                     de.schliweb.makeacopy.ui.export.session.CompletedScan added = new de.schliweb.makeacopy.ui.export.session.CompletedScan(
                             java.util.UUID.randomUUID().toString(),
                             null,
-                            0,
+                            userDeg,
                             null,
                             null,
                             null,
@@ -827,7 +854,25 @@ public class ExportFragment extends Fragment {
         Bitmap maybeBitmap = cropViewModel.getImageBitmap().getValue();
 
         if (Boolean.TRUE.equals(isCropped) && maybeBitmap != null) {
-            exportViewModel.setDocumentBitmap(maybeBitmap);
+            // Apply user rotation (from CropViewModel) to the preview so it matches what the user sees elsewhere
+            Bitmap bmp = maybeBitmap;
+            try {
+                int userDeg = 0;
+                try {
+                    Integer v = cropViewModel.getUserRotationDegrees().getValue();
+                    if (v != null) userDeg = v;
+                } catch (Throwable ignore) {
+                }
+                userDeg = ((userDeg % 360) + 360) % 360;
+                if (userDeg != 0) {
+                    android.graphics.Matrix m = new android.graphics.Matrix();
+                    m.postRotate(userDeg);
+                    Bitmap rotated = android.graphics.Bitmap.createBitmap(bmp, 0, 0, bmp.getWidth(), bmp.getHeight(), m, true);
+                    if (rotated != null) bmp = rotated;
+                }
+            } catch (Throwable ignore) {
+            }
+            exportViewModel.setDocumentBitmap(bmp);
             exportViewModel.setDocumentReady(true);
         } else {
             // Prevent exporting the original, un-cropped image
@@ -1034,49 +1079,18 @@ public class ExportFragment extends Fragment {
                     } catch (Throwable ignore) {
                     }
                 } else {
-                    // Single-page: apply rotation if set on the (only) page
-                    Bitmap src = documentBitmap;
-                    int deg = 0;
-                    try {
-                        java.util.List<de.schliweb.makeacopy.ui.export.session.CompletedScan> single = exportSessionViewModel != null ? exportSessionViewModel.getPages().getValue() : null;
-                        if (single != null && single.size() >= 1 && single.get(0) != null) {
-                            deg = single.get(0).rotationDeg();
-                        }
-                    } catch (Throwable ignore) {
-                    }
-                    Bitmap toExport = src;
-                    boolean createdTemp = false;
-                    if (deg % 360 != 0 && src != null && !src.isRecycled()) {
-                        try {
-                            android.graphics.Matrix m = new android.graphics.Matrix();
-                            m.postRotate(deg);
-                            Bitmap rotated = android.graphics.Bitmap.createBitmap(src, 0, 0, src.getWidth(), src.getHeight(), m, true);
-                            if (rotated != null) {
-                                toExport = rotated;
-                                createdTemp = (rotated != src);
-                            }
-                        } catch (Throwable ignore) {
-                        }
-                    }
-                    try {
-                        exportUri = PdfCreator.createSearchablePdf(
-                                appContext,
-                                toExport,
-                                recognizedWords,
-                                selectedLocation,
-                                jpegQuality,
-                                convertGrayEffective,
-                                convertBwEffective,
-                                preset.targetDpi
-                        );
-                    } finally {
-                        if (createdTemp && toExport != null && toExport != src) {
-                            try {
-                                toExport.recycle();
-                            } catch (Throwable ignore) {
-                            }
-                        }
-                    }
+                    // Single-page: documentBitmap is already oriented for preview; avoid double-rotating here
+                    Bitmap toExport = documentBitmap;
+                    exportUri = PdfCreator.createSearchablePdf(
+                            appContext,
+                            toExport,
+                            recognizedWords,
+                            selectedLocation,
+                            jpegQuality,
+                            convertGrayEffective,
+                            convertBwEffective,
+                            preset.targetDpi
+                    );
                 }
 
                 final Uri finalUri = exportUri;
@@ -1612,20 +1626,42 @@ public class ExportFragment extends Fragment {
                     bmp.compress(android.graphics.Bitmap.CompressFormat.JPEG, 90, fos);
                     fos.flush();
                 }
-                // Create a small thumbnail (long edge ~240px)
-                int w = bmp.getWidth();
-                int h = bmp.getHeight();
+                // Create a small thumbnail (long edge ~240px). Ensure rotation is applied so registry thumbnail matches preview.
+                android.graphics.Bitmap sourceForThumb = bmp;
+                try {
+                    int deg = 0;
+                    try {
+                        deg = s.rotationDeg();
+                    } catch (Throwable ignore) {
+                    }
+                    deg = ((deg % 360) + 360) % 360;
+                    if (deg != 0 && bmp != null && !bmp.isRecycled()) {
+                        android.graphics.Matrix m = new android.graphics.Matrix();
+                        m.postRotate(deg);
+                        android.graphics.Bitmap rotated = android.graphics.Bitmap.createBitmap(bmp, 0, 0, bmp.getWidth(), bmp.getHeight(), m, true);
+                        if (rotated != null) sourceForThumb = rotated;
+                    }
+                } catch (Throwable ignore) { /* fall back to original */ }
+                int w = sourceForThumb.getWidth();
+                int h = sourceForThumb.getHeight();
                 int longEdge = Math.max(w, h);
                 int target = 240;
                 float scale = longEdge > target ? (target / (float) longEdge) : 1f;
                 int nw = Math.max(1, Math.round(w * scale));
                 int nh = Math.max(1, Math.round(h * scale));
-                android.graphics.Bitmap thumb = android.graphics.Bitmap.createScaledBitmap(bmp, nw, nh, true);
+                android.graphics.Bitmap thumb = android.graphics.Bitmap.createScaledBitmap(sourceForThumb, nw, nh, true);
                 java.io.File thumbFile = new java.io.File(dir, "thumb.jpg");
                 try (java.io.FileOutputStream tfos = new java.io.FileOutputStream(thumbFile)) {
                     thumb.compress(android.graphics.Bitmap.CompressFormat.JPEG, 75, tfos);
                     tfos.flush();
                 } catch (Throwable ignore) {
+                }
+                // Recycle intermediate rotated bitmap if it was created just for thumbnail
+                if (sourceForThumb != bmp) {
+                    try {
+                        sourceForThumb.recycle();
+                    } catch (Throwable ignore) {
+                    }
                 }
 
                 // If OCR text/words are available, persist text.txt and words.json; prefer words_json if present

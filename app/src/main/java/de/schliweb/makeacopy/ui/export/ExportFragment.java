@@ -145,6 +145,10 @@ public class ExportFragment extends Fragment {
             boolean exportAsJpeg = prefs.getBoolean("export_as_jpeg", false);
 
             if (exportAsJpeg) {
+                // Preview should ONLY reflect JPEG options when exporting as JPEG.
+                // Ignore PDF preview options (grayscale/bw) in this mode.
+                toGray = false;
+                toBw = false;
                 // If JPEG BW_TEXT mode is selected, prefer showing BW preview
                 try {
                     JpegExportOptions.Mode mode = JpegExportOptions.Mode.valueOf(prefs.getString("jpeg_mode", JpegExportOptions.Mode.AUTO.name()));
@@ -351,8 +355,8 @@ public class ExportFragment extends Fragment {
                 public boolean onMove(@NonNull androidx.recyclerview.widget.RecyclerView recyclerView,
                                       @NonNull androidx.recyclerview.widget.RecyclerView.ViewHolder viewHolder,
                                       @NonNull androidx.recyclerview.widget.RecyclerView.ViewHolder target) {
-                    int from = viewHolder.getAdapterPosition();
-                    int to = target.getAdapterPosition();
+                    int from = viewHolder.getBindingAdapterPosition();
+                    int to = target.getBindingAdapterPosition();
                     return pagesAdapter.onItemMove(from, to);
                 }
 
@@ -1249,42 +1253,9 @@ public class ExportFragment extends Fragment {
                 JpegExportOptions options = new JpegExportOptions(); // defaults (quality=85, no resize)
                 options.mode = (chosenMode != null) ? chosenMode : JpegExportOptions.Mode.NONE;
 
-                // Apply rotation for single-image JPEG if rotationDeg is set on the page
-                Bitmap src = documentBitmap;
-                int deg = 0;
-                try {
-                    java.util.List<de.schliweb.makeacopy.ui.export.session.CompletedScan> single = exportSessionViewModel != null ? exportSessionViewModel.getPages().getValue() : null;
-                    if (single != null && single.size() >= 1 && single.get(0) != null) {
-                        deg = single.get(0).rotationDeg();
-                    }
-                } catch (Throwable ignore) {
-                }
-                Bitmap toExport = src;
-                boolean createdTemp = false;
-                if (deg % 360 != 0 && src != null && !src.isRecycled()) {
-                    try {
-                        android.graphics.Matrix m = new android.graphics.Matrix();
-                        m.postRotate(deg);
-                        Bitmap rotated = android.graphics.Bitmap.createBitmap(src, 0, 0, src.getWidth(), src.getHeight(), m, true);
-                        if (rotated != null) {
-                            toExport = rotated;
-                            createdTemp = (rotated != src);
-                        }
-                    } catch (Throwable ignore) {
-                    }
-                }
-
-                Uri exportUri = null;
-                try {
-                    exportUri = JpegExporter.export(appContext, toExport, options, selectedLocation);
-                } finally {
-                    if (createdTemp && toExport != null && toExport != src) {
-                        try {
-                            toExport.recycle();
-                        } catch (Throwable ignore) {
-                        }
-                    }
-                }
+                // For single-image JPEG, the preview bitmap is already oriented (rotated) for display.
+                // Align behavior with PDF export: do not apply rotation again to avoid double-rotation.
+                Uri exportUri = JpegExporter.export(appContext, documentBitmap, options, selectedLocation);
                 final Uri exportUriFinal = exportUri;
                 postToUiSafe(() -> {
                     if (exportUriFinal != null) {
@@ -1981,11 +1952,14 @@ public class ExportFragment extends Fragment {
         super.onStart();
         try {
             if (!ocrReceiverRegistered) {
-                androidx.localbroadcastmanager.content.LocalBroadcastManager.getInstance(requireContext()).registerReceiver(
-                        ocrUpdateReceiver,
-                        new android.content.IntentFilter(de.schliweb.makeacopy.jobs.OcrBackgroundJobs.ACTION_OCR_UPDATED)
-                );
-                ocrReceiverRegistered = true;
+                android.content.Context app = requireContext().getApplicationContext();
+                android.content.IntentFilter filter = new android.content.IntentFilter(de.schliweb.makeacopy.jobs.OcrBackgroundJobs.ACTION_OCR_UPDATED);
+                int flags = androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED;
+                try {
+                    androidx.core.content.ContextCompat.registerReceiver(app, ocrUpdateReceiver, filter, flags);
+                    ocrReceiverRegistered = true;
+                } catch (Throwable ignore) {
+                }
             }
         } catch (Throwable ignore) {
         }
@@ -1995,7 +1969,11 @@ public class ExportFragment extends Fragment {
     public void onStop() {
         try {
             if (ocrReceiverRegistered) {
-                androidx.localbroadcastmanager.content.LocalBroadcastManager.getInstance(requireContext()).unregisterReceiver(ocrUpdateReceiver);
+                android.content.Context app = requireContext().getApplicationContext();
+                try {
+                    app.unregisterReceiver(ocrUpdateReceiver);
+                } catch (Throwable ignore) {
+                }
                 ocrReceiverRegistered = false;
             }
         } catch (Throwable ignore) {

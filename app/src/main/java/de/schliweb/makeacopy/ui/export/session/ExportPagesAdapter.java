@@ -275,17 +275,17 @@ public class ExportPagesAdapter extends RecyclerView.Adapter<ExportPagesAdapter.
         h.badge.setBackgroundColor(badgeBg);
         // Inline OCR action: if missing OCR, clicking the badge requests OCR for this page
         if (!hasOcr && callbacks != null) {
-            h.badge.setOnClickListener(v -> callbacks.onOcrRequested(h.getAdapterPosition()));
+            h.badge.setOnClickListener(v -> callbacks.onOcrRequested(h.getBindingAdapterPosition()));
         } else {
             h.badge.setOnClickListener(null);
         }
 
         h.buttonRemove.setOnClickListener(v -> {
-            if (callbacks != null) callbacks.onRemoveClicked(h.getAdapterPosition());
+            if (callbacks != null) callbacks.onRemoveClicked(h.getBindingAdapterPosition());
         });
         // Click on the item (or thumbnail) selects the page
         View.OnClickListener select = v -> {
-            if (callbacks != null) callbacks.onPageClicked(h.getAdapterPosition());
+            if (callbacks != null) callbacks.onPageClicked(h.getBindingAdapterPosition());
         };
         h.itemView.setOnClickListener(select);
         h.thumb.setOnClickListener(select);

@@ -5,6 +5,10 @@ import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.util.Log;
+import de.schliweb.makeacopy.data.CompletedScansRegistry;
+import de.schliweb.makeacopy.ui.export.session.CompletedScan;
+import de.schliweb.makeacopy.utils.OCRHelper;
+import de.schliweb.makeacopy.utils.RecognizedWord;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -14,13 +18,6 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-
-import de.schliweb.makeacopy.data.CompletedScansRegistry;
-import de.schliweb.makeacopy.ui.export.session.CompletedScan;
-import de.schliweb.makeacopy.ui.ocr.OCRViewModel; // only for type reference if needed
-import de.schliweb.makeacopy.ui.export.ExportFragment; // for toWordsJson? no, not accessible here
-import de.schliweb.makeacopy.utils.OCRHelper;
-import de.schliweb.makeacopy.utils.RecognizedWord;
 
 /**
  * Minimal background OCR job runner without external dependencies.
@@ -37,15 +34,16 @@ public final class OcrBackgroundJobs {
     private static final ExecutorService EXEC = Executors.newSingleThreadExecutor();
     private static final Set<String> running = Collections.synchronizedSet(new HashSet<>());
 
-    private OcrBackgroundJobs() {}
+    private OcrBackgroundJobs() {
+    }
 
     /**
      * Enqueues a background reprocessing task for Optical Character Recognition (OCR)
      * on a scanned page. The method will attempt to generate and store OCR results
      * including text and recognized words for the specified page.
      *
-     * @param ctx     The application context used for accessing system resources.
-     * @param pageId  The unique identifier of the scanned page to be reprocessed.
+     * @param ctx         The application context used for accessing system resources.
+     * @param pageId      The unique identifier of the scanned page to be reprocessed.
      * @param languageOpt Optional language code for OCR processing (e.g., "eng" for English).
      *                    If null or empty, a default language will be used.
      */
@@ -65,7 +63,10 @@ public final class OcrBackgroundJobs {
                 CompletedScansRegistry reg = CompletedScansRegistry.get(app);
                 CompletedScan s = null;
                 for (CompletedScan it : reg.listAllOrderedByDateDesc()) {
-                    if (it != null && pageId.equals(it.id())) { s = it; break; }
+                    if (it != null && pageId.equals(it.id())) {
+                        s = it;
+                        break;
+                    }
                 }
                 if (s == null) throw new RuntimeException("Entry not found in registry: " + pageId);
                 Bitmap bmp = null;
@@ -76,7 +77,10 @@ public final class OcrBackgroundJobs {
                 OCRHelper helper = new OCRHelper(app);
                 if (!helper.initTesseract()) throw new RuntimeException("Tesseract init failed");
                 if (languageOpt != null && !languageOpt.trim().isEmpty()) {
-                    try { helper.setLanguage(languageOpt); } catch (Throwable ignore) {}
+                    try {
+                        helper.setLanguage(languageOpt);
+                    } catch (Throwable ignore) {
+                    }
                 }
                 OCRHelper.OcrResultWords res = helper.runOcrWithWords(bmp);
                 String text = (res != null && res.text != null) ? res.text : "";
@@ -105,7 +109,8 @@ public final class OcrBackgroundJobs {
                         s.thumbPath(), s.createdAt(), s.widthPx(), s.heightPx(), s.inMemoryBitmap());
                 try {
                     reg.remove(s.id());
-                } catch (Throwable ignore) {}
+                } catch (Throwable ignore) {
+                }
                 try {
                     reg.insert(updated);
                 } catch (Throwable e) {
@@ -121,8 +126,10 @@ public final class OcrBackgroundJobs {
                 intent.putExtra(EXTRA_PAGE_ID, pageId);
                 intent.putExtra(EXTRA_SUCCESS, success);
                 try {
-                    androidx.localbroadcastmanager.content.LocalBroadcastManager.getInstance(app).sendBroadcast(intent);
-                } catch (Throwable ignore) {}
+                    intent.setPackage(app.getPackageName()); // keep broadcast within app
+                    app.sendBroadcast(intent);
+                } catch (Throwable ignore) {
+                }
             }
         });
     }
@@ -139,7 +146,10 @@ public final class OcrBackgroundJobs {
                 if (!first) sb.append(',');
                 first = false;
                 float conf = 0f;
-                try { conf = (float) w.getConfidence(); } catch (Throwable ignore) {}
+                try {
+                    conf = w.getConfidence();
+                } catch (Throwable ignore) {
+                }
                 sb.append('{')
                         .append("\"text\":").append(escapeJsonString(w.getText())).append(',')
                         .append("\"left\":").append(formatFloat(r.left)).append(',')
@@ -161,13 +171,27 @@ public final class OcrBackgroundJobs {
         for (int i = 0; i < s.length(); i++) {
             char c = s.charAt(i);
             switch (c) {
-                case '"': out.append("\\\""); break;
-                case '\\': out.append("\\\\"); break;
-                case '\b': out.append("\\b"); break;
-                case '\f': out.append("\\f"); break;
-                case '\n': out.append("\\n"); break;
-                case '\r': out.append("\\r"); break;
-                case '\t': out.append("\\t"); break;
+                case '"':
+                    out.append("\\\"");
+                    break;
+                case '\\':
+                    out.append("\\\\");
+                    break;
+                case '\b':
+                    out.append("\\b");
+                    break;
+                case '\f':
+                    out.append("\\f");
+                    break;
+                case '\n':
+                    out.append("\\n");
+                    break;
+                case '\r':
+                    out.append("\\r");
+                    break;
+                case '\t':
+                    out.append("\\t");
+                    break;
                 default:
                     if (c < 0x20) {
                         out.append(String.format(java.util.Locale.US, "\\u%04x", (int) c));

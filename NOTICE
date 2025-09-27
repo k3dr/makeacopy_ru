@@ -1,14 +1,14 @@
 NOTICE
 
 This project is licensed under the Apache License 2.0 (see LICENSE). It also
-includes third‑party components under their respective licenses as noted below.
+includes third-party components under their respective licenses as noted below.
 
 1) OpenCV (selected Java classes vendored)
     - Project: https://opencv.org
     - License: Apache License, Version 2.0
     - Notes: Selected Java classes from the org.opencv.* packages have been
       copied into this project to enable OpenCV-based image processing.
-      Original license headers are preserved.
+      Original Apache 2.0 license headers are preserved in the vendored files.
 
 2) DocAligner model (ONNX)
     - Project: https://github.com/DocsaidLab/DocAligner
@@ -22,7 +22,28 @@ includes third‑party components under their respective licenses as noted below
     - License: MIT License
     - Notes: Built from source for Android (CPU-only, Java bindings) via
       scripts/build_onnxruntime_android.sh. The resulting native libraries and
-      Java JAR are integrated into app/jniLibs and app/libs respectively as part of the required ONNX Runtime support.
+      Java JAR are integrated into app/jniLibs and app/libs respectively as part
+      of the required ONNX Runtime support.
+
+4) Noto Sans CJK (fonts; used for CJK PDF text layer)
+    - Project: https://github.com/notofonts/noto-cjk
+    - License: SIL Open Font License 1.1
+    - Notes: Distributed under the OFL without modification and without changes
+      to Reserved Font Names. When bundled, the OFL notice is included at
+      third_party_licenses/OFL.txt. Subsetting may be applied.
+
+5) Tesseract OCR language data (tessdata)
+    - Project: https://github.com/tesseract-ocr/tessdata
+    - License: Apache License, Version 2.0
+    - Notes: Extended to include chi_sim and chi_tra for Chinese OCR where
+      applicable.
+
+6) Noto Sans (fonts; e.g., NotoSans-Regular.ttf)
+    - Project: https://github.com/notofonts/noto-fonts
+    - License: SIL Open Font License 1.1
+    - Notes: Distributed under the OFL without modification and without changes
+      to Reserved Font Names. When bundled, the OFL notice is included at
+      third_party_licenses/OFL.txt.
 
 For full license texts, see the corresponding upstream repositories and their
 LICENSE files. The Apache License 2.0 for this project is provided in LICENSE.

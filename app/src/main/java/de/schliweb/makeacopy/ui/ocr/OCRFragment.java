@@ -20,7 +20,10 @@ import androidx.navigation.Navigation;
 import de.schliweb.makeacopy.R;
 import de.schliweb.makeacopy.databinding.FragmentOcrBinding;
 import de.schliweb.makeacopy.ui.crop.CropViewModel;
-import de.schliweb.makeacopy.utils.*;
+import de.schliweb.makeacopy.utils.ImageScaler;
+import de.schliweb.makeacopy.utils.OCRHelper;
+import de.schliweb.makeacopy.utils.RecognizedWord;
+import de.schliweb.makeacopy.utils.UIUtils;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -194,7 +197,8 @@ public class OCRFragment extends Fragment {
             }
         } catch (Throwable ignore) {
         }
-        return new String[]{"eng", "deu", "fra", "ita", "spa"};
+        // Fallback includes Chinese (Simplified and Traditional) so users on zh locales can select them when asset listing fails
+        return new String[]{"eng", "deu", "fra", "ita", "spa", "chi_sim", "chi_tra"};
     }
 
     /**
@@ -273,15 +277,21 @@ public class OCRFragment extends Fragment {
 
                     // Fresh Tesseract per job
                     localHelper = new OCRHelper(requireContext().getApplicationContext());
+
+                    String lang = ocrViewModel.getLanguage().getValue();
+                    if (lang == null || lang.isEmpty()) lang = "eng";
+
+                    try {
+                        // Ensure language is set BEFORE init so Tesseract loads the correct traineddata
+                        localHelper.setLanguage(lang);
+                    } catch (Throwable t) {
+                        Log.e(TAG, "Failed to set language " + lang + ": " + t);
+                    }
+
                     if (!localHelper.initTesseract()) {
                         postError("Engine not initialized");
                         return;
                     }
-
-                    String lang = ocrViewModel.getLanguage().getValue();
-                    if (lang == null) lang = "eng";
-                    localHelper.applyDefaultsForLanguage(lang);
-                    localHelper.setWhitelist(OCRWhitelist.getWhitelistForLangSpec(lang));
 
                     // OCR with words
                     OCRHelper.OcrResultWords r = localHelper.runOcrWithWords(inputForOcr);
@@ -370,6 +380,17 @@ public class OCRFragment extends Fragment {
                 return "ita";
             case "es":
                 return "spa";
+            case "zh":
+                // Map Chinese to Simplified or Traditional based on region, default to Simplified
+                try {
+                    java.util.Locale loc = java.util.Locale.getDefault();
+                    String country = loc.getCountry();
+                    if ("TW".equalsIgnoreCase(country) || "HK".equalsIgnoreCase(country) || "MO".equalsIgnoreCase(country)) {
+                        return "chi_tra";
+                    }
+                } catch (Throwable ignore) {
+                }
+                return "chi_sim";
             default:
                 return "eng";
         }

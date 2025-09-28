@@ -48,6 +48,7 @@ import de.schliweb.makeacopy.utils.UIUtils;
 import java.io.File;
 import java.text.SimpleDateFormat;
 import java.util.Locale;
+import java.util.concurrent.TimeUnit;
 
 /**
  * CameraFragment is responsible for handling the camera functionality and user interactions
@@ -104,7 +105,6 @@ import java.util.Locale;
 public class CameraFragment extends Fragment implements SensorEventListener {
 
     private static final String TAG = "CameraFragment";
-    private static final int CAMERA_PERMISSION_REQUEST_CODE = 100;
 
     // Light sensor constants
     private static final float LOW_LIGHT_THRESHOLD = 10.0f; // Lux value below which light is considered low
@@ -578,6 +578,15 @@ public class CameraFragment extends Fragment implements SensorEventListener {
                             androidx.camera.core.resolutionselector.ResolutionStrategy.FALLBACK_RULE_CLOSEST_LOWER_THEN_HIGHER
                     )
             );
+        } else {
+            // high resolution (if available) to improve sharpness
+            android.util.Size preferredHigh = new android.util.Size(4032, 3024);
+            rsBuilderCapture.setResolutionStrategy(
+                    new androidx.camera.core.resolutionselector.ResolutionStrategy(
+                            preferredHigh,
+                            androidx.camera.core.resolutionselector.ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER
+                    )
+            );
         }
 
         androidx.camera.core.resolutionselector.ResolutionSelector previewSelector = rsBuilderPreview.build();
@@ -588,9 +597,10 @@ public class CameraFragment extends Fragment implements SensorEventListener {
                 .setTargetRotation(rotation);
 
         ImageCapture.Builder captureBuilder = new ImageCapture.Builder()
-                .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
+                .setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
                 .setResolutionSelector(captureSelector)
-                .setTargetRotation(rotation);
+                .setTargetRotation(rotation)
+                .setJpegQuality(98);
 
         androidx.camera.camera2.interop.Camera2Interop.Extender<Preview> pExt =
                 new androidx.camera.camera2.interop.Camera2Interop.Extender<>(previewBuilder);
@@ -601,6 +611,26 @@ public class CameraFragment extends Fragment implements SensorEventListener {
         android.util.Range<Integer> fps = new android.util.Range<>(15, 30);
         pExt.setCaptureRequestOption(android.hardware.camera2.CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, fps);
         cExt.setCaptureRequestOption(android.hardware.camera2.CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, fps);
+
+        // Pro quality: continuous AF + high-quality pipelines
+        pExt.setCaptureRequestOption(
+                android.hardware.camera2.CaptureRequest.CONTROL_AF_MODE,
+                android.hardware.camera2.CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE);
+        cExt.setCaptureRequestOption(
+                android.hardware.camera2.CaptureRequest.CONTROL_AF_MODE,
+                android.hardware.camera2.CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE);
+        cExt.setCaptureRequestOption(
+                android.hardware.camera2.CaptureRequest.NOISE_REDUCTION_MODE,
+                android.hardware.camera2.CaptureRequest.NOISE_REDUCTION_MODE_HIGH_QUALITY);
+        cExt.setCaptureRequestOption(
+                android.hardware.camera2.CaptureRequest.EDGE_MODE,
+                android.hardware.camera2.CaptureRequest.EDGE_MODE_HIGH_QUALITY);
+        cExt.setCaptureRequestOption(
+                android.hardware.camera2.CaptureRequest.COLOR_CORRECTION_ABERRATION_MODE,
+                android.hardware.camera2.CaptureRequest.COLOR_CORRECTION_ABERRATION_MODE_HIGH_QUALITY);
+        cExt.setCaptureRequestOption(
+                android.hardware.camera2.CaptureRequest.SHADING_MODE,
+                android.hardware.camera2.CaptureRequest.SHADING_MODE_HIGH_QUALITY);
 
         imageCapture = captureBuilder
                 //.setJpegQuality(90) // optional
@@ -724,6 +754,39 @@ public class CameraFragment extends Fragment implements SensorEventListener {
                     binding.buttonFlash.setImageResource(R.drawable.ic_flash_off);
                 }
                 binding.textCamera.setText(R.string.camera_ready_tap_the_button_to_scan_a_document);
+
+                binding.viewFinder.setOnTouchListener((v, event) -> {
+                    if (event.getAction() == MotionEvent.ACTION_UP && camera != null) {
+                        MeteringPointFactory mpf = binding.viewFinder.getMeteringPointFactory();
+                        MeteringPoint pt = mpf.createPoint(event.getX(), event.getY());
+                        FocusMeteringAction action = new FocusMeteringAction.Builder(
+                                pt,
+                                FocusMeteringAction.FLAG_AF | FocusMeteringAction.FLAG_AE | FocusMeteringAction.FLAG_AWB
+                        ).setAutoCancelDuration(3, TimeUnit.SECONDS).build();
+
+                        camera.getCameraControl().startFocusAndMetering(action);
+
+                        // Important for accessibility:
+                        v.performClick();
+                        return true;   // consume only the tap
+                    }
+                    return false;      // do not block other gestures
+                });
+
+                binding.viewFinder.setOnClickListener(v -> {
+                    // optional: centered AF/AE, identical to your pre-focus
+
+                    try {
+                        MeteringPointFactory mpf = binding.viewFinder.getMeteringPointFactory();
+                        MeteringPoint c = mpf.createPoint(binding.viewFinder.getWidth() / 2f, binding.viewFinder.getHeight() / 2f);
+                        FocusMeteringAction a = new FocusMeteringAction.Builder(c,
+                                FocusMeteringAction.FLAG_AF | FocusMeteringAction.FLAG_AE | FocusMeteringAction.FLAG_AWB)
+                                .setAutoCancelDuration(3, TimeUnit.SECONDS).build();
+                        camera.getCameraControl().startFocusAndMetering(a);
+                    } catch (Exception ignored) {
+                    }
+                });
+
             } catch (Exception e) {
                 handleCameraInitializationError(e);
             }
@@ -773,6 +836,7 @@ public class CameraFragment extends Fragment implements SensorEventListener {
         }
 
         try {
+            setProcessing(true);
             binding.textCamera.setText(R.string.processing_image);
 
             // Speicherort im app-eigenen Ordner
@@ -790,46 +854,74 @@ public class CameraFragment extends Fragment implements SensorEventListener {
                     new ImageCapture.OutputFileOptions.Builder(photoFile).build();
 
             Log.d(TAG, "Taking picture...");
-            imageCapture.takePicture(
-                    outputOptions,
-                    ContextCompat.getMainExecutor(requireContext()),
-                    new ImageCapture.OnImageSavedCallback() {
-                        @Override
-                        public void onImageSaved(@NonNull ImageCapture.OutputFileResults outputFileResults) {
-                            Log.d(TAG, "Image saved to: " + photoFile.getAbsolutePath() + ", size=" + photoFile.length());
 
-                            Uri imageUri = FileProvider.getUriForFile(
-                                    requireContext(),
-                                    BuildConfig.APPLICATION_ID + ".fileprovider",
-                                    photoFile
-                            );
+            // Pre-focus centered (AF/AE), then trigger capture
+            MeteringPointFactory mpf = binding.viewFinder.getMeteringPointFactory();
+            MeteringPoint center = mpf.createPoint(
+                    binding.viewFinder.getWidth() / 2f,
+                    binding.viewFinder.getHeight() / 2f
+            );
 
-                            if (cameraViewModel != null && isAdded()) {
-                                // Reset user rotation for the new page; set capture orientation
-                                try {
-                                    if (cropViewModel != null) {
-                                        cropViewModel.setUserRotationDegrees(0);
-                                        int captureDeg = toDegrees(getViewFinderRotation());
-                                        cropViewModel.setCaptureRotationDegrees(captureDeg);
-                                    }
-                                } catch (Throwable ignored) {
-                                }
-                                cameraViewModel.setImagePath(photoFile.getAbsolutePath());
-                                cameraViewModel.setImageUri(imageUri);
-                            }
-                        }
+            FocusMeteringAction fma = new FocusMeteringAction.Builder(
+                    center,
+                    FocusMeteringAction.FLAG_AF | FocusMeteringAction.FLAG_AE
+            ).setAutoCancelDuration(3, TimeUnit.SECONDS).build();
 
-                        @Override
-                        public void onError(@NonNull ImageCaptureException exception) {
-                            Log.e(TAG, "Image capture failed: " + exception.getMessage(), exception);
-                            handleCaptureError(exception);
-                        }
-                    });
+            com.google.common.util.concurrent.ListenableFuture<FocusMeteringResult> fut =
+                    camera.getCameraControl().startFocusAndMetering(fma);
+
+            fut.addListener(() -> {
+                try {
+                    FocusMeteringResult result = fut.get(); // does not block because the listener is only invoked after completion
+                    if (result != null && result.isFocusSuccessful()) {
+                        binding.viewFinder.postDelayed(() -> doTakePicture(outputOptions, photoFile), 150);
+                    } else {
+                        doTakePicture(outputOptions, photoFile);
+                    }
+                } catch (Exception e) {
+                    doTakePicture(outputOptions, photoFile);
+                }
+            }, ContextCompat.getMainExecutor(requireContext()));
 
         } catch (Exception e) {
             Log.e(TAG, "Unexpected error in captureImage: " + e.getMessage(), e);
             handleCaptureError(e);
         }
+    }
+
+    private void doTakePicture(ImageCapture.OutputFileOptions outputOptions, File photoFile) {
+        imageCapture.takePicture(
+                outputOptions,
+                ContextCompat.getMainExecutor(requireContext()),
+                new ImageCapture.OnImageSavedCallback() {
+                    @Override
+                    public void onImageSaved(@NonNull ImageCapture.OutputFileResults outputFileResults) {
+                        Log.d(TAG, "Image saved to: " + photoFile.getAbsolutePath() + ", size=" + photoFile.length());
+                        Uri imageUri = FileProvider.getUriForFile(
+                                requireContext(),
+                                BuildConfig.APPLICATION_ID + ".fileprovider",
+                                photoFile
+                        );
+                        if (cameraViewModel != null && isAdded()) {
+                            try {
+                                if (cropViewModel != null) {
+                                    cropViewModel.setUserRotationDegrees(0);
+                                    int captureDeg = toDegrees(getViewFinderRotation());
+                                    cropViewModel.setCaptureRotationDegrees(captureDeg);
+                                }
+                            } catch (Throwable ignored) {
+                            }
+                            cameraViewModel.setImagePath(photoFile.getAbsolutePath());
+                            cameraViewModel.setImageUri(imageUri);
+                        }
+                    }
+
+                    @Override
+                    public void onError(@NonNull ImageCaptureException exception) {
+                        Log.e(TAG, "Image capture failed: " + exception.getMessage(), exception);
+                        handleCaptureError(exception);
+                    }
+                });
     }
 
     /**
@@ -842,6 +934,23 @@ public class CameraFragment extends Fragment implements SensorEventListener {
         if (!isAdded() || binding == null) return;
         UIUtils.showToast(requireContext(), getString(R.string.error_image_capture_failed, exception.getMessage()), Toast.LENGTH_SHORT);
         binding.textCamera.setText(R.string.camera_ready_tap_the_button_to_scan_a_document);
+        setProcessing(false);
+    }
+
+    /**
+     * Enables/disables action buttons during processing to prevent duplicate operations.
+     * Specifically affects the Scan and Load (Pick Image) buttons if present.
+     */
+    private void setProcessing(boolean processing) {
+        if (binding == null) return;
+        try {
+            if (binding.buttonScan != null) binding.buttonScan.setEnabled(!processing);
+        } catch (Throwable ignored) {
+        }
+        try {
+            if (binding.buttonPickImage != null) binding.buttonPickImage.setEnabled(!processing);
+        } catch (Throwable ignored) {
+        }
     }
 
     /**
@@ -851,6 +960,7 @@ public class CameraFragment extends Fragment implements SensorEventListener {
     private void displayCapturedImage(String imagePath, Uri imageUri) {
         if (binding == null || !isAdded()) return;
 
+        setProcessing(true);
         binding.textCamera.setText(R.string.processing_image);
         // Clear previous image to avoid showing stale bitmap while loading new one
         binding.capturedImage.setImageDrawable(null);
@@ -862,6 +972,7 @@ public class CameraFragment extends Fragment implements SensorEventListener {
                         if (binding == null || !isAdded()) return;
                         Bitmap safe = de.schliweb.makeacopy.utils.BitmapUtils.ensureDisplaySafe(bitmap);
                         binding.capturedImage.setImageBitmap(safe);
+                        setProcessing(false);
                         showReviewMode();
                     }
 
@@ -870,6 +981,7 @@ public class CameraFragment extends Fragment implements SensorEventListener {
                         if (!isAdded()) return;
                         String msg = error != null ? error.getMessage() : "unknown";
                         UIUtils.showToast(requireContext(), getString(R.string.error_displaying_image, msg), Toast.LENGTH_SHORT);
+                        setProcessing(false);
                         // On preview load failure, reset to camera mode instead of navigating forward
                         resetCamera();
                     }
@@ -898,6 +1010,7 @@ public class CameraFragment extends Fragment implements SensorEventListener {
     private void showCameraMode() {
         if (binding == null) return;
 
+        setProcessing(false);
         binding.viewFinder.setVisibility(View.VISIBLE);
         binding.capturedImage.setVisibility(View.GONE);
         binding.buttonContainer.setVisibility(View.GONE);
@@ -1299,5 +1412,10 @@ public class CameraFragment extends Fragment implements SensorEventListener {
             default:
                 return 0;
         }
+    }
+
+    @androidx.annotation.VisibleForTesting
+    ImageCapture getImageCaptureForTest() {
+        return imageCapture;
     }
 }

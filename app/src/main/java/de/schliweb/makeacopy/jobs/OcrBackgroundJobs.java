@@ -75,13 +75,42 @@ public final class OcrBackgroundJobs {
                 if (bmp == null) throw new RuntimeException("No bitmap available for OCR");
 
                 OCRHelper helper = new OCRHelper(app);
-                if (!helper.initTesseract()) throw new RuntimeException("Tesseract init failed");
-                if (languageOpt != null && !languageOpt.trim().isEmpty()) {
+                // Determine effective language: use provided, else map from system locale
+                String effLang = languageOpt;
+                if (effLang == null || effLang.trim().isEmpty()) {
                     try {
-                        helper.setLanguage(languageOpt);
+                        java.util.Locale loc = java.util.Locale.getDefault();
+                        String sys = loc.getLanguage();
+                        if ("zh".equalsIgnoreCase(sys)) {
+                            String country = loc.getCountry();
+                            if ("TW".equalsIgnoreCase(country) || "HK".equalsIgnoreCase(country) || "MO".equalsIgnoreCase(country)) {
+                                effLang = "chi_tra";
+                            } else {
+                                effLang = "chi_sim";
+                            }
+                        } else if ("de".equalsIgnoreCase(sys)) {
+                            effLang = "deu";
+                        } else if ("fr".equalsIgnoreCase(sys)) {
+                            effLang = "fra";
+                        } else if ("it".equalsIgnoreCase(sys)) {
+                            effLang = "ita";
+                        } else if ("es".equalsIgnoreCase(sys)) {
+                            effLang = "spa";
+                        } else {
+                            effLang = "eng";
+                        }
                     } catch (Throwable ignore) {
+                        effLang = "eng";
                     }
                 }
+                try {
+                    // Set desired language before init to avoid immediate re-init
+                    if (effLang != null && !effLang.trim().isEmpty()) {
+                        helper.setLanguage(effLang);
+                    }
+                } catch (Throwable ignore) {
+                }
+                if (!helper.initTesseract()) throw new RuntimeException("Tesseract init failed");
                 OCRHelper.OcrResultWords res = helper.runOcrWithWords(bmp);
                 String text = (res != null && res.text != null) ? res.text : "";
 

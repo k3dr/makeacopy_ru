@@ -199,7 +199,8 @@ public class PdfCreator {
         String[] candidates = new String[]{
                 "fonts/NotoSans-Regular.ttf",             // Latin
                 "fonts/NotoSansSymbols2-Regular.ttf",     // Symbols (optional)
-                "fonts/NotoSansCJKsc-Regular.otf",        // CJK (optional, large)
+                "fonts/NotoSansCJKsc-Regular.otf",        // CJK Simplified (optional, large)
+                "fonts/NotoSansCJKtc-Regular.otf",        // CJK Traditional (optional, large)
                 "fonts/NotoNaskhArabic-Regular.ttf",      // Arabic (optional)
                 "fonts/NotoSansDevanagari-Regular.ttf"    // Indic (optional)
         };

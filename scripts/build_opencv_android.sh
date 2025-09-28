@@ -10,6 +10,20 @@ export TZ=UTC LC_ALL=C LANG=C PYTHONHASHSEED=0
 
 info(){ if [ "$VERBOSE" = "1" ]; then echo "$@"; else >&2 echo "$@"; fi }
 
+# Parallel build jobs detection (portable)
+detect_jobs(){
+  local j
+  if command -v nproc >/dev/null 2>&1; then j="$(nproc)"
+  elif command -v getconf >/dev/null 2>&1; then j="$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 1)"
+  elif command -v sysctl >/dev/null 2>&1; then j="$(sysctl -n hw.ncpu 2>/dev/null || echo 1)"
+  else j=1; fi
+  [ -z "$j" ] && j=1
+  [ "$j" -lt 1 ] && j=1
+  echo "$j"
+}
+JOBS="${JOBS:-$(detect_jobs)}"
+info "Using parallel jobs: $JOBS"
+
 # Paths
 SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 OPENCV_DIR_ORIG="$SCRIPT_DIR/external/opencv"
@@ -235,11 +249,11 @@ build_for_arch(){
   fi
 
   # ---- 3) Jetzt den Rest bauen (nutzt die überschriebenen Dateien)
-  info "Build OpenCV for $arch (-j1)"
+  info "Build OpenCV for $arch (-j$JOBS)"
   if [ "$BUILD_GENERATOR" = "Ninja" ]; then
-    ninja -j1 >> "$arch_log" 2>&1 || { echo "Build failed ($arch)"; tail -n 120 "$arch_log" >&2; cd "$SCRIPT_DIR"; return 1; }
+    ninja -j"$JOBS" >> "$arch_log" 2>&1 || { echo "Build failed ($arch)"; tail -n 120 "$arch_log" >&2; cd "$SCRIPT_DIR"; return 1; }
   else
-    make -j1 >> "$arch_log" 2>&1 || { echo "Build failed ($arch)"; tail -n 120 "$arch_log" >&2; cd "$SCRIPT_DIR"; return 1; }
+    make -j"$JOBS" >> "$arch_log" 2>&1 || { echo "Build failed ($arch)"; tail -n 120 "$arch_log" >&2; cd "$SCRIPT_DIR"; return 1; }
   fi
 
   # Stage libopencv_java4.so

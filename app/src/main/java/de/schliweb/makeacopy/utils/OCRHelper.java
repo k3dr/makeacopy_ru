@@ -106,7 +106,9 @@ public class OCRHelper {
 
     /* ==================== Language / Data ==================== */
 
-    public int getPageSegMode() { return pageSegMode; }
+    public int getPageSegMode() {
+        return pageSegMode;
+    }
 
     /**
      * Enables/disables reinitialization of Tesseract before each OCR run.
@@ -161,8 +163,16 @@ public class OCRHelper {
      */
     public void applyDefaultsForLanguage(String langSpec) {
         if (!isInitialized) return;
+        boolean isChinese = false;
         try {
-            tessBaseAPI.setPageSegMode(pageSegMode);
+            String ls = (langSpec == null) ? "" : langSpec.toLowerCase();
+            isChinese = ls.contains("chi_");
+        } catch (Throwable ignore) {
+        }
+        try {
+            // For Chinese, prefer AUTO segmentation; otherwise keep configured PSM
+            int psm = isChinese ? com.googlecode.tesseract.android.TessBaseAPI.PageSegMode.PSM_AUTO : pageSegMode;
+            tessBaseAPI.setPageSegMode(psm);
         } catch (Throwable ignored) {
         }
         try {
@@ -170,14 +180,16 @@ public class OCRHelper {
         } catch (Throwable ignored) {
         }
         try {
-            tessBaseAPI.setVariable("preserve_interword_spaces", "1");
+            // In CJK, interword spaces are not meaningful; let Tesseract decide spacing
+            tessBaseAPI.setVariable("preserve_interword_spaces", isChinese ? "0" : "1");
         } catch (Throwable ignored) {
         }
         try {
-            setWhitelist(OCRWhitelist.getWhitelistForLangSpec(langSpec));
+            // Do NOT enforce Latin whitelist for Chinese; otherwise compose whitelist from spec
+            if (!isChinese) setWhitelist(OCRWhitelist.getWhitelistForLangSpec(langSpec));
         } catch (Throwable ignored) {
         }
-        Log.i(TAG, "applyDefaultsForLanguage: langSpec=" + langSpec + ", psm=" + pageSegMode + ", dpi=" + DEFAULT_DPI);
+        Log.i(TAG, "applyDefaultsForLanguage: langSpec=" + langSpec + (isChinese ? " (CJK)" : "") + ", psm=" + (isChinese ? "AUTO" : String.valueOf(pageSegMode)) + ", dpi=" + DEFAULT_DPI);
     }
 
     /**

@@ -1749,6 +1749,33 @@ public class ExportFragment extends Fragment {
             lang = (st != null && st.language() != null) ? st.language() : null;
         } catch (Throwable ignore) {
         }
+        // If user hasn't visited the OCR screen, fall back to a sensible system-based default
+        if (lang == null || lang.trim().isEmpty()) {
+            try {
+                java.util.Locale loc = java.util.Locale.getDefault();
+                String sys = loc.getLanguage();
+                if ("zh".equalsIgnoreCase(sys)) {
+                    String country = loc.getCountry();
+                    if ("TW".equalsIgnoreCase(country) || "HK".equalsIgnoreCase(country) || "MO".equalsIgnoreCase(country)) {
+                        lang = "chi_tra";
+                    } else {
+                        lang = "chi_sim";
+                    }
+                } else if ("de".equalsIgnoreCase(sys)) {
+                    lang = "deu";
+                } else if ("fr".equalsIgnoreCase(sys)) {
+                    lang = "fra";
+                } else if ("it".equalsIgnoreCase(sys)) {
+                    lang = "ita";
+                } else if ("es".equalsIgnoreCase(sys)) {
+                    lang = "spa";
+                } else {
+                    lang = "eng";
+                }
+            } catch (Throwable ignore) {
+                lang = "eng";
+            }
+        }
         de.schliweb.makeacopy.jobs.OcrBackgroundJobs.enqueueReprocess(requireContext().getApplicationContext(), s.id(), lang);
     }
 

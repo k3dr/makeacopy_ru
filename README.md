@@ -173,7 +173,7 @@ A big thank you to the people who make *MakeACopy* better:
 
 - Our very first supporter — created an issue, helped with a fix, and even made a donation 🎉  
   This is the spirit of open source: collaboration, improvement, and appreciation. ❤️
-
+- **KalleMerkt** (from the [android-hilfe.de](https://www.android-hilfe.de/) community) – provided valuable suggestions to make the user experience smoother and more intuitive
 
 Want to join the Hall of Fame?  
 Contribute code, file helpful issues, or support the project.

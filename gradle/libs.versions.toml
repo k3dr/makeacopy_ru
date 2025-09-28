@@ -18,6 +18,10 @@ pdfbox = "2.0.27.0"
 activity = "1.11.0"
 exifinterface = "1.4.1"
 gson="2.13.2"
+# Android test libs
+androidxTestRules = "1.7.0"
+fragmentTesting = "1.8.9"
+awaitility = "4.3.0"
 
 [libraries]
 junit = { group = "junit", name = "junit", version.ref = "junit" }
@@ -50,6 +54,11 @@ pdfbox-android = { group = "com.tom-roush", name = "pdfbox-android", version.ref
 
 # ExifInterface
 exifinterface = { group = "androidx.exifinterface", name = "exifinterface", version.ref = "exifinterface" }
+
+# Android test libraries
+test-rules = { group = "androidx.test", name = "rules", version.ref = "androidxTestRules" }
+fragment-testing = { group = "androidx.fragment", name = "fragment-testing", version.ref = "fragmentTesting" }
+awaitility = { group = "org.awaitility", name = "awaitility", version.ref = "awaitility" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

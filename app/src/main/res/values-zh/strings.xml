@@ -1,0 +1,142 @@
+<resources>
+    <string name="app_name">MakeACopy</string>
+
+    <!-- New menu items for document scanner -->
+    <string name="title_camera">相机</string>
+    <string name="title_crop">裁剪</string>
+    <string name="title_ocr">文字识别</string>
+    <string name="title_export">导出</string>
+
+    <!-- Button labels -->
+    <string name="btn_scan">扫描</string>
+    <string name="btn_crop">裁剪</string>
+    <string name="btn_process">处理</string>
+    <string name="btn_export">导出</string>
+    <string name="btn_share">分享</string>
+    <string name="next">下一步</string>
+    <string name="back">返回</string>
+
+    <!-- Messages -->
+    <string name="msg_camera_permission_required">需要相机权限才能扫描文档</string>
+    <string name="confirm">确认</string>
+    <string name="review_your_scan_tap_confirm_to_proceed_or_retake_to_try_again">请检查您的扫描。点按“下一步”继续，或点按“返回”重试。</string>
+    <string name="camera_ready_tap_the_button_to_scan_a_document">相机已就绪。点按按钮以扫描文档。</string>
+    <string name="captured_image">已拍摄的图像</string>
+    <string name="retake">重拍</string>
+    <string name="image_to_crop">待裁剪的图像</string>
+    <string name="cropped_image">已裁剪的图像</string>
+    <string name="recrop">重新裁剪</string>
+    <string name="document_preview">文档预览</string>
+    <string name="include_ocr_text">包含识别文本</string>
+    <string name="language">语言：</string>
+    <string name="ocr_results_will_appear_here">识别结果将在此显示</string>
+    <string name="no_image_loaded_capture_an_image_first">尚未加载图像。请先拍摄图像。</string>
+    <string name="adjust_the_trapezoid_corners_to_select_the_area_to_crop_then_tap_the_crop_button">调整四边形的角点以选择裁剪区域，然后点按“裁剪”。</string>
+    <string name="review_your_cropped_image_tap_confirm_to_proceed_or_recrop_to_try_again">请检查已裁剪的图像。点按“下一步”继续，或点按“返回”重试。</string>
+    <string name="no_document_ready_process_ocr_first">尚无可导出的文档。请先进行 OCR 处理。</string>
+    <string name="document_ready_for_export">文档可供导出</string>
+    <string name="processing_image">正在处理图像…</string>
+    <string name="no_image_processed_crop_an_image_first">尚未处理图像。请先裁剪图像。</string>
+    <string name="ocr_processing_complete_tap_the_button_to_proceed_to_export">OCR 处理完成。点按按钮进入导出。</string>
+
+    <string name="initializing_camera">正在初始化相机…</string>
+    <string name="resetting_camera">正在重置相机…</string>
+    <string name="error_initializing_camera">初始化相机出错：%1$s</string>
+    <string name="error_camera_provider_null">无法初始化相机——提供程序为空</string>
+    <string name="error_camera_not_initialized">相机未初始化。请重试。</string>
+    <string name="error_image_capture_failed">拍照失败：%1$s</string>
+    <string name="error_displaying_image">显示图像出错：%1$s</string>
+    <string name="error_resetting_camera">重置相机出错：%1$s</string>
+    <string name="error_toggling_flashlight">切换闪光灯出错：%1$s</string>
+    <string name="error_camera_preview_failed">无法启动相机预览。请重试。</string>
+
+    <!-- Export options -->
+    <string name="convert_to_grayscale">转为灰度</string>
+    <string name="convert_to_blackwhite_pdf">转为黑白</string>
+    <string name="export_as_jpeg">导出为 JPEG</string>
+    <string name="export_as_pdf">导出为 PDF（默认）</string>
+
+    <!-- Flashlight options -->
+    <string name="toggle_flashlight">切换闪光灯</string>
+    <string name="flashlight_on">闪光灯已打开</string>
+    <string name="flashlight_off">闪光灯已关闭</string>
+    <string name="flashlight_not_available">此设备不支持闪光灯</string>
+    <string name="low_light_detected">检测到光线较暗。要打开闪光灯吗？</string>
+
+    <!-- JPEG mode labels -->
+    <string name="jpeg_mode_none">无增强（JPEG）</string>
+    <string name="jpeg_mode_auto">自动增强（JPEG）</string>
+    <string name="jpeg_mode_bw_text">黑白（文本）（JPEG）</string>
+    <string name="skip_ocr_export_only">跳过 OCR（仅导出）</string>
+    <string name="btn_pick_image">加载</string>
+    <string name="pick_image_cd">加载已有图像</string>
+    <string name="error_selected_file_is_not_an_image">所选文件不是图像</string>
+
+    <!-- Multipage Export (v1 increment) -->
+    <string name="pages_header">页面（%1$d）</string>
+    <string name="add_another_page">添加另一页</string>
+    <string name="clear_all_pages">全部清除</string>
+    <string name="remove_this_page">移除此页</string>
+    <string name="multipage_not_implemented">尚未实现多页导出</string>
+
+    <!-- Reorder A11y controls -->
+    <string name="move_page_left">向左移动页面</string>
+    <string name="move_page_right">向右移动页面</string>
+
+    <!-- Back confirmation for clearing multipage session -->
+    <string name="confirm_clear_multipage_title">删除页面？</string>
+    <string name="confirm_clear_multipage_message">已添加多页。是否删除所有页面并返回？</string>
+
+    <string name="cancel">取消</string>
+
+    <!-- Clear-all confirmation for trash icon in multipage -->
+    <string name="confirm_clear_pages_title">清除所有页面？</string>
+    <string name="confirm_clear_pages_message">是否从胶片条中移除所有页面？</string>
+
+    <!-- Registry Picker -->
+    <string name="picker_title_completed_scans">从已完成的扫描中选择</string>
+    <string name="picker_empty">未找到已完成的扫描</string>
+    <string name="done">下一步</string>
+    <string name="thumbnail">缩略图</string>
+    <string name="delete">删除</string>
+
+    <!-- Picker bulk actions -->
+    <string name="select_all">全选</string>
+    <string name="deselect_all">全不选</string>
+
+    <string name="added_pages_from_registry">已从记录中添加 %1$d 页</string>
+
+    <!-- Add page options dialog -->
+    <string name="add_page_option_choose_completed">从已完成的扫描中选择</string>
+    <string name="add_page_option_capture_new">拍摄新页面</string>
+
+    <!-- Picker states -->
+    <string name="missing_file">文件缺失</string>
+
+    <!-- Inline OCR cues -->
+    <string name="ocr_processing_started">正在运行 OCR…</string>
+    <string name="ocr_processing_finished">已为此页添加 OCR 文本</string>
+    <string name="ocr_processing_failed">内联 OCR 失败</string>
+
+    <!-- Registry Picker: context action -->
+    <string name="remove_from_registry_title">从记录中移除</string>
+    <string name="remove_from_registry_message">删除此条目及其关联文件？</string>
+    <string name="remove">移除</string>
+    <string name="removed_from_registry_toast">条目已移除</string>
+
+    <!-- PDF quality presets (Phase 1) -->
+    <string name="pdf_quality_title">PDF 质量 / 大小</string>
+    <string name="pdf_preset_high">高（300 dpi，q85）</string>
+    <string name="pdf_preset_standard">标准（200 dpi，q72）</string>
+    <string name="pdf_preset_small">小（150 dpi，q62）</string>
+    <string name="pdf_preset_very_small">很小（110 dpi，q52）</string>
+    <string name="export_options_title">导出选项</string>
+    <string name="jpeg_enhancement_title">JPEG 增强</string>
+    <string name="btn_options">选项</string>
+    <string name="btn_save">保存</string>
+    <string name="btn_new">新建</string>
+
+    <!-- Rotation (post-crop) -->
+    <string name="rotate_left_cd">将页面逆时针旋转 90 度</string>
+    <string name="rotate_right_cd">将页面顺时针旋转 90 度</string>
+</resources>

@@ -1,0 +1,8 @@
+1.6.0 (Release Candidate)
+
+- Added OCR support for Chinese: Simplified (chi_sim) and Traditional (chi_tra)
+- Camera improvements: Auto-focus on each scan, tap-to-focus by touching the viewfinder
+- Enhanced image quality: Higher resolution and maximum JPEG quality for sharper scans
+- Accessibility: Added performClick support for better usability
+- Build system: Enabled parallel OpenCV Android builds for faster CI and local development
+- Code cleanup and minor bug fixes

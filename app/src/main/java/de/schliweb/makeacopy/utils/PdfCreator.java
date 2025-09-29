@@ -165,6 +165,7 @@ public class PdfCreator {
                         } else {
                             normWords = words;
                         }
+                        Log.d(TAG, "createSearchablePdf: " + normWords.size() + " OCR words");
                         // now output text in IMAGE coordinates (0..imgW / 0..imgH)
                         addTextLayerImageSpace(cs, normWords, fonts, prepared.getWidth(), prepared.getHeight());
                         cs.restoreGraphicsState();
@@ -199,15 +200,19 @@ public class PdfCreator {
         String[] candidates = new String[]{
                 "fonts/NotoSans-Regular.ttf",             // Latin
                 "fonts/NotoSansSymbols2-Regular.ttf",     // Symbols (optional)
-                "fonts/NotoSansCJKsc-Regular.otf",        // CJK Simplified (optional, large)
-                "fonts/NotoSansCJKtc-Regular.otf",        // CJK Traditional (optional, large)
+                "fonts/NotoSansCJKsc-Regular.ttf",        // CJK Simplified (optional, large)
+                "fonts/NotoSansCJKtc-Regular.ttf",        // CJK Traditional (optional, large)
                 "fonts/NotoNaskhArabic-Regular.ttf",      // Arabic (optional)
                 "fonts/NotoSansDevanagari-Regular.ttf"    // Indic (optional)
         };
         for (String path : candidates) {
             try (InputStream is = context.getAssets().open(path)) {
+                Log.d(TAG, "Loading font: " + path);
                 fonts.add(PDType0Font.load(document, is, true));
-            } catch (Exception ignore) { /* optional font not present */ }
+            } catch (Exception exception) {
+                Log.w(TAG, "Font not found: " + path);
+                Log.w(TAG, "Exception: " + exception.getMessage());
+            }
         }
         if (fonts.isEmpty()) {
             // Last resort: try the base NotoSans; if missing, fall back to Helvetica (not embedded)

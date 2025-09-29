@@ -20,10 +20,7 @@ import androidx.navigation.Navigation;
 import de.schliweb.makeacopy.R;
 import de.schliweb.makeacopy.databinding.FragmentOcrBinding;
 import de.schliweb.makeacopy.ui.crop.CropViewModel;
-import de.schliweb.makeacopy.utils.ImageScaler;
-import de.schliweb.makeacopy.utils.OCRHelper;
-import de.schliweb.makeacopy.utils.RecognizedWord;
-import de.schliweb.makeacopy.utils.UIUtils;
+import de.schliweb.makeacopy.utils.*;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -141,7 +138,7 @@ public class OCRFragment extends Fragment {
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         spinner.setAdapter(adapter);
 
-        String systemLang = mapSystemLanguageToTesseract(java.util.Locale.getDefault().getLanguage());
+        String systemLang = OCRUtils.mapSystemLanguageToTesseract(java.util.Locale.getDefault().getLanguage());
         int defaultPos = IntStream.range(0, availableLanguages.length)
                 .filter(i -> availableLanguages[i].equals(systemLang)).findFirst().orElse(0);
         spinner.setSelection(defaultPos);
@@ -198,7 +195,7 @@ public class OCRFragment extends Fragment {
         } catch (Throwable ignore) {
         }
         // Fallback includes Chinese (Simplified and Traditional) so users on zh locales can select them when asset listing fails
-        return new String[]{"eng", "deu", "fra", "ita", "spa", "chi_sim", "chi_tra"};
+        return OCRUtils.getLanguages();
     }
 
     /**
@@ -359,41 +356,6 @@ public class OCRFragment extends Fragment {
         super.onDestroy();
         // Fragment is going away for good: now it's safe to shut down the executor
         ocrExecutor.shutdown();
-    }
-
-    /**
-     * Maps a system language code to the corresponding Tesseract language code.
-     *
-     * @param systemLanguage The system language code (e.g., "en", "de", "fr").
-     * @return The Tesseract language code corresponding to the provided system language.
-     * Defaults to "eng" if the system language is not explicitly mapped.
-     */
-    private String mapSystemLanguageToTesseract(String systemLanguage) {
-        switch (systemLanguage) {
-            case "en":
-                return "eng";
-            case "de":
-                return "deu";
-            case "fr":
-                return "fra";
-            case "it":
-                return "ita";
-            case "es":
-                return "spa";
-            case "zh":
-                // Map Chinese to Simplified or Traditional based on region, default to Simplified
-                try {
-                    java.util.Locale loc = java.util.Locale.getDefault();
-                    String country = loc.getCountry();
-                    if ("TW".equalsIgnoreCase(country) || "HK".equalsIgnoreCase(country) || "MO".equalsIgnoreCase(country)) {
-                        return "chi_tra";
-                    }
-                } catch (Throwable ignore) {
-                }
-                return "chi_sim";
-            default:
-                return "eng";
-        }
     }
 
     /**

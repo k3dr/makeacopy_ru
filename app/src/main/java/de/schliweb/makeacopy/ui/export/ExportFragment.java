@@ -29,11 +29,10 @@ import de.schliweb.makeacopy.utils.*;
 import de.schliweb.makeacopy.utils.jpeg.JpegExportOptions;
 import de.schliweb.makeacopy.utils.jpeg.JpegExporter;
 
+import java.io.File;
 import java.io.OutputStream;
 import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.List;
-import java.util.Locale;
+import java.util.*;
 
 /**
  * ExportFragment is a UI component that extends Fragment and facilitates exporting
@@ -919,7 +918,8 @@ public class ExportFragment extends Fragment {
         Log.d(TAG, "performExport: Starting export process");
 
         // Multipage handling: if >1 pages, compose PDF
-        java.util.List<de.schliweb.makeacopy.ui.export.session.CompletedScan> pages = exportSessionViewModel != null ? exportSessionViewModel.getPages().getValue() : null;
+        final List<de.schliweb.makeacopy.ui.export.session.CompletedScan> pages =
+                exportSessionViewModel != null ? exportSessionViewModel.getPages().getValue() : null;
         final boolean isMulti = pages != null && pages.size() > 1;
 
         final Bitmap documentBitmap = exportViewModel.getDocumentBitmap().getValue();
@@ -928,20 +928,16 @@ public class ExportFragment extends Fragment {
             return;
         }
 
-        boolean includeOcr = Boolean.TRUE.equals(exportViewModel.isIncludeOcr().getValue());
-        boolean convertToGrayscale = Boolean.TRUE.equals(exportViewModel.isConvertToGrayscale().getValue());
-        Uri selectedLocation = exportViewModel.getSelectedFileLocation().getValue();
+        final boolean includeOcr = Boolean.TRUE.equals(exportViewModel.isIncludeOcr().getValue());
+        final boolean convertToGrayscale = Boolean.TRUE.equals(exportViewModel.isConvertToGrayscale().getValue());
+        final Uri selectedLocation = exportViewModel.getSelectedFileLocation().getValue();
 
-        List<RecognizedWord> recognizedWords;
-        if (includeOcr) {
-            List<RecognizedWord> words = getOcrWordsFromState();
-            if (words != null && !words.isEmpty()) recognizedWords = words;
-            else {
-                recognizedWords = null;
-            }
-        } else {
-            recognizedWords = null;
+        // PDF-Textlayer: IMMER versuchen, Wörter zu holen (unabhängig vom Flag)
+        List<RecognizedWord> wordsTmp = getOcrWordsFromState();
+        if (wordsTmp != null && wordsTmp.isEmpty()) {
+            wordsTmp = null;
         }
+        final List<RecognizedWord> recognizedWords = wordsTmp;
 
         final Context appContext = requireContext().getApplicationContext();
         exportViewModel.setTxtExportUri(null);
@@ -955,30 +951,37 @@ public class ExportFragment extends Fragment {
             try {
                 // Determine PDF quality preset from SharedPreferences (set by dialog)
                 de.schliweb.makeacopy.utils.PdfQualityPreset preset;
-                boolean convertBwEffective = false;
+                boolean convertBwEffectiveLocal = false;
                 try {
                     android.content.SharedPreferences p = requireContext().getSharedPreferences("export_options", Context.MODE_PRIVATE);
                     String presetSaved = p.getString("pdf_preset", null);
-                    convertBwEffective = p.getBoolean("convert_to_blackwhite", false);
-                    java.util.List<de.schliweb.makeacopy.ui.export.session.CompletedScan> pgs = exportSessionViewModel != null ? exportSessionViewModel.getPages().getValue() : null;
+                    convertBwEffectiveLocal = p.getBoolean("convert_to_blackwhite", false);
+                    List<de.schliweb.makeacopy.ui.export.session.CompletedScan> pgs =
+                            exportSessionViewModel != null ? exportSessionViewModel.getPages().getValue() : null;
                     int pageCount = (pgs == null) ? 0 : pgs.size();
-                    de.schliweb.makeacopy.utils.PdfQualityPreset def = (pageCount > 1) ? de.schliweb.makeacopy.utils.PdfQualityPreset.STANDARD : de.schliweb.makeacopy.utils.PdfQualityPreset.HIGH;
+                    de.schliweb.makeacopy.utils.PdfQualityPreset def =
+                            (pageCount > 1) ? de.schliweb.makeacopy.utils.PdfQualityPreset.STANDARD
+                                    : de.schliweb.makeacopy.utils.PdfQualityPreset.HIGH;
                     preset = de.schliweb.makeacopy.utils.PdfQualityPreset.fromName(presetSaved, def);
                 } catch (Throwable t) {
                     preset = de.schliweb.makeacopy.utils.PdfQualityPreset.STANDARD;
                 }
-                int jpegQuality = preset.jpegQuality;
-                // If preset forces grayscale, override checkbox
-                boolean convertGrayEffective = preset.forceGrayscale || convertToGrayscale;
+                final boolean convertBwEffective = convertBwEffectiveLocal;
+                final int jpegQuality = preset.jpegQuality;
+                final boolean convertGrayEffective = preset.forceGrayscale || convertToGrayscale;
+
                 Uri exportUri;
                 if (isMulti) {
+                    Log.d(TAG, "performExport: Creating PDF for multipage session");
                     // Build lists
-                    java.util.ArrayList<Bitmap> bitmaps = new java.util.ArrayList<>();
-                    java.util.ArrayList<java.util.List<RecognizedWord>> perPage = new java.util.ArrayList<>();
-                    Bitmap current = documentBitmap;
-                    java.util.HashSet<Bitmap> toRecycle = new java.util.HashSet<>();
+                    final ArrayList<Bitmap> bitmaps = new ArrayList<>();
+                    final ArrayList<List<RecognizedWord>> perPage = new ArrayList<>();
+                    final Bitmap current = documentBitmap;
+                    final HashSet<Bitmap> toRecycle = new HashSet<>();
+
                     for (de.schliweb.makeacopy.ui.export.session.CompletedScan s : pages) {
                         if (s == null) {
+                            bitmaps.add(null);
                             perPage.add(null);
                             continue;
                         }
@@ -995,12 +998,11 @@ public class ExportFragment extends Fragment {
                                 }
                             }
                         }
-                        if (pageBmp == null) { // skip page if nothing available
+                        if (pageBmp == null) {
                             bitmaps.add(null);
                             perPage.add(null);
                             continue;
                         }
-                        // Apply rotation if specified in the scan metadata
                         int deg = 0;
                         try {
                             deg = s.rotationDeg();
@@ -1012,7 +1014,7 @@ public class ExportFragment extends Fragment {
                                 m.postRotate(deg);
                                 Bitmap rotated = android.graphics.Bitmap.createBitmap(pageBmp, 0, 0, pageBmp.getWidth(), pageBmp.getHeight(), m, true);
                                 if (rotated != pageBmp) {
-                                    if (loadedFromFile) { // recycle only if we own the original
+                                    if (loadedFromFile) {
                                         try {
                                             pageBmp.recycle();
                                         } catch (Throwable ignore) {
@@ -1022,30 +1024,27 @@ public class ExportFragment extends Fragment {
                                     pageBmp = rotated;
                                     toRecycle.add(pageBmp);
                                 }
-                            } catch (Throwable t) {
-                                // keep original pageBmp
-                            }
+                            } catch (Throwable t) { /* keep original */ }
                         }
                         bitmaps.add(pageBmp);
+
                         // Prefer registry-backed per-page words if available (ocrFormat=="words_json");
                         // otherwise, fallback to current page's in-memory words (legacy behavior).
                         List<RecognizedWord> pageWords = null;
-                        if (includeOcr) {
-                            try {
-                                String fmt = s.ocrFormat();
-                                String path = s.ocrTextPath();
-                                if ("words_json".equalsIgnoreCase(fmt) && path != null) {
-                                    java.io.File f = new java.io.File(path);
-                                    if (f.exists() && f.isFile()) {
-                                        pageWords = de.schliweb.makeacopy.utils.WordsJson.parseFile(f);
-                                        if (pageWords != null && pageWords.isEmpty()) pageWords = null;
-                                    }
+                        try {
+                            String fmt = s.ocrFormat();
+                            String path = s.ocrTextPath();
+                            if ("words_json".equalsIgnoreCase(fmt) && path != null) {
+                                File f = new File(path);
+                                if (f.exists() && f.isFile()) {
+                                    pageWords = de.schliweb.makeacopy.utils.WordsJson.parseFile(f);
+                                    if (pageWords != null && pageWords.isEmpty()) pageWords = null;
                                 }
-                            } catch (Throwable ignore) {
                             }
-                            if (pageWords == null && s.inMemoryBitmap() == current && recognizedWords != null && !recognizedWords.isEmpty()) {
-                                pageWords = recognizedWords;
-                            }
+                        } catch (Throwable ignore) {
+                        }
+                        if (pageWords == null && s.inMemoryBitmap() == current && recognizedWords != null && !recognizedWords.isEmpty()) {
+                            pageWords = recognizedWords;
                         }
                         perPage.add(pageWords);
                     }
@@ -1064,11 +1063,12 @@ public class ExportFragment extends Fragment {
                             convertGrayEffective,
                             convertBwEffective,
                             preset.targetDpi,
-                            (pageIndex, total) -> postToUiSafe(() -> exportViewModel.setExportProgress(pageIndex))
+                            (pageIndex, total) -> postToUiSafe(() ->
+                                    exportViewModel.setExportProgress(Math.max(0, Math.min(pageIndex, total))))
                     );
                     // Recycle any temporary bitmaps we created (those not part of the session's in-memory references)
                     try {
-                        java.util.HashSet<Bitmap> sessionBitmaps = new java.util.HashSet<>();
+                        final HashSet<Bitmap> sessionBitmaps = new HashSet<>();
                         for (de.schliweb.makeacopy.ui.export.session.CompletedScan s2 : pages) {
                             if (s2 != null && s2.inMemoryBitmap() != null) sessionBitmaps.add(s2.inMemoryBitmap());
                         }
@@ -1082,9 +1082,11 @@ public class ExportFragment extends Fragment {
                         }
                     } catch (Throwable ignore) {
                     }
+
                 } else {
+                    Log.d(TAG, "performExport: Creating PDF for single page session");
                     // Single-page: documentBitmap is already oriented for preview; avoid double-rotating here
-                    Bitmap toExport = documentBitmap;
+                    final Bitmap toExport = documentBitmap;
                     exportUri = PdfCreator.createSearchablePdf(
                             appContext,
                             toExport,
@@ -1104,7 +1106,9 @@ public class ExportFragment extends Fragment {
                         String displayName = FileUtils.getDisplayNameFromUri(requireContext(), lastExportedDocumentUri);
                         lastExportedPdfName = displayName;
                         binding.buttonShare.setEnabled(true);
-                        UIUtils.showToast(appContext, (isMulti ? "Document (multi-page) " : "Document ") + lastExportedPdfName + " exported", Toast.LENGTH_LONG);
+                        UIUtils.showToast(appContext,
+                                (isMulti ? "Document (multi-page) " : "Document ") + lastExportedPdfName + " exported",
+                                Toast.LENGTH_LONG);
 
                         if (includeOcr) {
                             launchTxtFileCreation();
@@ -1751,30 +1755,7 @@ public class ExportFragment extends Fragment {
         }
         // If user hasn't visited the OCR screen, fall back to a sensible system-based default
         if (lang == null || lang.trim().isEmpty()) {
-            try {
-                java.util.Locale loc = java.util.Locale.getDefault();
-                String sys = loc.getLanguage();
-                if ("zh".equalsIgnoreCase(sys)) {
-                    String country = loc.getCountry();
-                    if ("TW".equalsIgnoreCase(country) || "HK".equalsIgnoreCase(country) || "MO".equalsIgnoreCase(country)) {
-                        lang = "chi_tra";
-                    } else {
-                        lang = "chi_sim";
-                    }
-                } else if ("de".equalsIgnoreCase(sys)) {
-                    lang = "deu";
-                } else if ("fr".equalsIgnoreCase(sys)) {
-                    lang = "fra";
-                } else if ("it".equalsIgnoreCase(sys)) {
-                    lang = "ita";
-                } else if ("es".equalsIgnoreCase(sys)) {
-                    lang = "spa";
-                } else {
-                    lang = "eng";
-                }
-            } catch (Throwable ignore) {
-                lang = "eng";
-            }
+            lang = de.schliweb.makeacopy.utils.OCRUtils.resolveEffectiveLanguage(lang);
         }
         de.schliweb.makeacopy.jobs.OcrBackgroundJobs.enqueueReprocess(requireContext().getApplicationContext(), s.id(), lang);
     }

@@ -8,6 +8,7 @@ import android.util.Log;
 import de.schliweb.makeacopy.data.CompletedScansRegistry;
 import de.schliweb.makeacopy.ui.export.session.CompletedScan;
 import de.schliweb.makeacopy.utils.OCRHelper;
+import de.schliweb.makeacopy.utils.OCRUtils;
 import de.schliweb.makeacopy.utils.RecognizedWord;
 
 import java.io.File;
@@ -76,33 +77,7 @@ public final class OcrBackgroundJobs {
 
                 OCRHelper helper = new OCRHelper(app);
                 // Determine effective language: use provided, else map from system locale
-                String effLang = languageOpt;
-                if (effLang == null || effLang.trim().isEmpty()) {
-                    try {
-                        java.util.Locale loc = java.util.Locale.getDefault();
-                        String sys = loc.getLanguage();
-                        if ("zh".equalsIgnoreCase(sys)) {
-                            String country = loc.getCountry();
-                            if ("TW".equalsIgnoreCase(country) || "HK".equalsIgnoreCase(country) || "MO".equalsIgnoreCase(country)) {
-                                effLang = "chi_tra";
-                            } else {
-                                effLang = "chi_sim";
-                            }
-                        } else if ("de".equalsIgnoreCase(sys)) {
-                            effLang = "deu";
-                        } else if ("fr".equalsIgnoreCase(sys)) {
-                            effLang = "fra";
-                        } else if ("it".equalsIgnoreCase(sys)) {
-                            effLang = "ita";
-                        } else if ("es".equalsIgnoreCase(sys)) {
-                            effLang = "spa";
-                        } else {
-                            effLang = "eng";
-                        }
-                    } catch (Throwable ignore) {
-                        effLang = "eng";
-                    }
-                }
+                String effLang = OCRUtils.resolveEffectiveLanguage(languageOpt);
                 try {
                     // Set desired language before init to avoid immediate re-init
                     if (effLang != null && !effLang.trim().isEmpty()) {

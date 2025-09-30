@@ -102,7 +102,7 @@ public final class OcrBackgroundJobs {
                 // Write words.json
                 File wordsFile = new File(dir, "words.json");
                 try (FileOutputStream wos = new FileOutputStream(wordsFile)) {
-                    String json = toWordsJson(res != null ? res.words : null);
+                    String json = de.schliweb.makeacopy.utils.WordsJson.toWordsJson(res != null ? res.words : null);
                     wos.write(json.getBytes(StandardCharsets.UTF_8));
                     wos.flush();
                 }
@@ -138,77 +138,4 @@ public final class OcrBackgroundJobs {
         });
     }
 
-    // Simple serializer duplicated to avoid coupling to ExportFragment
-    private static String toWordsJson(java.util.List<RecognizedWord> words) {
-        StringBuilder sb = new StringBuilder();
-        sb.append('[');
-        if (words != null) {
-            boolean first = true;
-            for (RecognizedWord w : words) {
-                if (w == null) continue;
-                android.graphics.RectF r = w.getBoundingBox();
-                if (!first) sb.append(',');
-                first = false;
-                float conf = 0f;
-                try {
-                    conf = w.getConfidence();
-                } catch (Throwable ignore) {
-                }
-                sb.append('{')
-                        .append("\"text\":").append(escapeJsonString(w.getText())).append(',')
-                        .append("\"left\":").append(formatFloat(r.left)).append(',')
-                        .append("\"top\":").append(formatFloat(r.top)).append(',')
-                        .append("\"right\":").append(formatFloat(r.right)).append(',')
-                        .append("\"bottom\":").append(formatFloat(r.bottom)).append(',')
-                        .append("\"confidence\":").append(formatFloat(conf))
-                        .append('}');
-            }
-        }
-        sb.append(']');
-        return sb.toString();
-    }
-
-    private static String escapeJsonString(String s) {
-        if (s == null) return "\"\"";
-        StringBuilder out = new StringBuilder();
-        out.append('"');
-        for (int i = 0; i < s.length(); i++) {
-            char c = s.charAt(i);
-            switch (c) {
-                case '"':
-                    out.append("\\\"");
-                    break;
-                case '\\':
-                    out.append("\\\\");
-                    break;
-                case '\b':
-                    out.append("\\b");
-                    break;
-                case '\f':
-                    out.append("\\f");
-                    break;
-                case '\n':
-                    out.append("\\n");
-                    break;
-                case '\r':
-                    out.append("\\r");
-                    break;
-                case '\t':
-                    out.append("\\t");
-                    break;
-                default:
-                    if (c < 0x20) {
-                        out.append(String.format(java.util.Locale.US, "\\u%04x", (int) c));
-                    } else {
-                        out.append(c);
-                    }
-            }
-        }
-        out.append('"');
-        return out.toString();
-    }
-
-    private static String formatFloat(float f) {
-        return String.format(java.util.Locale.US, "%.6f", f);
-    }
 }

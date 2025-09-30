@@ -1326,24 +1326,7 @@ public class CameraFragment extends Fragment implements SensorEventListener {
             dialog.setOnDismissListener(d -> isLowLightDialogVisible = false);
 
             // Improve dark mode contrast for dialog buttons
-            dialog.setOnShowListener(d -> {
-                int nightModeFlags = requireContext().getResources().getConfiguration().uiMode & android.content.res.Configuration.UI_MODE_NIGHT_MASK;
-                if (nightModeFlags == android.content.res.Configuration.UI_MODE_NIGHT_YES) {
-                    try {
-                        int white = androidx.core.content.ContextCompat.getColor(requireContext(), android.R.color.white);
-                        if (dialog.getButton(AlertDialog.BUTTON_POSITIVE) != null) {
-                            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(white);
-                        }
-                        if (dialog.getButton(AlertDialog.BUTTON_NEGATIVE) != null) {
-                            dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setTextColor(white);
-                        }
-                        if (dialog.getButton(AlertDialog.BUTTON_NEUTRAL) != null) {
-                            dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setTextColor(white);
-                        }
-                    } catch (Exception ignored) {
-                    }
-                }
-            });
+            dialog.setOnShowListener(dlg -> de.schliweb.makeacopy.utils.DialogUtils.improveAlertDialogButtonContrastForNight(dialog, requireContext()));
 
             dialog.show();
 

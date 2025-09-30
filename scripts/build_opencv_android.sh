@@ -3,7 +3,7 @@ set -Eeuo pipefail
 umask 022
 
 # ===== User knobs =====
-ABIS="${ABIS:-arm64-v8a}"  # ggf. wieder auf: "arm64-v8a armeabi-v7a x86 x86_64"
+ABIS="${ABIS:-arm64-v8a armeabi-v7a x86 x86_64}"
 VERBOSE="${VERBOSE:-0}"
 export SOURCE_DATE_EPOCH="${SOURCE_DATE_EPOCH:-1700000000}"
 export TZ=UTC LC_ALL=C LANG=C PYTHONHASHSEED=0

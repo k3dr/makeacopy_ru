@@ -177,24 +177,7 @@ public class ExportOptionsDialogFragment extends DialogFragment {
                 .create();
 
         // Improve dark mode contrast for dialog buttons similar to other dialogs
-        dialog.setOnShowListener(dlg -> {
-            int nightModeFlags = ctx.getResources().getConfiguration().uiMode & android.content.res.Configuration.UI_MODE_NIGHT_MASK;
-            if (nightModeFlags == android.content.res.Configuration.UI_MODE_NIGHT_YES) {
-                try {
-                    int white = androidx.core.content.ContextCompat.getColor(ctx, android.R.color.white);
-                    if (dialog.getButton(AlertDialog.BUTTON_POSITIVE) != null) {
-                        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(white);
-                    }
-                    if (dialog.getButton(AlertDialog.BUTTON_NEGATIVE) != null) {
-                        dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setTextColor(white);
-                    }
-                    if (dialog.getButton(AlertDialog.BUTTON_NEUTRAL) != null) {
-                        dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setTextColor(white);
-                    }
-                } catch (Exception ignored) {
-                }
-            }
-        });
+        dialog.setOnShowListener(dlg -> de.schliweb.makeacopy.utils.DialogUtils.improveAlertDialogButtonContrastForNight(dialog, ctx));
 
         return dialog;
     }

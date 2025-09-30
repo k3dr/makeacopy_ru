@@ -106,26 +106,6 @@ public class ExportFragment extends Fragment {
         }
     }
 
-    // Decode a sampled bitmap from file to roughly fit into the given bounds to avoid OOM
-    private Bitmap decodeSampled(String path, int reqW, int reqH) {
-        try {
-            android.graphics.BitmapFactory.Options opts = new android.graphics.BitmapFactory.Options();
-            opts.inJustDecodeBounds = true;
-            android.graphics.BitmapFactory.decodeFile(path, opts);
-            int inSampleSize = 1;
-            int halfH = Math.max(1, opts.outHeight) / 2;
-            int halfW = Math.max(1, opts.outWidth) / 2;
-            while ((halfH / inSampleSize) >= Math.max(1, reqH) && (halfW / inSampleSize) >= Math.max(1, reqW)) {
-                inSampleSize *= 2;
-            }
-            android.graphics.BitmapFactory.Options real = new android.graphics.BitmapFactory.Options();
-            real.inSampleSize = Math.max(1, inSampleSize);
-            real.inPreferredConfig = Bitmap.Config.RGB_565;
-            return android.graphics.BitmapFactory.decodeFile(path, real);
-        } catch (Throwable t) {
-            return null;
-        }
-    }
 
     /**
      * Renders the preview image based on user-selected options such as grayscale, black-and-white, or JPEG BW mode.
@@ -136,56 +116,12 @@ public class ExportFragment extends Fragment {
      */
     private void renderPreview(Bitmap source) {
         if (binding == null || binding.documentPreview == null || source == null) return;
+        Bitmap out = de.schliweb.makeacopy.utils.BitmapUtils.processForPreview(source, requireContext());
         try {
-            Context ctx = requireContext();
-            android.content.SharedPreferences prefs = ctx.getSharedPreferences("export_options", Context.MODE_PRIVATE);
-            boolean toGray = prefs.getBoolean("convert_to_grayscale", false);
-            boolean toBw = prefs.getBoolean("convert_to_blackwhite", false);
-            boolean exportAsJpeg = prefs.getBoolean("export_as_jpeg", false);
-
-            if (exportAsJpeg) {
-                // Preview should ONLY reflect JPEG options when exporting as JPEG.
-                // Ignore PDF preview options (grayscale/bw) in this mode.
-                toGray = false;
-                toBw = false;
-                // If JPEG BW_TEXT mode is selected, prefer showing BW preview
-                try {
-                    JpegExportOptions.Mode mode = JpegExportOptions.Mode.valueOf(prefs.getString("jpeg_mode", JpegExportOptions.Mode.AUTO.name()));
-                    if (mode == JpegExportOptions.Mode.BW_TEXT) {
-                        toBw = true;
-                    }
-                } catch (Exception ignored) {
-                }
-            }
-
-            Bitmap safe = de.schliweb.makeacopy.utils.BitmapUtils.ensureDisplaySafe(source);
-            Bitmap out = safe;
-
-            if (toBw || toGray) {
-                // Initialize OpenCV if needed for conversion helpers
-                try {
-                    if (!de.schliweb.makeacopy.utils.OpenCVUtils.isInitialized()) {
-                        de.schliweb.makeacopy.utils.OpenCVUtils.init(ctx.getApplicationContext());
-                    }
-                } catch (Throwable t) {
-                    // If initialization fails, fall back to showing the original
-                }
-                try {
-                    if (toBw) {
-                        Bitmap bw = de.schliweb.makeacopy.utils.OpenCVUtils.toBw(safe);
-                        if (bw != null) out = bw;
-                    } else if (toGray) {
-                        Bitmap gr = de.schliweb.makeacopy.utils.OpenCVUtils.toGray(safe);
-                        if (gr != null) out = gr;
-                    }
-                } catch (Throwable ignored) {
-                }
-            }
-
             binding.documentPreview.setImageBitmap(out);
             binding.documentPreview.setVisibility(View.VISIBLE);
         } catch (Throwable ignore) {
-            // As a last resort, keep previous image state
+            // keep previous state on UI errors
         }
     }
 
@@ -245,27 +181,8 @@ public class ExportFragment extends Fragment {
             return insets;
         });
 
-        // Observe exporting state and progress to update progress bar
-        if (binding.exportProgress != null) {
-            exportViewModel.isExporting().observe(getViewLifecycleOwner(), exporting -> {
-                if (exporting != null && exporting) {
-                    binding.exportProgress.setVisibility(View.VISIBLE);
-                    // Disable Share while exporting to meet requirement: only active after export completes
-                    binding.buttonShare.setEnabled(false);
-                } else {
-                    binding.exportProgress.setVisibility(View.GONE);
-                    // Do not enable share here; it will be enabled explicitly on successful export
-                }
-            });
-            exportViewModel.getExportProgressMax().observe(getViewLifecycleOwner(), max -> {
-                Integer m = (max == null) ? 0 : max;
-                binding.exportProgress.setMax((m <= 0) ? 100 : m);
-                binding.exportProgress.setIndeterminate(m == null || m <= 0);
-            });
-            exportViewModel.getExportProgress().observe(getViewLifecycleOwner(), value -> {
-                if (value != null) binding.exportProgress.setProgress(value);
-            });
-        }
+        // Observe exporting state and progress to update progress bar (delegated)
+        de.schliweb.makeacopy.utils.ExportUiBindings.bindExportProgress(binding, getViewLifecycleOwner(), exportViewModel);
 
         // Back button: navigate to OCR (if not skipping OCR) or Crop (if skipping OCR)
         View backBtn = root.findViewById(R.id.button_back);
@@ -294,39 +211,10 @@ public class ExportFragment extends Fragment {
                 if (cur == null || position < 0 || position >= cur.size()) return;
                 de.schliweb.makeacopy.ui.export.session.CompletedScan sel = cur.get(position);
                 if (sel == null) return;
-                Bitmap bmp = sel.inMemoryBitmap();
-                try {
-                    if (bmp == null) {
-                        String path = sel.filePath();
-                        if (path != null) {
-                            // Decode a sampled bitmap to avoid OOM; target a reasonable bound
-                            int reqW = (binding != null && binding.documentPreview != null && binding.documentPreview.getWidth() > 0)
-                                    ? binding.documentPreview.getWidth() : 2048;
-                            int reqH = (binding != null && binding.documentPreview != null && binding.documentPreview.getHeight() > 0)
-                                    ? binding.documentPreview.getHeight() : 2048;
-                            bmp = decodeSampled(path, reqW, reqH);
-                        }
-                    }
-                    // Apply rotation for preview if needed
-                    if (bmp != null) {
-                        int deg = 0;
-                        try {
-                            deg = sel.rotationDeg();
-                        } catch (Throwable ignore) {
-                        }
-                        if (deg % 360 != 0) {
-                            try {
-                                android.graphics.Matrix m = new android.graphics.Matrix();
-                                m.postRotate(deg);
-                                Bitmap rotated = android.graphics.Bitmap.createBitmap(bmp, 0, 0, bmp.getWidth(), bmp.getHeight(), m, true);
-                                if (rotated != null) bmp = rotated;
-                            } catch (Throwable ignore) {
-                            }
-                        }
-                    }
-                } catch (Throwable t) {
-                    // ignore decode errors
-                }
+                int[] sz = de.schliweb.makeacopy.utils.ViewSizeUtils.sizeOrDefault(binding != null ? binding.documentPreview : null, 2048, 2048);
+                int reqW = sz[0];
+                int reqH = sz[1];
+                Bitmap bmp = de.schliweb.makeacopy.utils.BitmapUtils.loadPreviewBitmapForCompletedScan(sel, reqW, reqH);
                 if (bmp != null) {
                     exportViewModel.setDocumentBitmap(bmp);
                     exportViewModel.setDocumentReady(true);
@@ -382,8 +270,9 @@ public class ExportFragment extends Fragment {
             }
             // Show "Clear all" only when more than one page exists
             if (binding.buttonClearPages != null) {
-                // Keep the button slot occupied to maintain fixed placement (Settings left, Plus center, Trash right)
-                binding.buttonClearPages.setVisibility(n > 1 ? View.VISIBLE : View.INVISIBLE);
+                // Trash icon is always visible; only enabled when there are multiple pages
+                binding.buttonClearPages.setVisibility(View.VISIBLE);
+                binding.buttonClearPages.setEnabled(n > 1);
             }
             // If current preview points to a removed page, auto-select a remaining one
             Bitmap curPreview = exportViewModel.getDocumentBitmap().getValue();
@@ -398,25 +287,15 @@ public class ExportFragment extends Fragment {
             }
             if (!found && pages != null && !pages.isEmpty()) {
                 de.schliweb.makeacopy.ui.export.session.CompletedScan first = pages.get(0);
-                if (first != null && first.inMemoryBitmap() != null) {
-                    Bitmap bmp = first.inMemoryBitmap();
-                    try {
-                        int deg = 0;
-                        try {
-                            deg = first.rotationDeg();
-                        } catch (Throwable ignore) {
-                        }
-                        deg = ((deg % 360) + 360) % 360;
-                        if (deg != 0 && bmp != null) {
-                            android.graphics.Matrix m = new android.graphics.Matrix();
-                            m.postRotate(deg);
-                            Bitmap rotated = android.graphics.Bitmap.createBitmap(bmp, 0, 0, bmp.getWidth(), bmp.getHeight(), m, true);
-                            if (rotated != null) bmp = rotated;
-                        }
-                    } catch (Throwable ignore) {
+                if (first != null) {
+                    int[] sz = de.schliweb.makeacopy.utils.ViewSizeUtils.sizeOrDefault(binding != null ? binding.documentPreview : null, 2048, 2048);
+                    int reqW = sz[0];
+                    int reqH = sz[1];
+                    Bitmap bmp = de.schliweb.makeacopy.utils.BitmapUtils.loadPreviewBitmapForCompletedScan(first, reqW, reqH);
+                    if (bmp != null) {
+                        exportViewModel.setDocumentBitmap(bmp);
+                        exportViewModel.setDocumentReady(true);
                     }
-                    exportViewModel.setDocumentBitmap(bmp);
-                    exportViewModel.setDocumentReady(true);
                 }
             }
             // Do not toggle Include OCR checkbox visibility here; it remains hidden and controlled by the dialog.
@@ -502,68 +381,8 @@ public class ExportFragment extends Fragment {
         }
         if (binding.buttonAddPage != null) {
             binding.buttonAddPage.setOnClickListener(v -> {
-                // Show simple choice dialog instead of directly jumping to camera
-                String[] options = new String[]{
-                        getString(R.string.add_page_option_choose_completed),
-                        getString(R.string.add_page_option_capture_new)
-                };
-                androidx.appcompat.app.AlertDialog dialog = new androidx.appcompat.app.AlertDialog.Builder(requireContext())
-                        .setTitle(getString(R.string.add_another_page))
-                        .setItems(options, (dialogInterface, which) -> {
-                            if (which == 0) {
-                                // Open picker; pass already selected IDs to disable them
-                                try {
-                                    java.util.ArrayList<String> already = new java.util.ArrayList<>();
-                                    java.util.List<de.schliweb.makeacopy.ui.export.session.CompletedScan> cur = exportSessionViewModel.getPages().getValue();
-                                    if (cur != null) {
-                                        for (de.schliweb.makeacopy.ui.export.session.CompletedScan s : cur) {
-                                            if (s != null && s.id() != null) already.add(s.id());
-                                        }
-                                    }
-                                    android.os.Bundle args = new android.os.Bundle();
-                                    args.putStringArrayList(de.schliweb.makeacopy.ui.export.picker.CompletedScansPickerFragment.ARG_ALREADY_SELECTED_IDS, already);
-                                    Navigation.findNavController(requireView()).navigate(R.id.navigation_completed_scans_picker, args);
-                                } catch (Throwable t) {
-                                    // ignore
-                                }
-                            } else if (which == 1) {
-                                // Capture new page (previous behavior)
-                                prefs.edit().putBoolean("pending_add_page", true).apply();
-                                cameraViewModel.setImageUri(null);
-                                cropViewModel.setImageCropped(false);
-                                cropViewModel.setImageBitmap(null);
-                                cropViewModel.setOriginalImageBitmap(null);
-                                cropViewModel.setImageLoaded(false);
-                                Navigation.findNavController(requireView()).navigate(R.id.navigation_camera);
-                            }
-                        })
-                        .setNegativeButton(R.string.cancel, (d, wch) -> d.dismiss())
-                        .create();
-                // Improve dark mode contrast for dialog buttons similar to low-light dialog
-                dialog.setOnShowListener(dlg -> {
-                    int nightModeFlags = requireContext().getResources().getConfiguration().uiMode & android.content.res.Configuration.UI_MODE_NIGHT_MASK;
-                    if (nightModeFlags == android.content.res.Configuration.UI_MODE_NIGHT_YES) {
-                        try {
-                            int white = androidx.core.content.ContextCompat.getColor(requireContext(), android.R.color.white);
-                            if (dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE) != null) {
-                                dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE).setTextColor(white);
-                            }
-                            if (dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_NEGATIVE) != null) {
-                                dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_NEGATIVE).setTextColor(white);
-                            }
-                            if (dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_NEUTRAL) != null) {
-                                dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_NEUTRAL).setTextColor(white);
-                            }
-                        } catch (Exception ignored) {
-                        }
-                    }
-                });
-                dialog.show();
-            });
-            // Long-press: open Completed Scans Picker (v1 minimal wiring)
-            binding.buttonAddPage.setOnLongClickListener(v -> {
+                // Directly open the Completed Scans picker (no dialog)
                 try {
-                    // Pass already selected IDs to disable them in picker
                     java.util.ArrayList<String> already = new java.util.ArrayList<>();
                     java.util.List<de.schliweb.makeacopy.ui.export.session.CompletedScan> cur = exportSessionViewModel.getPages().getValue();
                     if (cur != null) {
@@ -574,10 +393,8 @@ public class ExportFragment extends Fragment {
                     android.os.Bundle args = new android.os.Bundle();
                     args.putStringArrayList(de.schliweb.makeacopy.ui.export.picker.CompletedScansPickerFragment.ARG_ALREADY_SELECTED_IDS, already);
                     Navigation.findNavController(requireView()).navigate(R.id.navigation_completed_scans_picker, args);
-                    UIUtils.showToast(requireContext(), getString(R.string.picker_title_completed_scans), Toast.LENGTH_SHORT);
-                    return true;
                 } catch (Throwable t) {
-                    return false;
+                    // ignore
                 }
             });
         }
@@ -598,25 +415,7 @@ public class ExportFragment extends Fragment {
                         })
                         .setNegativeButton(R.string.cancel, (dialogInterface, which) -> dialogInterface.dismiss())
                         .create();
-                // Improve dark mode contrast for dialog buttons similar to low-light dialog
-                dialog.setOnShowListener(dlg -> {
-                    int nightModeFlags = requireContext().getResources().getConfiguration().uiMode & android.content.res.Configuration.UI_MODE_NIGHT_MASK;
-                    if (nightModeFlags == android.content.res.Configuration.UI_MODE_NIGHT_YES) {
-                        try {
-                            int white = androidx.core.content.ContextCompat.getColor(requireContext(), android.R.color.white);
-                            if (dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE) != null) {
-                                dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE).setTextColor(white);
-                            }
-                            if (dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_NEGATIVE) != null) {
-                                dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_NEGATIVE).setTextColor(white);
-                            }
-                            if (dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_NEUTRAL) != null) {
-                                dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_NEUTRAL).setTextColor(white);
-                            }
-                        } catch (Exception ignored) {
-                        }
-                    }
-                });
+                dialog.setOnShowListener(dlg -> de.schliweb.makeacopy.utils.DialogUtils.improveAlertDialogButtonContrastForNight(dialog, requireContext()));
                 dialog.show();
             });
         }
@@ -809,7 +608,24 @@ public class ExportFragment extends Fragment {
                 ExportOptionsDialogFragment.show(getParentFragmentManager());
             });
         }
-        binding.buttonShare.setOnClickListener(v -> shareDocument());
+        if (binding.buttonAddScan != null) {
+            binding.buttonAddScan.setOnClickListener(v -> {
+                try {
+                    android.content.SharedPreferences p2 = requireContext().getSharedPreferences("export_options", Context.MODE_PRIVATE);
+                    p2.edit().putBoolean("pending_add_page", true).apply();
+                } catch (Throwable ignore) {
+                }
+                cameraViewModel.setImageUri(null);
+                cropViewModel.setImageCropped(false);
+                cropViewModel.setImageBitmap(null);
+                cropViewModel.setOriginalImageBitmap(null);
+                cropViewModel.setImageLoaded(false);
+                Navigation.findNavController(requireView()).navigate(R.id.navigation_camera);
+            });
+        }
+        if (binding.buttonShareSmall != null) {
+            binding.buttonShareSmall.setOnClickListener(v -> shareDocument());
+        }
 
         ViewCompat.setOnApplyWindowInsetsListener(root, (v, insets) -> {
             UIUtils.adjustTextViewTopMarginForStatusBar(binding.textExport, 8);
@@ -819,7 +635,7 @@ public class ExportFragment extends Fragment {
 
         exportViewModel.isDocumentReady().observe(getViewLifecycleOwner(), ready -> {
             binding.buttonExport.setEnabled(ready);
-            binding.buttonShare.setEnabled(false); // erst nach Export aktiv
+            setShareButtonsEnabled(false); // erst nach Export aktiv
             binding.textExport.setText(ready ? R.string.document_ready_for_export
                     : R.string.no_document_ready_process_ocr_first);
         });
@@ -942,7 +758,7 @@ public class ExportFragment extends Fragment {
         final Context appContext = requireContext().getApplicationContext();
         exportViewModel.setTxtExportUri(null);
         // Disable Share at the start of export; it will be re-enabled only on success
-        binding.buttonShare.setEnabled(false);
+        setShareButtonsEnabled(false);
         lastExportedDocumentUri = null;
         lastExportedPdfName = null;
         exportViewModel.setExporting(true);
@@ -1105,7 +921,7 @@ public class ExportFragment extends Fragment {
                         lastExportedDocumentUri = finalUri;
                         String displayName = FileUtils.getDisplayNameFromUri(requireContext(), lastExportedDocumentUri);
                         lastExportedPdfName = displayName;
-                        binding.buttonShare.setEnabled(true);
+                        setShareButtonsEnabled(true);
                         UIUtils.showToast(appContext,
                                 (isMulti ? "Document (multi-page) " : "Document ") + lastExportedPdfName + " exported",
                                 Toast.LENGTH_LONG);
@@ -1116,7 +932,7 @@ public class ExportFragment extends Fragment {
                     } else {
                         lastExportedDocumentUri = null;
                         exportViewModel.setTxtExportUri(null);
-                        binding.buttonShare.setEnabled(false);
+                        setShareButtonsEnabled(false);
                         UIUtils.showToast(appContext, "Failed to export document", Toast.LENGTH_SHORT);
                     }
                 });
@@ -1125,7 +941,7 @@ public class ExportFragment extends Fragment {
                 postToUiSafe(() -> {
                     lastExportedDocumentUri = null;
                     exportViewModel.setTxtExportUri(null);
-                    binding.buttonShare.setEnabled(false);
+                    setShareButtonsEnabled(false);
                     UIUtils.showToast(appContext, "Error during export: " + e.getMessage(), Toast.LENGTH_SHORT);
                 });
             } finally {
@@ -1248,7 +1064,7 @@ public class ExportFragment extends Fragment {
         // Reset any previously generated TXT URI to avoid sharing stale OCR text
         exportViewModel.setTxtExportUri(null);
         // Disable Share at the start of export; it will be re-enabled only on success
-        binding.buttonShare.setEnabled(false);
+        setShareButtonsEnabled(false);
         lastExportedDocumentUri = null;
         lastExportedPdfName = null;
         exportViewModel.setExporting(true);
@@ -1266,7 +1082,7 @@ public class ExportFragment extends Fragment {
                         lastExportedDocumentUri = exportUriFinal;
                         String displayName = FileUtils.getDisplayNameFromUri(requireContext(), lastExportedDocumentUri);
                         lastExportedPdfName = displayName;
-                        binding.buttonShare.setEnabled(true);
+                        setShareButtonsEnabled(true);
                         UIUtils.showToast(appContext, "Image " + displayName + " exported", Toast.LENGTH_LONG);
 
                         if (includeOcr) {
@@ -1274,7 +1090,7 @@ public class ExportFragment extends Fragment {
                         }
                     } else {
                         lastExportedDocumentUri = null;
-                        binding.buttonShare.setEnabled(false);
+                        setShareButtonsEnabled(false);
                         UIUtils.showToast(appContext, "Failed to export image", Toast.LENGTH_SHORT);
                     }
                 });
@@ -1282,7 +1098,7 @@ public class ExportFragment extends Fragment {
                 Log.e(TAG, "Error during JPEG export", e);
                 postToUiSafe(() -> {
                     lastExportedDocumentUri = null;
-                    binding.buttonShare.setEnabled(false);
+                    setShareButtonsEnabled(false);
                     UIUtils.showToast(appContext, "Error during JPEG export: " + e.getMessage(), Toast.LENGTH_SHORT);
                 });
             } finally {
@@ -1323,7 +1139,7 @@ public class ExportFragment extends Fragment {
         exportViewModel.setExporting(true);
         exportViewModel.setTxtExportUri(null);
         // Disable Share at the start of export; it will be re-enabled only on success
-        binding.buttonShare.setEnabled(false);
+        setShareButtonsEnabled(false);
         lastExportedDocumentUri = null;
         lastExportedPdfName = null;
 
@@ -1411,14 +1227,14 @@ public class ExportFragment extends Fragment {
                         lastExportedDocumentUri = exportUri;
                         String displayName = FileUtils.getDisplayNameFromUri(requireContext(), exportUri);
                         lastExportedPdfName = displayName;
-                        binding.buttonShare.setEnabled(true);
+                        setShareButtonsEnabled(true);
                         UIUtils.showToast(appContext, "ZIP " + displayName + " exported", Toast.LENGTH_LONG);
                         if (Boolean.TRUE.equals(exportViewModel.isIncludeOcr().getValue())) {
                             launchTxtFileCreation();
                         }
                     } else {
                         lastExportedDocumentUri = null;
-                        binding.buttonShare.setEnabled(false);
+                        setShareButtonsEnabled(false);
                         UIUtils.showToast(appContext, "Failed to export ZIP", Toast.LENGTH_SHORT);
                     }
                 });
@@ -1426,7 +1242,7 @@ public class ExportFragment extends Fragment {
                 Log.e(TAG, "Error during ZIP export", e);
                 postToUiSafe(() -> {
                     lastExportedDocumentUri = null;
-                    binding.buttonShare.setEnabled(false);
+                    setShareButtonsEnabled(false);
                     UIUtils.showToast(appContext, "Error during ZIP export: " + e.getMessage(), Toast.LENGTH_SHORT);
                 });
             } finally {
@@ -1591,106 +1407,13 @@ public class ExportFragment extends Fragment {
         final java.util.List<de.schliweb.makeacopy.utils.RecognizedWord> ocrWordsAtCall = skipOcrPref ? null : getOcrWordsFromState();
         new Thread(() -> {
             try {
-                java.io.File dir = new java.io.File(appContext.getFilesDir(), "scans/" + id);
-                if (!dir.exists()) {
-                    //noinspection ResultOfMethodCallIgnored
-                    dir.mkdirs();
-                }
-                java.io.File page = new java.io.File(dir, "page.jpg");
-                try (java.io.FileOutputStream fos = new java.io.FileOutputStream(page)) {
-                    bmp.compress(android.graphics.Bitmap.CompressFormat.JPEG, 90, fos);
-                    fos.flush();
-                }
-                // Create a small thumbnail (long edge ~240px). Ensure rotation is applied so registry thumbnail matches preview.
-                android.graphics.Bitmap sourceForThumb = bmp;
-                try {
-                    int deg = 0;
-                    try {
-                        deg = s.rotationDeg();
-                    } catch (Throwable ignore) {
-                    }
-                    deg = ((deg % 360) + 360) % 360;
-                    if (deg != 0 && bmp != null && !bmp.isRecycled()) {
-                        android.graphics.Matrix m = new android.graphics.Matrix();
-                        m.postRotate(deg);
-                        android.graphics.Bitmap rotated = android.graphics.Bitmap.createBitmap(bmp, 0, 0, bmp.getWidth(), bmp.getHeight(), m, true);
-                        if (rotated != null) sourceForThumb = rotated;
-                    }
-                } catch (Throwable ignore) { /* fall back to original */ }
-                int w = sourceForThumb.getWidth();
-                int h = sourceForThumb.getHeight();
-                int longEdge = Math.max(w, h);
-                int target = 240;
-                float scale = longEdge > target ? (target / (float) longEdge) : 1f;
-                int nw = Math.max(1, Math.round(w * scale));
-                int nh = Math.max(1, Math.round(h * scale));
-                android.graphics.Bitmap thumb = android.graphics.Bitmap.createScaledBitmap(sourceForThumb, nw, nh, true);
-                java.io.File thumbFile = new java.io.File(dir, "thumb.jpg");
-                try (java.io.FileOutputStream tfos = new java.io.FileOutputStream(thumbFile)) {
-                    thumb.compress(android.graphics.Bitmap.CompressFormat.JPEG, 75, tfos);
-                    tfos.flush();
-                } catch (Throwable ignore) {
-                }
-                // Recycle intermediate rotated bitmap if it was created just for thumbnail
-                if (sourceForThumb != bmp) {
-                    try {
-                        sourceForThumb.recycle();
-                    } catch (Throwable ignore) {
-                    }
-                }
-
-                // If OCR text/words are available, persist text.txt and words.json; prefer words_json if present
-                String ocrPath = null;
-                String ocrFormat = null;
-                try {
-                    // Always try to write plain text first if available (TXT fallback)
-                    if (ocrTextAtCall != null && !ocrTextAtCall.isEmpty()) {
-                        java.io.File txt = new java.io.File(dir, "text.txt");
-                        try (java.io.FileOutputStream tf = new java.io.FileOutputStream(txt)) {
-                            tf.write(ocrTextAtCall.getBytes(java.nio.charset.StandardCharsets.UTF_8));
-                            tf.flush();
-                            ocrPath = txt.getAbsolutePath();
-                            ocrFormat = "plain";
-                        }
-                    }
-                    // If word boxes are available in memory, also persist words.json and prefer it for registry/export
-                    if (ocrWordsAtCall != null && !ocrWordsAtCall.isEmpty()) {
-                        java.io.File wordsFile = new java.io.File(dir, "words.json");
-                        try (java.io.FileOutputStream wos = new java.io.FileOutputStream(wordsFile)) {
-                            String json = toWordsJson(ocrWordsAtCall);
-                            wos.write(json.getBytes(java.nio.charset.StandardCharsets.UTF_8));
-                            wos.flush();
-                            // Prefer words_json
-                            ocrPath = wordsFile.getAbsolutePath();
-                            ocrFormat = "words_json";
-                        }
-                    }
-                } catch (Throwable ignore) { /* leave as last successful */ }
-
-                // Build persisted model (no in-memory bitmap in registry), but keep thumb/file paths
+                // Persist scan (page.jpg, thumb.jpg, and optional OCR artifacts) and insert into registry
                 de.schliweb.makeacopy.ui.export.session.CompletedScan persisted =
-                        new de.schliweb.makeacopy.ui.export.session.CompletedScan(
-                                id,
-                                page.getAbsolutePath(),
-                                s.rotationDeg(),
-                                ocrPath,
-                                ocrFormat,
-                                thumbFile.getAbsolutePath(),
-                                s.createdAt(),
-                                s.widthPx(),
-                                s.heightPx(),
-                                null
-                        );
-                try {
-                    de.schliweb.makeacopy.data.CompletedScansRegistry reg = de.schliweb.makeacopy.data.CompletedScansRegistry.get(appContext);
-                    reg.insert(persisted);
-                } catch (Exception e) {
-                    Log.w(TAG, "Registry insert failed", e);
-                }
+                        de.schliweb.makeacopy.utils.ScanPersister.persist(appContext, s, ocrTextAtCall, ocrWordsAtCall);
 
                 // Update current session item so the filmstrip badge reflects OCR immediately
-                final String finalOcrPath = ocrPath;
-                final String finalOcrFormat = ocrFormat;
+                final String finalOcrPath = persisted.ocrTextPath();
+                final String finalOcrFormat = persisted.ocrFormat();
                 postToUiSafe(() -> {
                     List<de.schliweb.makeacopy.ui.export.session.CompletedScan> cur = exportSessionViewModel.getPages().getValue();
                     if (cur == null) return;
@@ -1699,11 +1422,11 @@ public class ExportFragment extends Fragment {
                         if (it != null && id.equals(it.id())) {
                             de.schliweb.makeacopy.ui.export.session.CompletedScan updated = new de.schliweb.makeacopy.ui.export.session.CompletedScan(
                                     it.id(),
-                                    page.getAbsolutePath(),
+                                    persisted.filePath(),
                                     it.rotationDeg(),
                                     finalOcrPath,
                                     finalOcrFormat,
-                                    it.thumbPath() != null ? it.thumbPath() : thumbFile.getAbsolutePath(),
+                                    it.thumbPath() != null ? it.thumbPath() : persisted.thumbPath(),
                                     it.createdAt(),
                                     it.widthPx(),
                                     it.heightPx(),
@@ -1760,152 +1483,55 @@ public class ExportFragment extends Fragment {
         de.schliweb.makeacopy.jobs.OcrBackgroundJobs.enqueueReprocess(requireContext().getApplicationContext(), s.id(), lang);
     }
 
-    // Serialize OCR words to a compact JSON array used for words_json format
-    private static String toWordsJson(java.util.List<de.schliweb.makeacopy.utils.RecognizedWord> words) {
-        StringBuilder sb = new StringBuilder();
-        sb.append('[');
-        if (words != null) {
-            boolean first = true;
-            for (de.schliweb.makeacopy.utils.RecognizedWord w : words) {
-                if (w == null) continue;
-                android.graphics.RectF r = w.getBoundingBox();
-                if (!first) sb.append(',');
-                first = false;
-                // confidence is 0..1
-                float conf = 0f;
-                try {
-                    conf = w.getConfidence();
-                } catch (Throwable ignore) {
-                }
-                sb.append('{')
-                        .append("\"text\":").append(escapeJsonString(w.getText())).append(',')
-                        .append("\"left\":").append(formatFloat(r.left)).append(',')
-                        .append("\"top\":").append(formatFloat(r.top)).append(',')
-                        .append("\"right\":").append(formatFloat(r.right)).append(',')
-                        .append("\"bottom\":").append(formatFloat(r.bottom)).append(',')
-                        .append("\"confidence\":").append(formatFloat(conf))
-                        .append('}');
+
+    /**
+     * Enables or disables the share buttons within the UI.
+     *
+     * @param enabled a boolean indicating whether the share buttons should be enabled (true) or disabled (false)
+     */
+    private void setShareButtonsEnabled(boolean enabled) {
+        if (binding != null) {
+            try {
+                if (binding.buttonShareSmall != null) binding.buttonShareSmall.setEnabled(enabled);
+            } catch (Throwable ignore) {
             }
         }
-        sb.append(']');
-        return sb.toString();
     }
 
-    private static String escapeJsonString(String s) {
-        if (s == null) return "\"\"";
-        StringBuilder out = new StringBuilder();
-        out.append('"');
-        for (int i = 0; i < s.length(); i++) {
-            char c = s.charAt(i);
-            switch (c) {
-                case '"':
-                    out.append("\\\"");
-                    break;
-                case '\\':
-                    out.append("\\\\");
-                    break;
-                case '\b':
-                    out.append("\\b");
-                    break;
-                case '\f':
-                    out.append("\\f");
-                    break;
-                case '\n':
-                    out.append("\\n");
-                    break;
-                case '\r':
-                    out.append("\\r");
-                    break;
-                case '\t':
-                    out.append("\\t");
-                    break;
-                default:
-                    if (c < 0x20) {
-                        out.append(String.format(java.util.Locale.US, "\\u%04x", (int) c));
-                    } else {
-                        out.append(c);
-                    }
-            }
-        }
-        out.append('"');
-        return out.toString();
-    }
-
-    private static String formatFloat(float f) {
-        // Use US locale to ensure dot decimal separator
-        return String.format(java.util.Locale.US, "%.6f", f);
-    }
-
+    /**
+     * Shares the last exported document using an appropriate sharing intent.
+     * <p>
+     * This method checks if there is a document available to share. If no document is found,
+     * a message is displayed to the user indicating that they need to export a document first.
+     * <p>
+     * If a document exists, the method attempts to retrieve the file name and uses a helper
+     * class to initiate the sharing process. It handles any exceptions that may occur during
+     * the sharing operation by logging the error and showing a corresponding error message
+     * to the user.
+     * <p>
+     * Preconditions:
+     * - The method assumes that the `lastExportedDocumentUri` refers to the URI of the last
+     * successfully exported document.
+     * - The `exportViewModel` is expected to provide the URI for exporting the document in TXT format.
+     * - Helper utilities such as FileUtils and ShareIntentHelper should be functional and imported.
+     * <p>
+     * Postconditions:
+     * - Either the sharing intent is successfully triggered, or the user is notified of any errors
+     * or missing documents.
+     * <p>
+     * Error Handling:
+     * - Displays a toast message to the user if no document is available to share.
+     * - Logs and displays a toast message for any exceptions encountered during the sharing process.
+     */
     private void shareDocument() {
         if (lastExportedDocumentUri == null) {
             UIUtils.showToast(requireContext(), "No document available to share. Export a document first.", Toast.LENGTH_SHORT);
             return;
         }
-
         try {
             String fileName = FileUtils.getDisplayNameFromUri(requireContext(), lastExportedDocumentUri);
             Uri txtUri = exportViewModel.getTxtExportUri().getValue();
-            boolean hasTxtFile = txtUri != null;
-
-            // Detect primary document type (PDF or JPEG) from file name as a robust fallback
-            String lowerName = (fileName != null) ? fileName.toLowerCase() : "";
-            boolean isPdf = lowerName.endsWith(".pdf");
-            boolean isJpeg = lowerName.endsWith(".jpg") || lowerName.endsWith(".jpeg");
-            boolean isZip = lowerName.endsWith(".zip");
-            String primaryMime = isZip ? "application/zip" : (isJpeg ? "image/jpeg" : "application/pdf"); // default to PDF if unknown
-
-            Intent shareIntent = hasTxtFile
-                    ? new Intent(Intent.ACTION_SEND_MULTIPLE)
-                    : new Intent(Intent.ACTION_SEND);
-
-            shareIntent.setType(hasTxtFile ? "*/*" : primaryMime);
-
-            Uri contentUri;
-            if ("content".equalsIgnoreCase(lastExportedDocumentUri.getScheme())) {
-                contentUri = lastExportedDocumentUri;
-            } else {
-                String authority = requireContext().getPackageName() + ".fileprovider";
-                java.io.File file = new java.io.File(lastExportedDocumentUri.getPath());
-                contentUri = FileProvider.getUriForFile(requireContext(), authority, file);
-            }
-
-            // Build a clear label to indicate TXT inclusion when applicable
-            String label = hasTxtFile ? (fileName + " + OCR TXT") : fileName;
-            shareIntent.putExtra(Intent.EXTRA_TITLE, label);
-            shareIntent.putExtra(Intent.EXTRA_SUBJECT, label);
-            shareIntent.putExtra(Intent.EXTRA_TEXT, label);
-
-            if (hasTxtFile) {
-                Uri txtContentUri;
-                if ("content".equalsIgnoreCase(txtUri.getScheme())) {
-                    txtContentUri = txtUri;
-                } else {
-                    String authority = requireContext().getPackageName() + ".fileprovider";
-                    java.io.File txtFile = new java.io.File(txtUri.getPath());
-                    txtContentUri = FileProvider.getUriForFile(requireContext(), authority, txtFile);
-                }
-
-                java.util.ArrayList<Uri> uriList = new java.util.ArrayList<>();
-                uriList.add(contentUri);
-                uriList.add(txtContentUri);
-
-                android.content.ClipData clipData = new android.content.ClipData(
-                        label,
-                        new String[]{primaryMime, "text/plain"},
-                        new android.content.ClipData.Item(contentUri)
-                );
-                clipData.addItem(new android.content.ClipData.Item(txtContentUri));
-                shareIntent.setClipData(clipData);
-                shareIntent.putParcelableArrayListExtra(Intent.EXTRA_STREAM, uriList);
-            } else {
-                android.content.ClipData clipData = android.content.ClipData.newUri(
-                        requireContext().getContentResolver(), label, contentUri);
-                shareIntent.setClipData(clipData);
-                shareIntent.putExtra(Intent.EXTRA_STREAM, contentUri);
-            }
-
-            shareIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-            startActivity(Intent.createChooser(shareIntent, "Share " + label));
+            de.schliweb.makeacopy.utils.ShareIntentHelper.shareDocument(this, lastExportedDocumentUri, txtUri, fileName);
         } catch (Exception e) {
             Log.e(TAG, "Error sharing document", e);
             UIUtils.showToast(requireContext(), "Error sharing document: " + e.getMessage(), Toast.LENGTH_SHORT);
@@ -1913,6 +1539,23 @@ public class ExportFragment extends Fragment {
     }
 
     private boolean ocrReceiverRegistered = false;
+    /**
+     * A BroadcastReceiver to handle updates from OCR processing jobs. This receiver listens for broadcasts
+     * containing information about the OCR processing status and updates the session data accordingly.
+     * <p>
+     * The receiver performs the following tasks:
+     * - Extracts the associated page ID and success status from the received Intent.
+     * - If the processing was successful, updates the session data using the OCR result.
+     * - If the processing failed, displays a user notification indicating the failure.
+     * <p>
+     * It expects the following extras in the received Intent:
+     * - {@link de.schliweb.makeacopy.jobs.OcrBackgroundJobs#EXTRA_PAGE_ID}: A String representing the ID
+     * of the page that was processed. This is used to associate the OCR result with the correct session.
+     * - {@link de.schliweb.makeacopy.jobs.OcrBackgroundJobs#EXTRA_SUCCESS}: A boolean indicating whether
+     * the OCR processing was successful.
+     * <p>
+     * In case of any exceptions during the session update, a warning message is logged.
+     */
     private final android.content.BroadcastReceiver ocrUpdateReceiver = new android.content.BroadcastReceiver() {
         @Override
         public void onReceive(android.content.Context context, android.content.Intent intent) {
@@ -1921,31 +1564,8 @@ public class ExportFragment extends Fragment {
             boolean success = intent.getBooleanExtra(de.schliweb.makeacopy.jobs.OcrBackgroundJobs.EXTRA_SUCCESS, false);
             if (id == null) return;
             if (success) {
-                // Reload registry entry and update session item if present
                 try {
-                    de.schliweb.makeacopy.data.CompletedScansRegistry reg = de.schliweb.makeacopy.data.CompletedScansRegistry.get(requireContext().getApplicationContext());
-                    java.util.List<de.schliweb.makeacopy.ui.export.session.CompletedScan> cur = exportSessionViewModel.getPages().getValue();
-                    if (cur == null) return;
-                    de.schliweb.makeacopy.ui.export.session.CompletedScan persisted = null;
-                    for (de.schliweb.makeacopy.ui.export.session.CompletedScan e : reg.listAllOrderedByDateDesc()) {
-                        if (e != null && id.equals(e.id())) {
-                            persisted = e;
-                            break;
-                        }
-                    }
-                    if (persisted == null) return;
-                    for (int i = 0; i < cur.size(); i++) {
-                        de.schliweb.makeacopy.ui.export.session.CompletedScan it = cur.get(i);
-                        if (it != null && id.equals(it.id())) {
-                            de.schliweb.makeacopy.ui.export.session.CompletedScan updated = new de.schliweb.makeacopy.ui.export.session.CompletedScan(
-                                    it.id(), persisted.filePath(), it.rotationDeg(), persisted.ocrTextPath(), persisted.ocrFormat(),
-                                    (it.thumbPath() != null ? it.thumbPath() : persisted.thumbPath()), it.createdAt(), it.widthPx(), it.heightPx(), it.inMemoryBitmap()
-                            );
-                            exportSessionViewModel.updateAt(i, updated);
-                            break;
-                        }
-                    }
-                    UIUtils.showToast(requireContext(), getString(R.string.ocr_processing_finished), Toast.LENGTH_SHORT);
+                    de.schliweb.makeacopy.utils.SessionOcrUpdater.applyOcrResultToSession(requireContext(), exportSessionViewModel, id);
                 } catch (Throwable t) {
                     Log.w(TAG, "Failed to update session after OCR job", t);
                 }

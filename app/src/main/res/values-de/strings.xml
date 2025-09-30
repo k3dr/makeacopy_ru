@@ -73,7 +73,7 @@
     
     <!-- Mehrseiten-Export (v1 Inkrement) -->
     <string name="pages_header">Seiten (%1$d)</string>
-    <string name="add_another_page">Weitere Seite hinzufügen</string>
+    <string name="add_another_page">Hinzufügen</string>
     <string name="clear_all_pages">Alle entfernen</string>
     <string name="remove_this_page">Diese Seite entfernen</string>
     <string name="multipage_not_implemented">Mehrseiten-Export noch nicht implementiert</string>

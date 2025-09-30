@@ -49,6 +49,11 @@ MakeACopy supports OCR via Tesseract. You can choose the OCR language during the
 
 Supported out of the box:
 - English (eng), German (deu), French (fra), Italian (ita), Spanish (spa)
+- Chinese (Simplified) — chi_sim, Chinese (Traditional) — chi_tra
+
+Notes:
+- All OCR runs fully offline on-device.
+- For Chinese, MakeACopy includes appropriate CJK fonts for better PDF text embedding.
 
 ## Screenshots
 

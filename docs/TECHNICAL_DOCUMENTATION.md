@@ -359,7 +359,7 @@ Edge cases:
 ## 10. OCR Details
 
 - Engine: Tesseract via tess‑two JNI bindings.
-- Language Packs: English (eng), German (deu), French (fra), Italian (ita), Spanish (spa) supported; select at OCR step.
+- Language Packs: English (eng), German (deu), French (fra), Italian (ita), Spanish (spa), Chinese (Simplified: chi_sim, Traditional: chi_tra) supported; select at OCR step.
 - Output: a list of RecognizedWord; downstream code expects bounding boxes in bitmap pixel space.
 
 Integration with PDF:

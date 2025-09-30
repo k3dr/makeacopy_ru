@@ -108,6 +108,19 @@
                 android:src="@drawable/ic_delete"
                 app:tint="?attr/colorControlNormal"
                 android:background="@android:color/transparent"/>
+
+        <!-- Share icon identical behavior to Share button -->
+        <ImageButton
+                android:id="@+id/button_share_small"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:padding="8dp"
+                android:contentDescription="@string/btn_share"
+                android:src="@drawable/ic_share"
+                app:tint="?attr/colorControlNormal"
+                android:enabled="false"
+                android:background="@android:color/transparent"/>
     </LinearLayout>
 
     <!-- Optionen & Button -->
@@ -150,16 +163,15 @@
                     app:autoSizeMaxTextSize="16sp"
                     app:autoSizeStepGranularity="1sp" />
 
-            <!-- Share-Button (Middle) -->
+            <!-- Add-Button (Middle) -->
             <Button
-                    android:id="@+id/button_share"
+                    android:id="@+id/button_add_scan"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:layout_marginStart="4dp"
                     android:layout_marginEnd="4dp"
-                    android:text="@string/btn_share"
-                    android:enabled="false"
+                    android:text="@string/add_another_page"
                     android:maxLines="1"
                     android:ellipsize="end"
                     app:autoSizeTextType="uniform"

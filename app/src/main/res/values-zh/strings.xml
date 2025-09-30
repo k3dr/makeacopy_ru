@@ -74,7 +74,7 @@
 
     <!-- Multipage Export (v1 increment) -->
     <string name="pages_header">页面（%1$d）</string>
-    <string name="add_another_page">添加另一页</string>
+    <string name="add_another_page">添加</string>
     <string name="clear_all_pages">全部清除</string>
     <string name="remove_this_page">移除此页</string>
     <string name="multipage_not_implemented">尚未实现多页导出</string>

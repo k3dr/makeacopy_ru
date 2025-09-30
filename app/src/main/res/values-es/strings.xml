@@ -74,7 +74,7 @@
     
     <!-- Multipage Export (v1 increment) -->
     <string name="pages_header">Páginas (%1$d)</string>
-    <string name="add_another_page">Añadir otra página</string>
+    <string name="add_another_page">Añadir</string>
     <string name="clear_all_pages">Eliminar todas</string>
     <string name="remove_this_page">Eliminar esta página</string>
     <string name="multipage_not_implemented">Exportación de varias páginas aún no implementada</string>

@@ -9,6 +9,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * Utility to parse a compact JSON representation of OCR words ("words_json")
@@ -260,5 +261,79 @@ public final class WordsJson {
             baos.write(buffer, 0, read);
         }
         return baos.toByteArray();
+    }
+
+    public static String toWordsJson(List<RecognizedWord> words) {
+        StringBuilder sb = new StringBuilder();
+        sb.append('[');
+        if (words != null) {
+            boolean first = true;
+            for (RecognizedWord w : words) {
+                if (w == null) continue;
+                RectF r = w.getBoundingBox();
+                if (!first) sb.append(',');
+                first = false;
+                float conf = 0f; // confidence is 0..1
+                try {
+                    conf = w.getConfidence();
+                } catch (Throwable ignore) {
+                }
+                sb.append('{')
+                        .append("\"text\":").append(escapeJsonString(w.getText())).append(',')
+                        .append("\"left\":").append(formatFloat(r.left)).append(',')
+                        .append("\"top\":").append(formatFloat(r.top)).append(',')
+                        .append("\"right\":").append(formatFloat(r.right)).append(',')
+                        .append("\"bottom\":").append(formatFloat(r.bottom)).append(',')
+                        .append("\"confidence\":").append(formatFloat(conf))
+                        .append('}');
+            }
+        }
+        sb.append(']');
+        return sb.toString();
+    }
+
+    public static String escapeJsonString(String s) {
+        if (s == null) return "\"\"";
+        StringBuilder out = new StringBuilder();
+        out.append('"');
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            switch (c) {
+                case '"':
+                    out.append("\\\"");
+                    break;
+                case '\\':
+                    out.append("\\\\");
+                    break;
+                case '\b':
+                    out.append("\\b");
+                    break;
+                case '\f':
+                    out.append("\\f");
+                    break;
+                case '\n':
+                    out.append("\\n");
+                    break;
+                case '\r':
+                    out.append("\\r");
+                    break;
+                case '\t':
+                    out.append("\\t");
+                    break;
+                default:
+                    if (c < 0x20) {
+                        out.append(String.format(Locale.US, "\\u%04x", (int) c));
+                    } else {
+                        out.append(c);
+                    }
+            }
+        }
+        out.append('"');
+        return out.toString();
+    }
+
+    public static String formatFloat(float f) {
+        // Use US locale to ensure dot decimal separator
+        return String.format(Locale.US, "%.6f", f);
     }
 }

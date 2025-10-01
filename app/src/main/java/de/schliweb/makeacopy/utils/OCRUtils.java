@@ -49,8 +49,8 @@ public class OCRUtils {
                 return "fra";
             } else if ("it".equalsIgnoreCase(sys)) {
                 return "ita";
-            } else if ("es".equalsIgnoreCase(sys)) {
-                return "spa";
+            } else if ("ru".equalsIgnoreCase(sys)) {
+                return "rus";
             } else {
                 return "eng";
             }
@@ -65,13 +65,14 @@ public class OCRUtils {
      * Special handling is applied for Chinese to differentiate between simplified and traditional scripts
      * based on the system region.
      *
-     * @param systemLanguage A string representing the system language code (e.g., "en", "de", "zh").
+     * @param systemLanguage A string representing the system language code (e.g., "en", "ru", "de", "zh").
      * @return A string representing the corresponding Tesseract OCR language code.
      * Defaults to "eng" if the input language is not recognized.
      */
     public static String mapSystemLanguageToTesseract(String systemLanguage) {
         return switch (systemLanguage) {
             case "en" -> "eng";
+            case "ru" -> "rus";
             case "de" -> "deu";
             case "fr" -> "fra";
             case "it" -> "ita";
@@ -88,7 +89,7 @@ public class OCRUtils {
                 }
                 yield "chi_sim";
             }
-            default -> "eng";
+            default -> "rus";
         };
     }
 
@@ -96,11 +97,11 @@ public class OCRUtils {
      * Retrieves a list of supported language codes.
      *
      * @return An array of strings representing the language codes supported for OCR.
-     * The codes include "eng" (English), "deu" (German), "fra" (French),
+     * The codes include "eng" (English), "ru" (Russian), "deu" (German), "fra" (French),
      * "ita" (Italian), "spa" (Spanish), "chi_sim" (Simplified Chinese),
      * and "chi_tra" (Traditional Chinese).
      */
     public static String[] getLanguages() {
-        return new String[]{"eng", "deu", "fra", "ita", "spa", "chi_sim", "chi_tra"};
+        return new String[]{"rus", "eng", "deu", "fra", "ita", "spa", "chi_sim", "chi_tra"};
     }
 }

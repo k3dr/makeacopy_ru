@@ -1,32 +1,6 @@
 # MakeACopy
 
-MakeACopy is an open-source document scanner app for Android that allows you to digitize paper documents with OCR functionality. The app is designed to be privacy-friendly, working completely offline without any cloud connection or tracking.
-
-[<img src="https://fdroid.gitlab.io/artwork/badge/get-it-on.png"
-     alt="Get it on F-Droid"
-     height="80">](https://f-droid.org/packages/de.schliweb.makeacopy/)
-[<img src="https://play.google.com/intl/en_us/badges/images/generic/en-play-badge.png"
-     alt="Get it on Google Play"
-     height="80">](https://play.google.com/store/apps/details?id=de.schliweb.makeacopy)
-
-Or download the latest APK from the [Releases Section](https://github.com/egdels/makeacopy/releases/latest).
-
-[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-
-## APK Verification
-
-All official releases of MakeACopy are signed with one of the following certificates:
-
-- **Upload key** (used for GitHub releases, F-Droid, and sideload APKs)  
-  SHA-256: AE:32:2D:3F:B7:1A:FE:21:DF:47:27:E3:7A:5C:68:03:51:1D:5A:2F:E1:FC:31:35:43:0C:EE:06:99:FA:1B:34  
-
-- **Google Play App Signing key** (used for Play Store releases)  
-  SHA-256: C0:71:44:39:CB:51:62:32:A4:47:91:7A:6F:C2:28:1E:45:FA:AA:DD:37:F8:30:B1:01:1F:B4:85:68:8E:0D:64  
-  
-### Verify with apksigner
-```bash
-apksigner verify --print-certs MakeACopy-vX.Y.Z.apk
-```
+MakeACopy is an open-source document scanner app for Android that allows you to digitize paper documents with OCR functionality (added russian language for OCR). The app is designed to be privacy-friendly, working completely offline without any cloud connection or tracking.
 
 ## Features
 
@@ -48,7 +22,7 @@ apksigner verify --print-certs MakeACopy-vX.Y.Z.apk
 MakeACopy supports OCR via Tesseract. You can choose the OCR language during the OCR step.
 
 Supported out of the box:
-- English (eng), German (deu), French (fra), Italian (ita), Spanish (spa)
+- English (eng), Russian (rus), German (deu), French (fra), Italian (ita), Spanish (spa)
 - Chinese (Simplified) — chi_sim, Chinese (Traditional) — chi_tra
 
 Notes:
@@ -78,7 +52,7 @@ This approach ensures F-Droid compatibility by not including any pre-compiled bi
 
 ### GitHub Releases
 
-You can download the latest APK from the [Releases](https://github.com/egdels/makeacopy/releases) page.
+You can download the latest APK from the [Releases](https://github.com/k3dr/makeacopy_ru/releases) page.
 
 #### Automated Builds
 

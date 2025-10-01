@@ -19,6 +19,8 @@ import com.tom_roush.pdfbox.pdmodel.graphics.image.PDImageXObject;
 import com.tom_roush.pdfbox.pdmodel.graphics.state.RenderingMode;
 import com.tom_roush.pdfbox.util.Matrix;
 
+import java.io.File;
+import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.text.Normalizer;
@@ -142,7 +144,7 @@ public class PdfCreator {
                         ? JPEGFactory.createFromImage(document, prepared, q)
                         : LosslessFactory.createFromImage(document, prepared);
 
-                // Load embedded fonts with fallbacks
+                // Load embedded fonts with fallbacks (file-based; subset-embedded by default)
                 List<PDFont> fonts = loadFontsWithFallbacks(document, context);
 
                 try (PDPageContentStream cs = new PDPageContentStream(document, page)) {
@@ -196,19 +198,21 @@ public class PdfCreator {
 
     private static List<PDFont> loadFontsWithFallbacks(PDDocument document, Context context) {
         List<PDFont> fonts = new ArrayList<>();
-        // Put the widest-coverage fonts first. Only those present in assets/ will be loaded.
+        // Minimal & memory-efficient:
+        // - Removed Symbols2 & CJKtc (largest memory hogs)
+        // - File-based loading avoids MemoryTTFDataStream
+        //   Note: In pdfbox-android, the File overload is subset-embedded by default.
         String[] candidates = new String[]{
-                "fonts/NotoSans-Regular.ttf",             // Latin
-                "fonts/NotoSansSymbols2-Regular.ttf",     // Symbols (optional)
-                "fonts/NotoSansCJKsc-Regular.ttf",        // CJK Simplified (optional, large)
-                "fonts/NotoSansCJKtc-Regular.ttf",        // CJK Traditional (optional, large)
-                "fonts/NotoNaskhArabic-Regular.ttf",      // Arabic (optional)
-                "fonts/NotoSansDevanagari-Regular.ttf"    // Indic (optional)
+                "fonts/NotoSans-Regular.ttf",          // Latin
+                "fonts/NotoSansCJKsc-Regular.ttf",     // CJK (Han) – one font is sufficient for the invisible layer
+                "fonts/NotoNaskhArabic-Regular.ttf",   // Arabic (optional)
+                "fonts/NotoSansDevanagari-Regular.ttf" // Indic (optional)
         };
         for (String path : candidates) {
-            try (InputStream is = context.getAssets().open(path)) {
-                Log.d(TAG, "Loading font: " + path);
-                fonts.add(PDType0Font.load(document, is, true));
+            try {
+                File f = copyAssetToCache(context, path);
+                Log.d(TAG, "Loading font (file-based): " + path + " (" + f.length() + " bytes)");
+                fonts.add(PDType0Font.load(document, f)); // subset-embedded by default
             } catch (Exception exception) {
                 Log.w(TAG, "Font not found: " + path);
                 Log.w(TAG, "Exception: " + exception.getMessage());
@@ -216,14 +220,38 @@ public class PdfCreator {
         }
         if (fonts.isEmpty()) {
             // Last resort: try the base NotoSans; if missing, fall back to Helvetica (not embedded)
-            try (InputStream is = context.getAssets().open("fonts/NotoSans-Regular.ttf")) {
-                fonts.add(PDType0Font.load(document, is, true));
+            try {
+                File f = copyAssetToCache(context, "fonts/NotoSans-Regular.ttf");
+                fonts.add(PDType0Font.load(document, f)); // subset-embedded
             } catch (Exception e) {
                 Log.w(TAG, "No embedded font found, falling back to Helvetica (not embedded)");
                 fonts.add(PDType1Font.HELVETICA);
             }
         }
         return fonts;
+    }
+
+
+    /**
+     * Copies a file from the assets directory to the cache directory. If the file already exists
+     * in the cache directory and has a non-zero length, it is returned as-is. Otherwise, the file
+     * is copied from the assets directory to the cache directory.
+     *
+     * @param ctx       the context used to access the assets and cache directories
+     * @param assetPath the relative path of the asset to be copied
+     * @return the file object pointing to the copied file in the cache directory
+     * @throws java.io.IOException if an I/O error occurs during copying
+     */
+    private static File copyAssetToCache(Context ctx, String assetPath) throws java.io.IOException {
+        File out = new File(ctx.getCacheDir(), new File(assetPath).getName());
+        if (out.exists() && out.length() > 0) return out;
+        try (InputStream in = ctx.getAssets().open(assetPath);
+             FileOutputStream os = new FileOutputStream(out)) {
+            byte[] buf = new byte[16 * 1024];
+            int r;
+            while ((r = in.read(buf)) != -1) os.write(buf, 0, r);
+        }
+        return out;
     }
 
     // ===== Fonts (embedded) with fallbacks =====
@@ -503,7 +531,7 @@ public class PdfCreator {
             float pageW = pageSize.getWidth();
             float pageH = pageSize.getHeight();
 
-            // Load fonts once
+            // Load fonts once (file-based; subset-embedded)
             List<PDFont> fonts = loadFontsWithFallbacks(document, context);
 
             int total = bitmaps.size();

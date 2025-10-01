@@ -74,6 +74,26 @@ public class CropFragment extends Fragment {
         // Initial UI-Mode
         showCropMode();
 
+        // Back button: return to Camera for a fresh scan
+        if (binding.buttonBack != null) {
+            binding.buttonBack.setOnClickListener(v -> {
+                try {
+                    // Reset state for a fresh scan
+                    cropViewModel.setImageCropped(false);
+                    cropViewModel.setUserRotationDegrees(0);
+                    cropViewModel.setCaptureRotationDegrees(0);
+                    // Clear current image references so Camera shows live preview
+                    if (cameraViewModel != null) {
+                        cameraViewModel.setImageUri(null);
+                        cameraViewModel.setImagePath(null);
+                    }
+                } catch (Throwable ignored) {
+                }
+                // Navigate back to Camera
+                Navigation.findNavController(requireView()).navigate(R.id.navigation_camera);
+            });
+        }
+
         // Crop-Button
         binding.buttonCrop.setOnClickListener(v -> performCrop());
 

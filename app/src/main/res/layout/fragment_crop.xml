@@ -61,7 +61,7 @@
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent" />
 
-    <!-- Crop-Button (nur im Crop-Mode sichtbar) -->
+    <!-- Crop-Buttons (Back + Crop) im Crop-Mode sichtbar -->
     <LinearLayout
             android:id="@+id/crop_button_container"
             android:layout_width="match_parent"
@@ -79,10 +79,31 @@
             app:layout_constraintEnd_toEndOf="parent">
 
         <Button
-                android:id="@+id/button_crop"
-                android:layout_width="wrap_content"
+                android:id="@+id/button_back"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:text="@string/btn_crop"/>
+                android:layout_weight="1"
+                android:layout_marginEnd="12dp"
+                android:text="@string/back"
+                android:maxLines="1"
+                android:ellipsize="end"
+                app:autoSizeTextType="uniform"
+                app:autoSizeMinTextSize="10sp"
+                app:autoSizeMaxTextSize="16sp"
+                app:autoSizeStepGranularity="1sp"/>
+
+        <Button
+                android:id="@+id/button_crop"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/btn_crop"
+                android:maxLines="1"
+                android:ellipsize="end"
+                app:autoSizeTextType="uniform"
+                app:autoSizeMinTextSize="10sp"
+                app:autoSizeMaxTextSize="16sp"
+                app:autoSizeStepGranularity="1sp"/>
     </LinearLayout>
 
     <!-- Rotation Icons (über dem Button-Container, nur nach Crop sichtbar) -->
@@ -132,11 +153,11 @@
             android:gravity="center"
             android:orientation="horizontal"
             android:background="@color/button_container_background"
-            android:padding="12dp"
             android:elevation="8dp"
+            android:padding="12dp"
             android:layout_marginStart="16dp"
             android:layout_marginEnd="16dp"
-            android:layout_marginBottom="24dp"
+            android:layout_marginBottom="8dp"
             android:visibility="gone"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintStart_toStartOf="parent"
@@ -148,14 +169,26 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:layout_marginEnd="12dp"
-                android:text="@string/back"/>
+                android:text="@string/back"
+                android:maxLines="1"
+                android:ellipsize="end"
+                app:autoSizeTextType="uniform"
+                app:autoSizeMinTextSize="10sp"
+                app:autoSizeMaxTextSize="16sp"
+                app:autoSizeStepGranularity="1sp"/>
 
         <Button
                 android:id="@+id/button_confirm_crop"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="@string/next"/>
+                android:text="@string/next"
+                android:maxLines="1"
+                android:ellipsize="end"
+                app:autoSizeTextType="uniform"
+                app:autoSizeMinTextSize="10sp"
+                app:autoSizeMaxTextSize="16sp"
+                app:autoSizeStepGranularity="1sp"/>
     </LinearLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

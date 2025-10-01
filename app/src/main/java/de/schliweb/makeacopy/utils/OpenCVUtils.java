@@ -39,7 +39,7 @@ public class OpenCVUtils {
     private static final boolean USE_DEBUG_IMAGES = false;
 
     // ONNX model settings
-    private static final String MODEL_ASSET_PATH = "docaligner/fastvit_sa24_h_e_bifpn_256_fp32.onnx";
+    private static final String MODEL_ASSET_PATH = "docaligner/fastvit_t8_h_e_bifpn_256_fp32.onnx";
     private static volatile OrtEnvironment ortEnv;
     private static volatile OrtSession ortSession;
 
@@ -81,6 +81,8 @@ public class OpenCVUtils {
      *
      * @param context The application context.
      */
+    private static volatile String onnxInputName;
+
     private static void initOnnxRuntime(Context context) {
         if (ortSession != null) return;
         Log.i(TAG, "Initializing ONNX runtime");
@@ -98,13 +100,30 @@ public class OpenCVUtils {
                 opts.setOptimizationLevel(OrtSession.SessionOptions.OptLevel.ALL_OPT);
                 opts.setIntraOpNumThreads(Math.max(1, Runtime.getRuntime().availableProcessors() / 2));
 
+                // NNAPI probieren (fällt automatisch auf CPU zurück, wenn nicht verfügbar)
+                try {
+                    opts.addNnapi();
+                    Log.i(TAG, "NNAPI EP enabled");
+                } catch (Throwable t) {
+                    Log.i(TAG, "NNAPI not available: " + t.getMessage());
+                }
+
+                try {
+                    opts.addXnnpack(java.util.Collections.emptyMap());
+                    Log.i(TAG, "XNNPACK EP enabled");
+                } catch (Throwable t) {
+                    Log.i(TAG, "XNNPACK not available: " + t.getMessage());
+                }
+
                 ortSession = ortEnv.createSession(modelFile.getAbsolutePath(), opts);
+                onnxInputName = ortSession.getInputNames().iterator().next();
             }
             Log.i(TAG, "ONNX model loaded from " + modelFile.getAbsolutePath());
         } catch (Exception e) {
             Log.e(TAG, "Failed to load ONNX model", e);
         }
     }
+
 
     /**
      * Copies an asset from the app's assets folder to the application's cache directory.
@@ -429,7 +448,14 @@ public class OpenCVUtils {
             throw new IllegalStateException("ONNX Runtime not initialized. Call initOnnxRuntime(context) first.");
         }
 
-        String inputName = ortSession.getInputNames().iterator().next();
+        if (onnxInputName == null) {
+            synchronized (OpenCVUtils.class) {
+                if (onnxInputName == null) {
+                    onnxInputName = ortSession.getInputNames().iterator().next();
+                }
+            }
+        }
+        String inputName = onnxInputName;
         long[] shape = new long[]{1, 3, 256, 256};
 
         long start = System.nanoTime();
@@ -603,6 +629,66 @@ public class OpenCVUtils {
         }
         return pts;
     }
+
+    /**
+     * Parses the given prediction array into an array of {@code Point} objects, adjusting coordinates
+     * based on the specified output width and height. The method supports two formats of prediction
+     * data: one with 8 elements (bounding box coordinates) and another with 4 times 128x128 elements
+     * (detected points over a grid).
+     *
+     * @param pred the prediction array containing coordinate or grid data. Can be null or of specific lengths.
+     * @param outW the output width used to scale and constrain the x-coordinates.
+     * @param outH the output height used to scale and constrain the y-coordinates.
+     * @return an array of {@code Point} objects after parsing, scaling, and sorting the prediction data.
+     * Returns {@code null} if the input array is unsupported or invalid.
+     */
+    private static Point[] parsePrediction(float[] pred, int outW, int outH) {
+        if (pred == null) return null;
+
+        if (pred.length == 8) {
+            Point[] pts = new Point[4];
+            for (int i = 0; i < 4; i++) {
+                double x = Math.max(0, Math.min(pred[2 * i] * outW, outW - 1));
+                double y = Math.max(0, Math.min(pred[2 * i + 1] * outH, outH - 1));
+                pts[i] = new Point(x, y);
+            }
+            return validateAndSort(pts, outW, outH);
+        }
+
+        if (pred.length == 4 * 128 * 128) {
+            Point[] pts = predictionToPoints(pred, outW, outH);
+            return validateAndSort(pts, outW, outH);
+        }
+
+        Log.w(TAG, "Unsupported ONNX output length=" + pred.length);
+        return null;
+    }
+
+    /**
+     * Validates and sorts an array of four points representing a quadrilateral. The method
+     * ensures that the points form a valid quadrilateral within specified constraints
+     * and sorts them in a clockwise order.
+     *
+     * @param pts  an array of four points representing a quadrilateral. Must not be null and must have a length of 4.
+     * @param outW the width of the bounding area used for validation.
+     * @param outH the height of the bounding area used for validation.
+     * @return a sorted array of points in clockwise order if validation is successful,
+     * or null if the points do not meet validation criteria.
+     */
+    private static Point[] validateAndSort(Point[] pts, int outW, int outH) {
+        if (pts == null || pts.length != 4) return null;
+        pts = sortPointsClockwise(pts);
+        double area = quadArea(pts);
+        double imgArea = (double) outW * outH;
+        if (area < 0.05 * imgArea) return null;
+        final double minSide = 0.02 * Math.min(outW, outH);
+        for (int i = 0; i < 4; i++) {
+            Point a = pts[i], b = pts[(i + 1) % 4];
+            if (Math.hypot(a.x - b.x, a.y - b.y) < minSide) return null;
+        }
+        return pts;
+    }
+
 
     /**
      * Calculates the area of a quadrilateral defined by four points.

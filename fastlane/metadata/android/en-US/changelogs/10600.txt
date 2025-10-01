@@ -12,4 +12,6 @@
 - Plus icon now jumps directly to Completed Scans (picker) without the intermediate dialog.
 - During saving/export, all buttons are temporarily disabled to avoid accidental actions; they are restored afterward.
 - Share icon is automatically enabled after a successful save/export.
+- Replaced the large DocAligner model with the lightweight version to reduce app size and improve performance.
+- ONNX build script updated: switched from CPU-only to XNNPACK and NNAPI execution providers for faster inference on Android devices.
 - Code cleanup and minor bug fixes

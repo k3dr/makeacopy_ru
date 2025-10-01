@@ -191,13 +191,13 @@ info "SDK: ${ANDROID_SDK_ROOT:-UNKNOWN}"
 info "NDK: $ANDROID_NDK_HOME"
 
 # ===============================
-# Build per ABI (FULL, CPU-only, Java)
+# Build per ABI (FULL, XNNPACK+NNAPI, Java)
 # ===============================
 rm -rf "$BUILD_ROOT"
 mkdir -p "$BUILD_ROOT" "$APP_LIBS"
 
 for ABI in $ABIS; do
-  info "Building ONNX Runtime for $ABI (CPU-only)"
+  info "Building ONNX Runtime for $ABI (XNNPACK+NNAPI)"
   ABI_BUILD_DIR="$BUILD_ROOT/$ABI"
   rm -rf "$ABI_BUILD_DIR"
   mkdir -p "$ABI_BUILD_DIR"
@@ -220,7 +220,9 @@ for ABI in $ABIS; do
     --android
     --android_sdk_path "${ANDROID_SDK_ROOT:?}"
     --android_ndk_path "${ANDROID_NDK_HOME:?}"
-    --android_api 21
+    --android_api 29
+    --use_xnnpack
+    --use_nnapi
     --android_abi "$ABI"
     --build_java
     --skip_submodule_sync
@@ -244,7 +246,7 @@ for ABI in $ABIS; do
 
     onnxruntime_USE_FULL_PROTOBUF=ON
     onnxruntime_USE_MIMALLOC=OFF
-    onnxruntime_USE_XNNPACK=OFF
+    onnxruntime_USE_XNNPACK=ON
     onnxruntime_USE_KLEIDIAI=OFF
     onnxruntime_USE_CUDA=OFF
     onnxruntime_USE_TENSORRT=OFF
@@ -252,7 +254,6 @@ for ABI in $ABIS; do
     onnxruntime_USE_DNNL=OFF
     onnxruntime_USE_OPENVINO=OFF
     onnxruntime_USE_QNN=OFF
-    onnxruntime_USE_NNAPI_BUILTIN=OFF
     onnxruntime_USE_ARMNN=OFF
     onnxruntime_USE_ACL=OFF
     onnxruntime_USE_WEBNN=OFF

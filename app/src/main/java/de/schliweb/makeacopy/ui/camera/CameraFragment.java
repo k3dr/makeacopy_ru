@@ -183,11 +183,17 @@ public class CameraFragment extends Fragment implements SensorEventListener {
                             if (cropViewModel != null) {
                                 cropViewModel.setUserRotationDegrees(0);
                                 cropViewModel.setCaptureRotationDegrees(0);
+                                cropViewModel.setImageCropped(false);
                             }
                         } catch (Throwable ignored) {
                         }
                         cameraViewModel.setImagePath(null);
                         cameraViewModel.setImageUri(uri);
+
+                        // Navigate directly to CropFragment (skip confirm step)
+                        if (isAdded()) {
+                            Navigation.findNavController(requireView()).navigate(R.id.navigation_crop);
+                        }
                     }
                 });
 
@@ -221,13 +227,11 @@ public class CameraFragment extends Fragment implements SensorEventListener {
         final TextView textView = binding.textCamera;
         cameraViewModel.getText().observe(getViewLifecycleOwner(), textView::setText);
 
-        // Observe the image URI and switch modes accordingly
+        // Observe the image URI. Previously this triggered a confirm/review step.
+        // With the improved workflow, we navigate to Crop directly on capture/pick,
+        // so we no longer switch modes here to avoid re-navigation loops when returning.
         cameraViewModel.getImageUri().observe(getViewLifecycleOwner(), uri -> {
-            if (uri != null) {
-                String path = cameraViewModel.getImagePath().getValue();
-                displayCapturedImage(path, uri);
-            }
-            // when null, UI will be reset explicitly when needed
+            // Intentionally left blank to avoid auto UI switches here.
         });
 
         // Set up scan button
@@ -913,6 +917,15 @@ public class CameraFragment extends Fragment implements SensorEventListener {
                             }
                             cameraViewModel.setImagePath(photoFile.getAbsolutePath());
                             cameraViewModel.setImageUri(imageUri);
+
+                            // Navigate directly to CropFragment (skip confirm step)
+                            try {
+                                if (isAdded()) {
+                                    cropViewModel.setImageCropped(false);
+                                    Navigation.findNavController(requireView()).navigate(R.id.navigation_crop);
+                                }
+                            } catch (Throwable ignored) {
+                            }
                         }
                     }
 

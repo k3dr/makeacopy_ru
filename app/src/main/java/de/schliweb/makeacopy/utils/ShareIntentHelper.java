@@ -3,85 +3,115 @@ package de.schliweb.makeacopy.utils;
 import android.content.ClipData;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.content.pm.ResolveInfo;
 import android.net.Uri;
-
 import androidx.core.content.FileProvider;
 import androidx.fragment.app.Fragment;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.List;
 
 /**
- * A utility class for facilitating sharing of documents using Android's sharing intents.
- * This class provides methods to share documents, including optional associated text files,
- * through supported applications on an Android device.
+ * Utility class for facilitating the sharing of documents through intents.
+ * This class provides methods to handle and construct sharing intents
+ * for document files, accommodating multiple file formats and additional contents.
  * <p>
- * The class is not intended to be instantiated, as it only contains static methods.
+ * The class is not intended to be instantiated.
  */
 public final class ShareIntentHelper {
     private ShareIntentHelper() {
     }
 
     /**
-     * Shares a document with optional accompanying text file using Android's sharing intents.
-     * The method constructs and launches a share intent for the provided document and associated
-     * details such as file name and optional text file.
+     * Shares a document along with an optional OCR text file through an intent chooser.
+     * This method supports PDF, JPEG, and ZIP files, and optionally allows attaching
+     * an OCR text file in plain text format.
      *
-     * @param fragment    The {@link Fragment} from which the share intent will be started. Cannot be null.
-     * @param documentUri The {@link Uri} of the document to be shared. Cannot be null.
-     * @param txtUri      The {@link Uri} of a complementary text file to be shared along with the main document.
-     *                    Can be null if no text file is to be included.
-     * @param fileName    The name of the document file being shared. Used for labeling purposes, and influences MIME type detection.
-     *                    Can be null, but MIME type may not be inferred correctly if omitted.
+     * @param fragment    The Fragment from which the sharing operation is initiated. This is
+     *                    required to obtain the context and to start the sharing intent.
+     * @param documentUri The URI of the main document that needs to be shared. This should
+     *                    point to a valid file to be shared.
+     * @param txtUri      The URI of an optional OCR text file to be shared alongside the main
+     *                    document. Can be null if no text file is to be included.
+     * @param fileName    The name of the file being shared. The file extension is used to
+     *                    deduce the MIME type (e.g., ".pdf", ".jpg", ".zip"). If null or empty,
+     *                    the MIME type defaults to "application/pdf".
      */
     public static void shareDocument(Fragment fragment, Uri documentUri, Uri txtUri, String fileName) {
         if (fragment == null || documentUri == null) return;
         Context ctx = fragment.requireContext();
 
-        String lowerName = (fileName != null) ? fileName.toLowerCase() : "";
-        boolean isPdf = lowerName.endsWith(".pdf");
-        boolean isJpeg = lowerName.endsWith(".jpg") || lowerName.endsWith(".jpeg");
-        boolean isZip = lowerName.endsWith(".zip");
-        String primaryMime = isZip ? "application/zip" : (isJpeg ? "image/jpeg" : "application/pdf");
+        String lower = fileName != null ? fileName.toLowerCase() : "";
+        boolean isPdf = lower.endsWith(".pdf");
+        boolean isJpg = lower.endsWith(".jpg") || lower.endsWith(".jpeg");
+        boolean isZip = lower.endsWith(".zip");
+        String primaryMime = isZip ? "application/zip" : (isJpg ? "image/jpeg" : "application/pdf");
 
-        boolean hasTxtFile = txtUri != null;
-        Intent shareIntent = hasTxtFile ? new Intent(Intent.ACTION_SEND_MULTIPLE) : new Intent(Intent.ACTION_SEND);
-        shareIntent.setType(hasTxtFile ? "*/*" : primaryMime);
+        boolean hasTxt = (txtUri != null);
 
-        Uri contentUri = ensureContentUri(ctx, documentUri);
+        final Intent intent = new Intent(hasTxt ? Intent.ACTION_SEND_MULTIPLE : Intent.ACTION_SEND);
 
-        String label = hasTxtFile ? (fileName + " + OCR TXT") : fileName;
-        shareIntent.putExtra(Intent.EXTRA_TITLE, label);
-        shareIntent.putExtra(Intent.EXTRA_SUBJECT, label);
-        shareIntent.putExtra(Intent.EXTRA_TEXT, label);
-
-        if (hasTxtFile) {
-            Uri txtContentUri = ensureContentUri(ctx, txtUri);
-            ArrayList<Uri> uriList = new ArrayList<>();
-            uriList.add(contentUri);
-            uriList.add(txtContentUri);
-            ClipData clipData = new ClipData(label, new String[]{primaryMime, "text/plain"}, new ClipData.Item(contentUri));
-            clipData.addItem(new ClipData.Item(txtContentUri));
-            shareIntent.setClipData(clipData);
-            shareIntent.putParcelableArrayListExtra(Intent.EXTRA_STREAM, uriList);
+        if (hasTxt) {
+            intent.setType("*/*");
+            intent.putExtra(Intent.EXTRA_MIME_TYPES, new String[]{"application/pdf", "image/jpeg", "application/zip", "text/plain"});
         } else {
-            ClipData clipData = ClipData.newUri(ctx.getContentResolver(), label, contentUri);
-            shareIntent.setClipData(clipData);
-            shareIntent.putExtra(Intent.EXTRA_STREAM, contentUri);
+            intent.setType(primaryMime);
         }
 
-        shareIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-        fragment.startActivity(Intent.createChooser(shareIntent, "Share " + label));
+        Uri contentDoc = ensureContentUri(ctx, documentUri);
+
+        String label = hasTxt ? (fileName + " + OCR TXT") : fileName;
+        if (label == null) label = "Document";
+
+        intent.putExtra(Intent.EXTRA_TITLE, label);
+        intent.putExtra(Intent.EXTRA_SUBJECT, label);
+        intent.putExtra(Intent.EXTRA_TEXT, label);
+        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+
+        if (hasTxt) {
+            Uri contentTxt = ensureContentUri(ctx, txtUri);
+
+            ArrayList<Uri> streams = new ArrayList<>(2);
+            streams.add(contentDoc);
+            streams.add(contentTxt);
+            intent.putParcelableArrayListExtra(Intent.EXTRA_STREAM, streams);
+
+            ClipData clip = new ClipData("attachments", new String[]{"*/*"}, new ClipData.Item(contentDoc));
+            clip.addItem(new ClipData.Item(contentTxt));
+            intent.setClipData(clip);
+
+        } else {
+            intent.putExtra(Intent.EXTRA_STREAM, contentDoc);
+            ClipData clip = ClipData.newUri(ctx.getContentResolver(), label, contentDoc);
+            intent.setClipData(clip);
+        }
+
+        PackageManager pm = ctx.getPackageManager();
+        List<ResolveInfo> targets = pm.queryIntentActivities(intent, PackageManager.MATCH_DEFAULT_ONLY);
+        for (ResolveInfo ri : targets) {
+            String pkg = ri.activityInfo.packageName;
+            ctx.grantUriPermission(pkg, ensureContentUri(ctx, documentUri), Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            if (hasTxt) {
+                ctx.grantUriPermission(pkg, ensureContentUri(ctx, txtUri), Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            }
+        }
+
+        fragment.startActivity(Intent.createChooser(intent, "Share " + label));
     }
 
     /**
-     * Ensures that the provided URI is converted to a content URI if it is not already one.
-     * If the URI is null, it directly returns null. If the URI has a "content" scheme, it is directly returned.
-     * Otherwise, it generates a content URI using the provided context's file provider.
+     * Ensures that the given URI has a "content" scheme. If the URI is already in
+     * the "content" scheme, it is returned as is. If the URI is in a different scheme,
+     * such as "file", it is converted to a "content" URI using a FileProvider.
      *
-     * @param ctx The context used to access the FileProvider and to create the content URI. Cannot be null.
-     * @param uri The URI to check and potentially convert to a content URI. Can be null.
-     * @return The content URI equivalent of the provided URI, or null if the input URI is null.
+     * @param ctx The context used to resolve the FileProvider and convert the file URI
+     *            to a content URI.
+     * @param uri The URI to be validated or converted. If this is null, the method
+     *            will return null.
+     * @return A content URI corresponding to the input URI. Returns the original URI
+     * if it already has the "content" scheme, or null if the input URI is null.
      */
     private static Uri ensureContentUri(Context ctx, Uri uri) {
         if (uri == null) return null;

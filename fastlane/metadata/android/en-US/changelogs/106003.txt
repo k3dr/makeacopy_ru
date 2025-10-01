@@ -1,4 +1,4 @@
-1.6.0 (Release Candidate)
+1.6.0 (Release)
 
 - Added OCR support for Chinese: Simplified (chi_sim) and Traditional (chi_tra)
 - Camera improvements: Auto-focus on each scan, tap-to-focus by touching the viewfinder

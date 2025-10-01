@@ -43,6 +43,7 @@ import de.schliweb.makeacopy.BuildConfig;
 import de.schliweb.makeacopy.R;
 import de.schliweb.makeacopy.databinding.FragmentCameraBinding;
 import de.schliweb.makeacopy.ui.crop.CropViewModel;
+import de.schliweb.makeacopy.ui.ocr.OCRViewModel;
 import de.schliweb.makeacopy.utils.UIUtils;
 
 import java.io.File;
@@ -921,6 +922,14 @@ public class CameraFragment extends Fragment implements SensorEventListener {
                             // Navigate directly to CropFragment (skip confirm step)
                             try {
                                 if (isAdded()) {
+                                    // Reset OCR state for a fresh scan before navigating further
+                                    try {
+                                        OCRViewModel ocrVm = new ViewModelProvider(requireActivity()).get(OCRViewModel.class);
+                                        ocrVm.resetForNewImage();
+                                    } catch (Throwable t) {
+                                        // best-effort reset; ignore failures
+                                    }
+
                                     cropViewModel.setImageCropped(false);
                                     Navigation.findNavController(requireView()).navigate(R.id.navigation_crop);
                                 }

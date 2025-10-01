@@ -72,7 +72,7 @@ MakeACopy is F-Droid compliant. The app builds all required native components fr
 
 1. **OpenCV Java Classes**: The required OpenCV Java wrapper classes are directly included in the app's source tree (copied from OpenCV but now part of this project). They are no longer used from the submodule.
 2. **OpenCV Native Libraries**: All OpenCV native libraries are built from source using the official OpenCV code provided via the Git submodule at `external/opencv`.
-3. **ONNX Runtime Native Libraries**: For ML-assisted edge detection, ONNX Runtime is built from source (CPU-only, Java bindings) using the submodule at `external/onnxruntime` via `scripts/build_onnxruntime_android.sh`. The resulting artifacts are integrated into `app/src/main/jniLibs/<ABI>/` (e.g., `libonnxruntime.so`, `libonnxruntime4j_jni.so`) and `app/libs/` (`onnxruntime-*.jar`).
+3. **ONNX Runtime Native Libraries**: For ML-assisted edge detection, ONNX Runtime is built from source (XNNPACK and NNAPI, Java bindings) using the submodule at `external/onnxruntime` via `scripts/build_onnxruntime_android.sh`. The resulting artifacts are integrated into `app/src/main/jniLibs/<ABI>/` (e.g., `libonnxruntime.so`, `libonnxruntime4j_jni.so`) and `app/libs/` (`onnxruntime-*.jar`).
 
 This approach ensures F-Droid compatibility by not including any pre-compiled binaries in the repository and building OpenCV and ONNX Runtime native components from source.
 
@@ -142,7 +142,7 @@ MakeACopy follows the Single-Activity + Multi-Fragment pattern with MVVM archite
 
 - external/opencv — OpenCV source used to build native libraries during the build; Apache 2.0.
 - external/onnxruntime — ONNX Runtime source required for ML-assisted corner detection; MIT License.
-  - Built from source via scripts/build_onnxruntime_android.sh (CPU-only, Java bindings).
+  - Built from source via scripts/build_onnxruntime_android.sh (XNNPACK and NNAPI, Java bindings).
   - Artifacts integrated into app/src/main/jniLibs/<ABI>/ (libonnxruntime.so, libonnxruntime4j_jni.so) and app/libs/ (onnxruntime-*.jar).
   - See [NOTICE](NOTICE) for attributions.
 
